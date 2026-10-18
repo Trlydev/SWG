@@ -1102,6 +1102,11 @@ type settingsView struct {
 	offline   *widget.Check
 	bgThumbs  *widget.Check
 	theme     *widget.Select
+	skyAuto   *widget.Check
+	skyBox    *fyne.Container
+	skyInfo   string
+	skyCheck  *widget.Button
+	skyForget *widget.Button
 	dirty     bool
 	nexus     *fyne.Container
 	paths     *widget.Label
@@ -1155,6 +1160,7 @@ func newSettings(u *ui) *settingsView {
 	v.offline = widget.NewCheck("Don't download the latest blocklist", func(bool) { mark() })
 	v.bgThumbs = widget.NewCheck("Load missing Workshop thumbnails in the background", func(bool) { mark() })
 	v.theme = widget.NewSelect(themeLabels, func(string) { mark() })
+	v.skyAuto = widget.NewCheck("Pass the Skymods browser check automatically", func(bool) { mark() })
 	pick := widget.NewButton("Choose…", func() {
 		dialog.ShowFolderOpen(func(l fyne.ListableURI, err error) {
 			if l != nil {
@@ -1167,9 +1173,8 @@ func newSettings(u *ui) *settingsView {
 		if h < 0 {
 			h = 0
 		}
-		// Settings this form doesn't show keep their saved values.
 		st := settings{Game: strings.TrimSpace(v.game.Text), CooldownHours: h, Offline: v.offline.Checked, NoBgThumbs: !v.bgThumbs.Checked,
-			NoSkymodsCheck: u.state().Settings.NoSkymodsCheck, Theme: themeValue(v.theme.Selected)}
+			NoSkymodsCheck: !v.skyAuto.Checked, Theme: themeValue(v.theme.Selected)}
 		restart := themeSetting(st.Theme) != windowTheme
 		go func() {
 			if err := u.s.call("POST", "/api/settings", st, nil); err != nil {
@@ -1187,12 +1192,14 @@ func newSettings(u *ui) *settingsView {
 	})
 	save.Importance = widget.HighImportance
 	thumbsHint := muted("Valve deleted the preview images of the removed mods. ppgmods can fetch small mods (under 3 MB) one at a time to show their own thumbnail; this also pre-scans them so installing is instant.")
+	skyHint := muted("smods.ru sometimes asks browsers to prove they are real. ppgmods then reads Skymods through a background browser with its own profile. If smods.ru wants a person to tick a box, a banner tells you.")
 	form := container.New(&vlist{gap: 14},
 		field("People Playground folder", container.NewBorder(nil, nil, nil, pick, v.game), v.gameHint),
 		field("Cooldown for new uploads (hours)", v.cooldown, nil),
 		field("Appearance", narrow(220, v.theme), nil),
 		v.offline,
 		container.New(&vlist{gap: 0}, v.bgThumbs, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), thumbsHint)),
+		container.New(&vlist{gap: 0}, v.skyAuto, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), skyHint)),
 		container.NewHBox(save))
 	v.install = u.busyButton("Install on this PC", u.installApp)
 	v.uninstall = widget.NewButton("Uninstall from this PC", func() {
@@ -1209,6 +1216,7 @@ func newSettings(u *ui) *settingsView {
 		tight(h1("Settings"), narrow(620, form)),
 		section("Game setup", narrow(720, panelBox(v.setup))),
 		section("Nexus Mods", narrow(720, panelBox(v.nexus))),
+		section("Skymods (smods.ru)", narrow(720, v.skySettings())),
 		section("Folders", panelBox(v.paths), container.NewHBox(openData)),
 		section("This app", v.appInfo, container.NewHBox(v.install, v.uninstall)),
 		section("About", v.version, v.about,
@@ -1224,6 +1232,7 @@ func (v *settingsView) update(st *stateView) {
 		v.cooldown.SetText(strconv.Itoa(int(st.Settings.CooldownHours + 0.5)))
 		v.offline.SetChecked(st.Settings.Offline)
 		v.bgThumbs.SetChecked(!st.Settings.NoBgThumbs)
+		v.skyAuto.SetChecked(!st.Settings.NoSkymodsCheck)
 		v.theme.SetSelected(themeLabel(st.Settings.Theme))
 		v.dirty = false
 	}

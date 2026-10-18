@@ -124,11 +124,14 @@ func clearanceAge(c *cfclear.Clearance) string {
 	if c == nil {
 		return ""
 	}
-	d := time.Since(c.At).Round(24 * time.Hour)
-	if d <= 0 {
+	switch days := int(time.Since(c.At).Round(24*time.Hour) / (24 * time.Hour)); {
+	case days <= 0:
 		return "today"
+	case days == 1:
+		return "1 day ago"
+	default:
+		return strconv.Itoa(days) + " days ago"
 	}
-	return d.String() + " ago"
 }
 
 func (s *server) logf(format string, a ...any) {
