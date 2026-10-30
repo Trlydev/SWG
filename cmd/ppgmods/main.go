@@ -386,7 +386,10 @@ func run(cmd string, args []string, a *app.App, g gui.Options) error {
 			}
 			return nil
 		case "install", "update":
-			_, err := reppg.Install(context.Background(), gameDir, logf)
+			res, err := reppg.Install(context.Background(), gameDir, logf)
+			if err == nil && res.Proton == reppg.ProtonNoPrefix {
+				return errors.New("start the game once from Steam (so Proton sets it up), close it, and run this again")
+			}
 			return err
 		}
 		return fmt.Errorf("usage: ppgmods reppg [status | install]")

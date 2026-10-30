@@ -15,8 +15,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // RE_PPG's real update.json for v0.2.31 verifies with the key ppgmods carries;
@@ -123,7 +125,8 @@ func setup(t *testing.T, fr *fakeRelease) string {
 	oldKey, oldRel, oldURL, oldSHA := publisherKey, releases, bepInExURL, bepInExSHA256
 	publisherKey, releases, bepInExURL, bepInExSHA256 = &key.PublicKey, srv.URL, srv.URL+"/bepinex.zip", hex.EncodeToString(h[:])
 	t.Cleanup(func() { publisherKey, releases, bepInExURL, bepInExSHA256 = oldKey, oldRel, oldURL, oldSHA })
-	g := t.TempDir()
+	g := filepath.Join(t.TempDir(), "steamapps", "common", "People Playground")
+	os.MkdirAll(g, 0o755)
 	os.WriteFile(filepath.Join(g, "UnityPlayer.dll"), []byte("MZ"), 0o644)
 	return g
 }
@@ -135,9 +138,9 @@ var baseFiles = map[string][]byte{
 
 func TestInstall(t *testing.T) {
 	g := setup(t, &fakeRelease{files: baseFiles, extra: map[string][]byte{"RE_PPG/unlisted.dll": []byte("not signed")}})
-	v, err := Install(context.Background(), g, t.Logf)
-	if err != nil || v != "1.2.3" {
-		t.Fatalf("%q %v", v, err)
+	res, err := Install(context.Background(), g, t.Logf)
+	if err != nil || res.Version != "1.2.3" {
+		t.Fatalf("%+v %v", res, err)
 	}
 	for p, c := range baseFiles {
 		if b, _ := os.ReadFile(filepath.Join(g, filepath.FromSlash(p))); !bytes.Equal(b, c) {
@@ -197,5 +200,50 @@ func TestNewer(t *testing.T) {
 		if got := Newer(c.a, c.b); got != c.want {
 			t.Errorf("Newer(%q, %q) = %v", c.a, c.b, got)
 		}
+	}
+}
+
+// Under Proton, Wine is told to load BepInEx's winhttp.dll: the override is
+// added to the prefix's user.reg (backed up first), and left alone when set.
+func TestProtonOverride(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Proton is Linux only")
+	}
+	g := setup(t, &fakeRelease{files: baseFiles})
+	pfx := ProtonPrefix(g)
+	os.MkdirAll(pfx, 0o755)
+	orig := "WINE REGISTRY Version 2\n;; All keys relative to \\\\User\\\\S-1-5-21-0-0-0-1000\n\n#arch=win64\n\n[Software\\\\Wine\\\\DllOverrides] 1700000000\n#time=1da\n\"d3d11\"=\"native\"\n\n[Software\\\\Wine\\\\Fonts] 1700000000\n"
+	os.WriteFile(filepath.Join(pfx, "user.reg"), []byte(orig), 0o644)
+	res, err := Install(context.Background(), g, t.Logf)
+	if err != nil || res.Proton != ProtonSet {
+		t.Fatalf("%+v %v", res, err)
+	}
+	b, _ := os.ReadFile(filepath.Join(pfx, "user.reg"))
+	want := "[Software\\\\Wine\\\\DllOverrides] 1700000000\n#time=1da\n\"winhttp\"=\"native,builtin\"\n\"d3d11\"=\"native\""
+	if !strings.Contains(string(b), want) || !strings.Contains(string(b), "Fonts") {
+		t.Errorf("user.reg:\n%s", b)
+	}
+	if bk, _ := os.ReadFile(filepath.Join(pfx, "user.reg.ppgmods-backup")); string(bk) != orig {
+		t.Error("no backup of the original user.reg")
+	}
+	if res, _ := Install(context.Background(), g, nil); res.Proton != ProtonAlready {
+		t.Errorf("second install: %+v", res)
+	}
+}
+
+func TestWinhttpOverrideEdits(t *testing.T) {
+	now := time.Unix(1800000000, 0)
+	for name, c := range map[string]struct{ in, want string }{
+		"no key":          {"WINE REGISTRY Version 2\n\n[Software\\\\Wine] 1\n", "[Software\\\\Wine\\\\DllOverrides] 1800000000\n\"winhttp\"=\"native,builtin\"\n"},
+		"builtin only":    {"[Software\\\\Wine\\\\DllOverrides] 1\n\"winhttp\"=\"builtin\"\n", "\"winhttp\"=\"native,builtin\"\n"},
+		"windows endings": {"[Software\\\\Wine\\\\DllOverrides] 1\r\n\"x\"=\"native\"\r\n", "[Software\\\\Wine\\\\DllOverrides] 1\r\n\"winhttp\"=\"native,builtin\"\r\n"},
+	} {
+		out, changed := withWinhttpOverride([]byte(c.in), now)
+		if !changed || !strings.Contains(string(out), c.want) {
+			t.Errorf("%s: changed %v:\n%s", name, changed, out)
+		}
+	}
+	if _, changed := withWinhttpOverride([]byte("[Software\\\\Wine\\\\DllOverrides] 1\n\"winhttp\"=\"n,b\"\n"), now); changed {
+		t.Error("an existing n,b override was rewritten")
 	}
 }
