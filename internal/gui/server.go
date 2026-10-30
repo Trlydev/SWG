@@ -1322,8 +1322,8 @@ func (s *server) do(j *job, req actionReq) error {
 	case "profile-delete":
 		return m.DeleteProfile(req.Name)
 	case "reppg-install":
-		res, err := reppg.Install(context.Background(), filepath.Dir(m.ModsDir), s.logf)
-		j.Data = map[string]string{"version": res.Version, "proton": res.Proton}
+		v, err := reppg.Install(context.Background(), filepath.Dir(m.ModsDir), s.logf)
+		j.Data = map[string]string{"version": v}
 		return err
 	case "revoke-approvals":
 		n, err := m.RevokeUnsafeApprovals()

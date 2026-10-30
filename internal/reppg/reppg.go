@@ -28,7 +28,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -119,40 +118,9 @@ func Latest(ctx context.Context) (*Manifest, error) {
 	return ParseSigned(b)
 }
 
-// Result is what Install did.
-type Result struct {
-	Version string // RE_PPG version installed
-	// Proton: on Linux (the game running in Proton), whether Wine was told
-	// to load BepInEx: ProtonSet, ProtonAlready or ProtonNoPrefix; "" elsewhere.
-	Proton string
-}
-
 // Install installs or updates RE_PPG (and BepInEx when it is missing) in
-// gameDir. On Linux it also tells the game's Proton prefix to load BepInEx.
-func Install(ctx context.Context, gameDir string, logf func(string, ...any)) (Result, error) {
-	v, err := install(ctx, gameDir, logf)
-	if err != nil {
-		return Result{}, err
-	}
-	res := Result{Version: v}
-	if runtime.GOOS != "windows" {
-		if logf == nil {
-			logf = func(string, ...any) {}
-		}
-		res.Proton, err = setWinhttpOverride(ProtonPrefix(gameDir))
-		switch {
-		case err != nil:
-			return res, fmt.Errorf("RE_PPG is installed, but ppgmods couldn't tell Proton to load BepInEx (%v): add this to the game's Steam launch options: %s", err, LaunchOption)
-		case res.Proton == ProtonSet:
-			logf("Proton: told Wine to load BepInEx from the game folder (winhttp DLL override in the game's prefix)")
-		case res.Proton == ProtonNoPrefix:
-			logf("Proton: the game hasn't run through Proton yet. Start it once from Steam, close it, and install RE_PPG again (or add this to its launch options: %s)", LaunchOption)
-		}
-	}
-	return res, nil
-}
-
-func install(ctx context.Context, gameDir string, logf func(string, ...any)) (string, error) {
+// gameDir and returns the version installed.
+func Install(ctx context.Context, gameDir string, logf func(string, ...any)) (string, error) {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}

@@ -64,12 +64,8 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
     `BepInEx/` and `RE_PPG/`.
   - BepInEx 5.4.23.5 (win x64) is installed when missing, checked against a
     hash ppgmods carries (it matches the loaders index).
-  - **Proton (Linux):** after installing, ppgmods adds
-    `"winhttp"="native,builtin"` to `[Software\\Wine\\DllOverrides]` in
-    `steamapps/compatdata/1118200/pfx/user.reg` (backup:
-    `user.reg.ppgmods-backup`), what protontricks/winecfg would set. If the
-    prefix doesn't exist yet, it says to start the game once, or to use the
-    launch option `WINEDLLOVERRIDES="winhttp=n,b" %command%`.
+  - **Proton (Linux):** nothing extra; the owner confirmed RE_PPG runs
+    under Proton without launch options or DLL overrides.
   - The native Linux version is refused (RE_PPG is Windows-only).
 - `scan.Hollow` (`hollow.go`): copies a DLL with its native methods given
   empty bodies. Groundwork for a deep check; nothing uses it. The deep
@@ -98,8 +94,8 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 
 - Skymods: does the check window now show smods.ru in Zen, and does ticking
   the box work?
-- RE_PPG: Install from ppgmods under Proton, start the game: does a C# mod
-  load?
+- RE_PPG: Install from ppgmods (game closed), start the game: does a C#
+  mod load?
 
 ## Other key facts
 

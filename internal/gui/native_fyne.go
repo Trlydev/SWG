@@ -21,7 +21,6 @@ import (
 	"github.com/Trlydev/SWG/internal/app"
 	"github.com/Trlydev/SWG/internal/desktop"
 	"github.com/Trlydev/SWG/internal/game"
-	"github.com/Trlydev/SWG/internal/reppg"
 )
 
 // The native window (Fyne). It shows the same things as the web page in
@@ -622,11 +621,6 @@ func (u *ui) jobDone(j *job) {
 			u.toastAction("Installed into "+orStr(dir, "your "+what+" folder"), "Open folder", func() { u.open(what) })
 		case j.Name == "ow-share" && j.Data != nil:
 			u.showShare(j.Data)
-		case j.Name == "reppg-install" && j.Data["proton"] == "no-prefix":
-			u.message2("RE_PPG is installed, one step left", container.NewVBox(
-				text("People Playground hasn't run through Proton yet, so ppgmods couldn't tell Proton to load BepInEx."),
-				text("Start the game once from Steam, close it, then press Install RE_PPG again. Or add this to the game's launch options in Steam (Properties, General):"),
-				widget.NewLabelWithStyle(reppg.LaunchOption, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})))
 		case j.Name == "reppg-install" && j.Data["version"] != "":
 			u.toast("RE_PPG " + j.Data["version"] + " is installed. Start People Playground once so it sets itself up; C# mods then work again.")
 		case j.Name == "revoke-approvals" && j.Data != nil:
