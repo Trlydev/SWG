@@ -25,6 +25,7 @@ type CLRInfo struct {
 	Strings      []string          // string literals (#US)
 	TypeRefAsm   map[string]string // TypeRef -> the assembly it comes from ("" if unknown)
 	Resources    []Resource        // resources embedded in this file
+	Methods      []Method          // method bodies, read from their IL
 }
 
 // Resource is a manifest resource stored inside the DLL (images, data, or
@@ -56,6 +57,9 @@ func ReadCLR(b []byte) (info *CLRInfo, err error) {
 	if in != nil {
 		in.ILOnly = flags&1 != 0
 		in.Resources = m.resources(res)
+		if l, err := peLayoutOf(b); err == nil {
+			in.Methods = m.readMethods(b, l)
+		}
 	}
 	return in, err
 }
@@ -290,6 +294,7 @@ type metadata struct {
 	rowSize                  [tCount]int
 	colSize                  [tCount][]int
 	strIdx, blobIdx, guidIdx int
+	methodOwner              map[int]string // MethodDef row -> declaring type
 }
 
 func parseMetadata(md []byte) (*CLRInfo, *metadata, error) {

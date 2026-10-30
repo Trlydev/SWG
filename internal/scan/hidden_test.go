@@ -179,3 +179,36 @@ func TestConstantMemberAccessTerminates(t *testing.T) {
 		t.Fatal("scan did not finish")
 	}
 }
+
+// Reading the code of compiled DLLs: which method makes a risky call, text
+// glued together at run time and handed to a reflection lookup, and XOR
+// decoding loops.
+func TestDLLCode(t *testing.T) {
+	r := &Report{}
+	analyzeDLL(r, "process.dll", filepath.Join("testdata", "dll", "process.dll"))
+	if !hasDetail(r, "process-spawn", "(in Evil.Go)") {
+		t.Errorf("no calling method: %+v", r.Findings)
+	}
+	r = &Report{}
+	analyzeDLL(r, "split.dll", filepath.Join("testdata", "dll", "split.dll"))
+	if !hasDetail(r, "reflection-sensitive-type", "System.Diagnostics.Process") {
+		t.Errorf("glued-together name not followed: %+v", r.Findings)
+	}
+	r = &Report{}
+	analyzeDLL(r, "xordec.dll", filepath.Join("testdata", "dll", "xordec.dll"))
+	if !hasDetail(r, "xor-decoding", "XorDec.D") {
+		t.Errorf("XOR loop not found: %+v", r.Findings)
+	}
+	for _, f := range r.Findings {
+		if f.Rule == "xor-decoding" && f.Severity != High {
+			t.Errorf("XOR next to Process.Start should be HIGH: %+v", f)
+		}
+	}
+	r = &Report{}
+	analyzeDLL(r, "clean.dll", filepath.Join("testdata", "dll", "clean.dll"))
+	for _, f := range r.Findings {
+		if f.Rule == "xor-decoding" || f.Rule == "reflection-sensitive-type" {
+			t.Errorf("clean DLL: %+v", f)
+		}
+	}
+}
