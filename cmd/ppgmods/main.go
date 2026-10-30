@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -21,6 +22,7 @@ import (
 	"github.com/Trlydev/SWG/internal/game"
 	"github.com/Trlydev/SWG/internal/gui"
 	"github.com/Trlydev/SWG/internal/manager"
+	"github.com/Trlydev/SWG/internal/reppg"
 	"github.com/Trlydev/SWG/internal/scan"
 	"github.com/Trlydev/SWG/internal/selfupdate"
 	"github.com/Trlydev/SWG/internal/sources"
@@ -53,6 +55,8 @@ Keep up to date:
   remove <key>               uninstall
   quarantine <key> [reason]  move it out of the game folder (the game can't load it)
   release <key>              put a quarantined item back
+  reppg [status | install]   install or update RE_PPG (and BepInEx), the loader for
+                             C# mods; every file is checked against RE_PPG's signature
   revoke-approvals           delete RE_PPG's "Trust and run" approvals (it asks again)
   export-list [file]         save the installed mods as a list to share
   import-list <file>         install a list's mods (each downloaded and scanned)
@@ -360,6 +364,32 @@ func run(cmd string, args []string, a *app.App, g gui.Options) error {
 		return m.TurnOn(args[0])
 	case "profile":
 		return cmdProfile(m, args)
+	case "reppg":
+		gameDir := filepath.Dir(m.ModsDir)
+		sub := ""
+		if len(args) > 0 {
+			sub = args[0]
+		}
+		switch sub {
+		case "", "status":
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			inst := reppg.Installed(gameDir)
+			if inst == "" {
+				inst = "not installed"
+			}
+			fmt.Println("RE_PPG in the game folder:", inst)
+			if l, err := reppg.Latest(ctx); err != nil {
+				fmt.Println("latest release: unknown:", err)
+			} else {
+				fmt.Println("latest release:", l.Version)
+			}
+			return nil
+		case "install", "update":
+			_, err := reppg.Install(context.Background(), gameDir, logf)
+			return err
+		}
+		return fmt.Errorf("usage: ppgmods reppg [status | install]")
 	case "revoke-approvals":
 		_, err := m.RevokeUnsafeApprovals()
 		return err

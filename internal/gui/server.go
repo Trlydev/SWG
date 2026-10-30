@@ -9,6 +9,7 @@ package gui
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"embed"
@@ -35,6 +36,7 @@ import (
 	"github.com/Trlydev/SWG/internal/desktop"
 	"github.com/Trlydev/SWG/internal/game"
 	"github.com/Trlydev/SWG/internal/manager"
+	"github.com/Trlydev/SWG/internal/reppg"
 	"github.com/Trlydev/SWG/internal/selfupdate"
 	"github.com/Trlydev/SWG/internal/sources"
 	"github.com/Trlydev/SWG/internal/workshop"
@@ -105,6 +107,49 @@ type job struct {
 }
 
 const maxLogLines = 5000
+
+// reppgView is RE_PPG's installed and latest versions, for the window.
+type reppgView struct {
+	Installed string `json:"installed"`        // base files in the game folder ("" if none)
+	Latest    string `json:"latest,omitempty"` // newest release ("" until known)
+	Newer     bool   `json:"newer,omitempty"`  // Latest is newer than Installed
+	Error     string `json:"error,omitempty"`  // why the latest release is unknown
+}
+
+var reppgLatest struct {
+	sync.Mutex
+	version, err string
+	at           time.Time
+	checking     bool
+}
+
+// reppgStatus reports RE_PPG's versions. The latest release is looked up in
+// the background at most once an hour, so the state never waits on it.
+func reppgStatus(gameDir string) reppgView {
+	v := reppgView{Installed: reppg.Installed(gameDir)}
+	l := &reppgLatest
+	l.Lock()
+	defer l.Unlock()
+	if !l.checking && time.Since(l.at) > time.Hour {
+		l.checking = true
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			m, err := reppg.Latest(ctx)
+			l.Lock()
+			defer l.Unlock()
+			l.checking, l.at, l.version, l.err = false, time.Now(), "", ""
+			if err != nil {
+				l.err = err.Error()
+			} else {
+				l.version = m.Version
+			}
+		}()
+	}
+	v.Latest, v.Error = l.version, l.err
+	v.Newer = v.Latest != "" && reppg.Newer(v.Latest, v.Installed)
+	return v
+}
 
 // skymodsView is what the window shows about the Cloudflare check: whether
 // one is being served right now and how the last check went, including
@@ -895,6 +940,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		"job":                   j,
 		"settings":              stateSettings,
 		"skymods":               s.skymodsView(),
+		"reppg":                 reppgStatus(paths.Game),
 		"cutoff":                manager.WormCutoff.Format("2006-01-02"),
 		"lastBackup":            lastBackup(paths.Data),
 		"desktop": map[string]any{
@@ -1275,6 +1321,10 @@ func (s *server) do(j *job, req actionReq) error {
 		return err
 	case "profile-delete":
 		return m.DeleteProfile(req.Name)
+	case "reppg-install":
+		v, err := reppg.Install(context.Background(), filepath.Dir(m.ModsDir), s.logf)
+		j.Data = map[string]string{"version": v}
+		return err
 	case "revoke-approvals":
 		n, err := m.RevokeUnsafeApprovals()
 		j.Data = map[string]string{"revoked": strconv.Itoa(n)}

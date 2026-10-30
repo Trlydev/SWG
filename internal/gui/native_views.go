@@ -837,9 +837,15 @@ func (p *installedPane) renderCompiler() {
 	l.Importance = widget.WarningImportance
 	page := widget.NewButton("About RE_PPG", func() { p.u.openURL("https://github.com/AlibardaWasTaken/RE_PPG") })
 	page.Importance = widget.LowImportance
+	buttons := container.NewHBox(page)
+	if !st.Loader.REPPG && !st.Loader.NativeLinux {
+		inst := widget.NewButton("Install RE_PPG", func() { p.u.installREPPG(false) })
+		inst.Importance = widget.HighImportance
+		buttons = container.NewHBox(inst, page)
+	}
 	p.compiler.Objects = []fyne.CanvasObject{tintBox(container.New(&vlist{gap: 0}, l,
 		muted("RE_PPG runs mods with full access to your PC, like the game used to. ppgmods' checks still apply to everything you install here."),
-		container.NewHBox(page)), pl.warnBg)}
+		buttons), pl.warnBg)}
 	p.compiler.Refresh()
 	p.compiler.Show()
 }
@@ -1320,6 +1326,20 @@ func (v *settingsView) renderSetup(st *stateView) {
 		row("BepInEx", l.BepInEx, bepDetail),
 		row("RE_PPG", l.REPPG, reDetail),
 		muted(fmt.Sprintf("%d BepInEx plugins, %d patchers. Verify files (Installed) checks them for the worms.", len(l.Plugins), len(l.Patchers))),
+	}
+	rp := st.REPPG
+	switch {
+	case l.NativeLinux:
+	case rp.Installed == "" && !l.REPPG:
+		inst := widget.NewButton("Install RE_PPG", func() { v.u.installREPPG(false) })
+		inst.Importance = widget.HighImportance
+		objs = append(objs, container.NewHBox(inst))
+	case rp.Newer:
+		upd := widget.NewButton("Update RE_PPG to "+rp.Latest, func() { v.u.installREPPG(true) })
+		upd.Importance = widget.HighImportance
+		objs = append(objs, muted("RE_PPG "+rp.Latest+" is out (you have "+orStr(rp.Installed, "an older one")+")."), container.NewHBox(upd))
+	case rp.Installed != "" && rp.Latest != "":
+		objs = append(objs, muted("RE_PPG "+rp.Installed+" is the latest release."))
 	}
 	if l.REPPG {
 		u := v.u

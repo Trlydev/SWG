@@ -42,6 +42,7 @@ type stateView struct {
 	Job          *job            `json:"job"`
 	Settings     settings        `json:"settings"`
 	Skymods      skymodsState    `json:"skymods"`
+	REPPG        reppgView       `json:"reppg"`
 	Cutoff       string          `json:"cutoff"`
 	LastBackup   string          `json:"lastBackup"`
 	Desktop      struct {
@@ -620,6 +621,8 @@ func (u *ui) jobDone(j *job) {
 			u.toastAction("Installed into "+orStr(dir, "your "+what+" folder"), "Open folder", func() { u.open(what) })
 		case j.Name == "ow-share" && j.Data != nil:
 			u.showShare(j.Data)
+		case j.Name == "reppg-install" && j.Data["version"] != "":
+			u.toast("RE_PPG " + j.Data["version"] + " is installed. Start People Playground once so it sets itself up; C# mods then work again.")
 		case j.Name == "revoke-approvals" && j.Data != nil:
 			u.toast("Revoked " + j.Data["revoked"] + " Trust and run approval(s); RE_PPG asks again before running those mods")
 		case j.Name == "list-export" && j.Data != nil:
@@ -811,6 +814,21 @@ func (u *ui) openURL(link string) {
 			u.toast(err.Error())
 		}
 	}()
+}
+
+// installREPPG asks, then installs or updates RE_PPG and BepInEx.
+func (u *ui) installREPPG(update bool) {
+	title, action := "Install RE_PPG?", "Install"
+	if update {
+		title, action = "Update RE_PPG?", "Update"
+	}
+	body := container.NewVBox(
+		text("ppgmods downloads RE_PPG from its official GitHub releases (and BepInEx, which it runs on, if it's missing) and checks every file against RE_PPG's own signature before writing it to the game folder."),
+		warnBox("RE_PPG runs C# mods with full access to your PC, like the game used to. ppgmods' checks still apply to every mod you install here."),
+		small("Close People Playground first."))
+	u.confirm(title, body, action, false, func() {
+		u.run(map[string]any{"action": "reppg-install"}, map[bool]string{false: "Installing RE_PPG", true: "Updating RE_PPG"}[update])
+	})
 }
 
 // toast shows a short message in the status bar and as a notification-
