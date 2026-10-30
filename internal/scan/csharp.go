@@ -445,6 +445,7 @@ func analyzeCSharp(r *Report, rel, src string) {
 	if splitConcats >= 6 && dynamic {
 		hit("split-strings", High, 0, "many concatenated string fragments combined with reflection")
 	}
+	hiddenInSource(toks, hit, dynamic || seen["process-spawn"] || seen["network"] || seen["native-interop"])
 }
 
 func clip(s string) string {

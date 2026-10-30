@@ -181,6 +181,9 @@ func DirWith(root string, opt Options) (*Report, error) {
 				r.add(Critical, "disguised-binary", rel, 0, "file is a native executable despite its extension")
 			}
 		}
+		if ext != ".cs" && ext != ".dll" && !executableExt[ext] && !nestedArchiveExt[ext] {
+			inspectAsset(r, rel, p)
+		}
 		return nil
 	})
 	if err == nil {

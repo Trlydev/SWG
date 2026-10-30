@@ -24,6 +24,14 @@ type CLRInfo struct {
 	PInvokes     []string          // "module!function"
 	Strings      []string          // string literals (#US)
 	TypeRefAsm   map[string]string // TypeRef -> the assembly it comes from ("" if unknown)
+	Resources    []Resource        // resources embedded in this file
+}
+
+// Resource is a manifest resource stored inside the DLL (images, data, or
+// another DLL a loader unpacks at run time).
+type Resource struct {
+	Name string
+	Data []byte
 }
 
 // MemberRef is a method or field the DLL calls or reads on another type.
@@ -40,13 +48,14 @@ func ReadCLR(b []byte) (info *CLRInfo, err error) {
 			info, err = nil, errors.New("malformed .NET metadata")
 		}
 	}()
-	md, flags, err := metadataBlob(b)
+	md, flags, res, err := metadataBlob(b)
 	if err != nil {
 		return nil, err
 	}
-	in, err := parseMetadata(md)
+	in, m, err := parseMetadata(md)
 	if in != nil {
 		in.ILOnly = flags&1 != 0
+		in.Resources = m.resources(res)
 	}
 	return in, err
 }
@@ -54,20 +63,21 @@ func ReadCLR(b []byte) (info *CLRInfo, err error) {
 type peSection struct{ va, vsize, raw, rawSize uint32 }
 
 // metadataBlob finds the metadata root through the PE and CLI headers.
-func metadataBlob(b []byte) ([]byte, uint32, error) {
+// It also returns the CLI resources area ("" when there is none).
+func metadataBlob(b []byte) (md []byte, flags uint32, res []byte, err error) {
 	if len(b) < 0x40 || b[0] != 'M' || b[1] != 'Z' {
-		return nil, 0, errNotCLR
+		return nil, 0, nil, errNotCLR
 	}
 	pe := int(binary.LittleEndian.Uint32(b[0x3c:]))
 	if pe+24 > len(b) || string(b[pe:pe+4]) != "PE\x00\x00" {
-		return nil, 0, errNotCLR
+		return nil, 0, nil, errNotCLR
 	}
 	coff := pe + 4
 	nsec := int(binary.LittleEndian.Uint16(b[coff+2:]))
 	optSize := int(binary.LittleEndian.Uint16(b[coff+16:]))
 	opt := coff + 20
 	if opt+optSize > len(b) || optSize < 2 {
-		return nil, 0, errNotCLR
+		return nil, 0, nil, errNotCLR
 	}
 	var dirs int
 	switch binary.LittleEndian.Uint16(b[opt:]) {
@@ -76,20 +86,20 @@ func metadataBlob(b []byte) ([]byte, uint32, error) {
 	case 0x20b:
 		dirs = opt + 112
 	default:
-		return nil, 0, errNotCLR
+		return nil, 0, nil, errNotCLR
 	}
 	cliDir := dirs + 14*8
 	if cliDir+8 > opt+optSize {
-		return nil, 0, errNotCLR
+		return nil, 0, nil, errNotCLR
 	}
 	cliRVA := binary.LittleEndian.Uint32(b[cliDir:])
 	if cliRVA == 0 {
-		return nil, 0, errNotCLR // a native DLL
+		return nil, 0, nil, errNotCLR // a native DLL
 	}
 	var secs []peSection
 	for i, at := 0, opt+optSize; i < nsec; i, at = i+1, at+40 {
 		if at+40 > len(b) {
-			return nil, 0, errNotCLR
+			return nil, 0, nil, errNotCLR
 		}
 		secs = append(secs, peSection{binary.LittleEndian.Uint32(b[at+12:]), binary.LittleEndian.Uint32(b[at+8:]),
 			binary.LittleEndian.Uint32(b[at+20:]), binary.LittleEndian.Uint32(b[at+16:])})
@@ -109,16 +119,22 @@ func metadataBlob(b []byte) ([]byte, uint32, error) {
 	}
 	cli, ok := off(cliRVA)
 	if !ok || cli+20 > len(b) {
-		return nil, 0, errNotCLR
+		return nil, 0, nil, errNotCLR
 	}
-	flags := binary.LittleEndian.Uint32(b[cli+16:])
+	flags = binary.LittleEndian.Uint32(b[cli+16:])
 	mdRVA := binary.LittleEndian.Uint32(b[cli+8:])
 	mdSize := int(binary.LittleEndian.Uint32(b[cli+12:]))
-	md, ok := off(mdRVA)
-	if !ok || md+mdSize > len(b) || mdSize < 16 {
-		return nil, 0, errNotCLR
+	mdOff, ok := off(mdRVA)
+	if !ok || mdOff+mdSize > len(b) || mdSize < 16 {
+		return nil, 0, nil, errNotCLR
 	}
-	return b[md : md+mdSize], flags, nil
+	if cli+32 <= len(b) {
+		resRVA, resSize := binary.LittleEndian.Uint32(b[cli+24:]), int(binary.LittleEndian.Uint32(b[cli+28:]))
+		if ro, ok := off(resRVA); ok && resRVA != 0 && resSize > 0 && resSize <= len(b)-ro {
+			res = b[ro : ro+resSize]
+		}
+	}
+	return b[mdOff : mdOff+mdSize], flags, res, nil
 }
 
 // The metadata tables, by number.
@@ -276,10 +292,10 @@ type metadata struct {
 	strIdx, blobIdx, guidIdx int
 }
 
-func parseMetadata(md []byte) (*CLRInfo, error) {
+func parseMetadata(md []byte) (*CLRInfo, *metadata, error) {
 	le := binary.LittleEndian
 	if le.Uint32(md) != 0x424A5342 {
-		return nil, errNotCLR
+		return nil, nil, errNotCLR
 	}
 	vlen := int(le.Uint32(md[12:]))
 	p := 16 + vlen
@@ -297,7 +313,7 @@ func parseMetadata(md []byte) (*CLRInfo, error) {
 		name := string(md[p:end])
 		p = (end + 4) &^ 3
 		if o+n > len(md) || o < 0 || n < 0 {
-			return nil, errors.New("metadata stream out of range")
+			return nil, nil, errors.New("metadata stream out of range")
 		}
 		s := md[o : o+n]
 		switch name {
@@ -312,7 +328,7 @@ func parseMetadata(md []byte) (*CLRInfo, error) {
 		}
 	}
 	if tbl == nil {
-		return nil, errors.New("no metadata tables")
+		return nil, nil, errors.New("no metadata tables")
 	}
 	heaps := tbl[6]
 	m.strIdx, m.guidIdx, m.blobIdx = 2, 2, 2
@@ -332,7 +348,7 @@ func parseMetadata(md []byte) (*CLRInfo, error) {
 			continue
 		}
 		if t >= tCount {
-			return nil, fmt.Errorf("unknown metadata table %#x", t)
+			return nil, nil, fmt.Errorf("unknown metadata table %#x", t)
 		}
 		m.rows[t] = int(le.Uint32(tbl[q:]))
 		q += 4
@@ -387,12 +403,33 @@ func parseMetadata(md []byte) (*CLRInfo, error) {
 		}
 		size := m.rowSize[t] * m.rows[t]
 		if q+size > len(tbl) {
-			return nil, errors.New("metadata tables truncated")
+			return nil, nil, errors.New("metadata tables truncated")
 		}
 		m.tables[t] = tbl[q : q+size]
 		q += size
 	}
-	return m.info(), nil
+	return m.info(), m, nil
+}
+
+// resources reads the manifest resources stored in this file (at most 64,
+// each inside the resources area).
+func (m *metadata) resources(res []byte) []Resource {
+	var out []Resource
+	for r := 1; r <= m.rows[tManifestResource] && len(out) < 64; r++ {
+		if m.cell(tManifestResource, r, 3) != 0 {
+			continue // in another file or assembly
+		}
+		o := m.cell(tManifestResource, r, 0)
+		if o < 0 || o+4 > len(res) {
+			continue
+		}
+		n := int(binary.LittleEndian.Uint32(res[o:]))
+		if n < 0 || n > len(res)-o-4 {
+			continue
+		}
+		out = append(out, Resource{Name: m.str(m.cell(tManifestResource, r, 2)), Data: res[o+4 : o+4+n]})
+	}
+	return out
 }
 
 // cell reads column c of row r (1-based) of table t.

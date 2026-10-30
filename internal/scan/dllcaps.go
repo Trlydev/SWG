@@ -49,11 +49,24 @@ func analyzeDLL(r *Report, rel, path string) {
 	if err != nil {
 		return
 	}
+	analyzeDLLBytes(r, rel, b, 0)
+}
+
+// analyzeDLLBytes is analyzeDLL for a DLL's bytes; depth counts how deep
+// inside other files this one was hidden.
+func analyzeDLLBytes(r *Report, rel string, b []byte, depth int) {
 	if len(b) > 64<<20 {
 		r.add(Critical, "executable-file", rel, 0, "compiled library too large to read: its code cannot be checked")
 		return
 	}
 	info, err := ReadCLR(b)
+	// Hidden payloads inside, whatever the metadata says.
+	reportHidden(r, rel, "", findHidden(b, true, depth), depth)
+	if info != nil {
+		for _, res := range info.Resources {
+			reportHidden(r, rel, "resource "+clip(res.Name), findHiddenResource(res.Data, depth), depth)
+		}
+	}
 	switch {
 	case errors.Is(err, errNotCLR):
 		r.add(Critical, "executable-file", rel, 0, "native (not .NET) library: its code cannot be checked")
