@@ -830,6 +830,9 @@ func (p *installedPane) renderCompiler() {
 	if st.Loader.REPPG && st.Loader.REPPGDisabled {
 		msg = fmt.Sprintf("RE_PPG is installed but turned off (RE_PPG/disable-runtime.flag), so your %d C# script mods won't run.", st.NeedCompiler)
 	}
+	if st.Loader.NativeLinux {
+		msg = fmt.Sprintf("Your %d C# script mods won't run: People Playground runs as its native Linux version, and RE_PPG only works in the Windows version. To use them, in Steam: People Playground, Properties, Compatibility, tick \"Force the use of a specific Steam Play compatibility tool\" and pick Proton. Steam then installs the Windows version; install RE_PPG into it.", st.NeedCompiler)
+	}
 	l := text(msg)
 	l.Importance = widget.WarningImportance
 	page := widget.NewButton("About RE_PPG", func() { p.u.openURL("https://github.com/AlibardaWasTaken/RE_PPG") })
@@ -1309,6 +1312,9 @@ func (v *settingsView) renderSetup(st *stateView) {
 		if l.REPPGDisabled {
 			reDetail = "turned off (disable-runtime.flag)"
 		}
+	}
+	if l.NativeLinux {
+		reDetail = "can't run here: the game runs as its native Linux version; RE_PPG needs the Windows version (force Proton in Steam)"
 	}
 	objs := []fyne.CanvasObject{
 		row("BepInEx", l.BepInEx, bepDetail),

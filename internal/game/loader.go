@@ -22,6 +22,10 @@ type Loader struct {
 	REPPGDisabled  bool     `json:"re_ppg_disabled,omitempty"` // RE_PPG/disable-runtime.flag
 	Plugins        []string `json:"plugins,omitempty"`         // DLLs under BepInEx/plugins (relative)
 	Patchers       []string `json:"patchers,omitempty"`        // DLLs under BepInEx/patchers
+	// NativeLinux: the game folder holds the native Linux version (1.28
+	// and later). RE_PPG only works in the Windows version, so it never
+	// loads there; Steam installs the Windows version when Proton is forced.
+	NativeLinux bool `json:"native_linux,omitempty"`
 }
 
 var (
@@ -35,6 +39,7 @@ func DetectLoader(gameDir string) Loader {
 	if gameDir == "" {
 		return l
 	}
+	l.NativeLinux = isNativeLinux(gameDir)
 	bep := filepath.Join(gameDir, "BepInEx")
 	if fi, err := os.Stat(filepath.Join(bep, "core")); err == nil && fi.IsDir() {
 		l.BepInEx = true
@@ -75,6 +80,19 @@ func DetectLoader(gameDir string) Loader {
 		f.Close()
 	}
 	return l
+}
+
+// isNativeLinux reports whether gameDir holds a Linux Unity player and no
+// Windows one.
+func isNativeLinux(gameDir string) bool {
+	if _, err := os.Stat(filepath.Join(gameDir, "UnityPlayer.dll")); err == nil {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(gameDir, "UnityPlayer.so")); err == nil {
+		return true
+	}
+	ms, _ := filepath.Glob(filepath.Join(gameDir, "*.x86_64"))
+	return len(ms) > 0
 }
 
 // DLLsUnder lists .dll files below dir (relative paths, sorted).

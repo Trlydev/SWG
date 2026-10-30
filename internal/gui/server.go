@@ -869,7 +869,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 	s.offerMu.Unlock()
 	loader := game.DetectLoader(paths.Game)
 	noCompiler := 0
-	if !loader.REPPG || loader.REPPGDisabled {
+	if !loader.REPPG || loader.REPPGDisabled || loader.NativeLinux {
 		for _, m := range mods {
 			for f := range m.Files {
 				if strings.HasSuffix(strings.ToLower(f), ".cs") {
