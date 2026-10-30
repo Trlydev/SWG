@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func hasDetail(r *Report, rule, sub string) bool {
@@ -128,5 +129,53 @@ public class C : MonoBehaviour {
 		if f.Rule == "xor-decoding" || f.Rule == "xor-hidden-string" || f.Rule == "hidden-executable" {
 			t.Errorf("clean source: %+v", f)
 		}
+	}
+}
+
+// Names split across constants, string.Concat or hex are put back
+// together before they are checked.
+func TestFollowsSplitAndHexStrings(t *testing.T) {
+	src := `using System; using System.Reflection;
+public class M {
+	const string A = "System.Diag";
+	static readonly string B = A + "nostics";
+	static void Run() {
+		var t = Type.GetType(B + ".Process");
+		var url = "68747470733a2f2f6576696c2e6578616d706c652f782e646c6c";
+		t.GetMethod("Start").Invoke(null, null);
+	}
+}`
+	r := Source("m.cs", src)
+	for _, w := range []struct{ rule, sub string }{
+		{"reflection-sensitive-type", "System.Diagnostics.Process"},
+		{"encoded-string", "https://evil.example/x.dll"},
+	} {
+		if !hasDetail(r, w.rule, w.sub) {
+			t.Errorf("no %s %q: %+v", w.rule, w.sub, r.Findings)
+		}
+	}
+	r = Source("c.cs", `public class C { void F() { var u = System.Type.GetType(string.Concat("System.Net.", "WebClient")); } }`)
+	if !hasDetail(r, "reflection-sensitive-type", "System.Net.WebClient") {
+		t.Errorf("string.Concat not joined: %+v", r.Findings)
+	}
+	// A variable changed after it is set is not followed.
+	r = Source("v.cs", `public class V { void F() { var s = "System.Diag"; s += "x"; var t = System.Type.GetType(s + "nostics.Process"); } }`)
+	if hasDetail(r, "reflection-sensitive-type", "System.Diagnostics.Process") {
+		t.Errorf("followed a changed variable: %+v", r.Findings)
+	}
+}
+
+// A constant's name followed by "." (A.Length) once made the scanner loop
+// forever.
+func TestConstantMemberAccessTerminates(t *testing.T) {
+	done := make(chan bool)
+	go func() {
+		Source("l.cs", `public class L { const string A = "abc"; int F() { return A.Length + A.IndexOf("b"); } }`)
+		done <- true
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("scan did not finish")
 	}
 }

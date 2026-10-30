@@ -3,10 +3,12 @@ package scan
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // Markers of the 2026 FPS++ worms (see docs/fpsplusplus-analysis.md). They
@@ -45,16 +47,31 @@ func checkMarkers(hit func(string, Severity, int, string), line int, low, where 
 	}
 }
 
-var reB64Lit = regexp.MustCompile(`^[A-Za-z0-9+/]{12,}={0,2}$`)
+var (
+	reB64Lit = regexp.MustCompile(`^[A-Za-z0-9+/]{12,}={0,2}$`)
+	reHexLit = regexp.MustCompile(`^(?:[0-9a-fA-F]{2}){8,}$`)
+)
 
-// checkEncoded decodes base64 literals, one by one and all of them joined
-// in order (the worm split its blobs into hundreds of variables), and looks
-// for a hidden executable, serialized .NET objects or worm markers.
+// checkEncoded decodes base64 and hex literals, one by one and all of them
+// joined in order (the worm split its blobs into hundreds of variables),
+// and looks for a hidden executable, serialized .NET objects, worm markers,
+// web addresses, shells and code-loading names.
 func checkEncoded(hit func(string, Severity, int, string), lits []strLit) {
-	var all strings.Builder
-	first := 0
+	var all, allHex strings.Builder
+	first, firstHex := 0, 0
 	for _, s := range lits {
 		t := strings.TrimSpace(s.text)
+		if reHexLit.MatchString(t) {
+			if firstHex == 0 {
+				firstHex = s.line
+			}
+			if allHex.Len() < 64<<20 {
+				allHex.WriteString(t)
+			}
+			b, _ := hex.DecodeString(t)
+			inspectDecoded(hit, s.line, "hex", b)
+			continue // hex digits are base64 digits too: not decoded twice
+		}
 		if !reB64Lit.MatchString(t) {
 			continue
 		}
@@ -64,23 +81,45 @@ func checkEncoded(hit func(string, Severity, int, string), lits []strLit) {
 		if all.Len() < 64<<20 {
 			all.WriteString(strings.TrimRight(t, "="))
 		}
-		inspectDecoded(hit, s.line, lenientB64(t))
+		inspectDecoded(hit, s.line, "base64", lenientB64(t))
 	}
 	if all.Len() > 0 {
-		inspectDecoded(hit, first, lenientB64(all.String()))
+		inspectDecoded(hit, first, "base64", lenientB64(all.String()))
+	}
+	if allHex.Len() > 0 {
+		b, _ := hex.DecodeString(allHex.String())
+		inspectDecoded(hit, firstHex, "hex", b)
 	}
 }
 
-func inspectDecoded(hit func(string, Severity, int, string), line int, b []byte) {
+func inspectDecoded(hit func(string, Severity, int, string), line int, how string, b []byte) {
 	switch {
 	case len(b) >= 2 && b[0] == 'M' && b[1] == 'Z':
-		hit("embedded-executable", Critical, line, "base64 text that decodes to a Windows program or DLL (how the worm carried its payload)")
+		hit("embedded-executable", Critical, line, how+" text that decodes to a Windows program or DLL (how the worm carried its payload)")
 	case bytes.HasPrefix(b, []byte{0, 1, 0, 0, 0, 0xff, 0xff, 0xff, 0xff}):
-		hit("deserialization", Critical, line, "base64 text that decodes to serialized .NET objects (BinaryFormatter data)")
+		hit("deserialization", Critical, line, how+" text that decodes to serialized .NET objects (BinaryFormatter data)")
 	}
-	if len(b) > 0 {
-		low := strings.ToLower(string(bytes.ReplaceAll(b, []byte{0}, nil)))
-		checkMarkers(hit, line, low, "encoded text")
+	if len(b) == 0 {
+		return
+	}
+	text := string(bytes.ReplaceAll(b, []byte{0}, nil))
+	low := strings.ToLower(text)
+	checkMarkers(hit, line, low, "encoded text")
+	if !utf8.ValidString(text) {
+		return
+	}
+	switch {
+	case reShellStr.MatchString(text):
+		hit("encoded-string", Critical, line, fmt.Sprintf("hides a shell or download tool in %s text: %q", how, clip(text)))
+	case strings.Contains(low, "http://") || strings.Contains(low, "https://"):
+		hit("encoded-string", High, line, fmt.Sprintf("hides a web address in %s text: %q", how, clip(text)))
+	default:
+		for _, w := range sensitiveSubstr {
+			if strings.Contains(low, w.s) {
+				hit("encoded-string", w.sev, line, fmt.Sprintf("hides %q in %s text", clip(text), how))
+				break
+			}
+		}
 	}
 }
 

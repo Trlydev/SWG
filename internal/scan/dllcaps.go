@@ -182,6 +182,11 @@ func analyzeDLLBytes(r *Report, rel string, b []byte, depth int) {
 		}
 		checkMarkers(hit, 0, low, "a string")
 	}
+	lits := make([]strLit, len(info.Strings))
+	for i, s := range info.Strings {
+		lits[i] = strLit{text: s}
+	}
+	checkEncoded(hit, lits)
 
 	ids := make([]string, 0, len(caps))
 	for id := range caps {

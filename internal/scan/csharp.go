@@ -523,18 +523,111 @@ type strLit struct {
 }
 
 // joinedStrings returns string literals, joining "a" + "b" + ... chains.
+// Names of string constants and variables assigned once from such chains
+// are followed (const string A = "System.Diag"; A + "nostics.Process"), and
+// string.Concat("a", "b") is joined too: text split up this way to hide a
+// name is checked as a whole.
 func joinedStrings(toks []token) []strLit {
+	consts := stringConsts(toks)
 	var out []strLit
 	for i := 0; i < len(toks); i++ {
-		if toks[i].kind != tString {
+		t := toks[i]
+		if t.kind == tIdent && (t.text == "Concat") && i > 1 && toks[i-1].text == "." && (toks[i-2].text == "string" || toks[i-2].text == "String") &&
+			i+1 < len(toks) && toks[i+1].text == "(" {
+			if s, next, ok := concatArgs(toks, i+2, consts); ok {
+				out = append(out, strLit{s, t.line})
+				i = next - 1
+			}
 			continue
 		}
-		s := strLit{toks[i].text, toks[i].line}
-		for i+2 < len(toks) && toks[i+1].text == "+" && toks[i+2].kind == tString {
-			s.text += toks[i+2].text
-			i += 2
+		startsChain := t.kind == tString || t.kind == tIdent && consts[t.text] != nil && (i == 0 || toks[i-1].text != "." && toks[i-1].text != "+")
+		if !startsChain || t.kind == tIdent && i+1 < len(toks) && toks[i+1].text == "(" {
+			continue
 		}
-		out = append(out, s)
+		s, next, parts, lit := chainAt2(toks, i, consts)
+		if parts == 0 {
+			continue // a constant's name used as A.Length, not as text
+		}
+		if lit || parts > 1 { // a lone constant name repeats its definition
+			out = append(out, strLit{s, t.line})
+		}
+		i = next - 1
 	}
 	return out
+}
+
+// chainAt2 joins part ( "+" part )* from i, where a part is a string
+// literal or a known constant; it stops at anything else.
+func chainAt2(toks []token, i int, consts map[string]*string) (s string, next, parts int, lit bool) {
+	for i < len(toks) {
+		t := toks[i]
+		switch {
+		case t.kind == tString:
+			s += t.text
+			lit = true
+		case t.kind == tIdent && consts[t.text] != nil && (i+1 >= len(toks) || toks[i+1].text != "(" && toks[i+1].text != "."):
+			s += *consts[t.text]
+		default:
+			return s, i, parts, lit
+		}
+		parts++
+		if i+2 < len(toks) && toks[i+1].text == "+" && (toks[i+2].kind == tString || toks[i+2].kind == tIdent && consts[toks[i+2].text] != nil) {
+			i += 2
+			continue
+		}
+		return s, i + 1, parts, lit
+	}
+	return s, i, parts, lit
+}
+
+// concatArgs joins the arguments of string.Concat( starting at i when each
+// is a literal chain or constant.
+func concatArgs(toks []token, i int, consts map[string]*string) (string, int, bool) {
+	var out string
+	for i < len(toks) {
+		s, next, parts, _ := chainAt2(toks, i, consts)
+		if parts == 0 || next >= len(toks) {
+			return "", i, false
+		}
+		out += s
+		switch toks[next].text {
+		case ",":
+			i = next + 1
+		case ")":
+			return out, next + 1, true
+		default:
+			return "", i, false
+		}
+	}
+	return "", i, false
+}
+
+// stringConsts maps names assigned exactly once, from string literals and
+// earlier such names, to their text: NAME = "a" + B ; (or , or }).
+func stringConsts(toks []token) map[string]*string {
+	assigned := map[string]int{}
+	for i := 0; i+1 < len(toks); i++ {
+		if toks[i].kind != tIdent {
+			continue
+		}
+		if toks[i+1].text == "=" && (i+2 >= len(toks) || toks[i+2].text != "=") {
+			assigned[toks[i].text]++
+		}
+		if i+2 < len(toks) && toks[i+2].text == "=" && strings.Contains("+-*/%&|^?", toks[i+1].text) {
+			assigned[toks[i].text] += 2 // x += "...": changed after it was set
+		}
+	}
+	consts := map[string]*string{}
+	for i := 0; i+2 < len(toks); i++ {
+		name := toks[i].text
+		if toks[i].kind != tIdent || toks[i+1].text != "=" || assigned[name] != 1 || (i > 0 && toks[i-1].text == ".") {
+			continue
+		}
+		s, next, parts, _ := chainAt2(toks, i+2, consts)
+		if parts > 0 && next < len(toks) && (toks[next].text == ";" || toks[next].text == "," || toks[next].text == "}") {
+			v := s
+			consts[name] = &v
+		}
+	}
+	return consts
 }
