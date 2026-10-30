@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -71,7 +72,9 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 	if !opt.Headed {
 		args = append(args, "--headless")
 	}
-	args = append(args, "about:blank")
+	// Start on the page itself: forks such as Zen open extra tabs of their
+	// own, so the first tab isn't always the one the person sees.
+	args = append(args, u)
 	cmd := exec.CommandContext(ctx, exe, args...)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -111,21 +114,9 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 	if _, err := c.call(ctx, "session.new", map[string]any{"capabilities": map[string]any{}}); err != nil {
 		return nil, fmt.Errorf("WebDriver BiDi session: %w", err)
 	}
-	tree, err := c.call(ctx, "browsingContext.getTree", map[string]any{})
+	tab, err := pageTab(ctx, c, u)
 	if err != nil {
 		return nil, err
-	}
-	var t struct {
-		Contexts []struct {
-			Context string `json:"context"`
-		} `json:"contexts"`
-	}
-	if json.Unmarshal(tree, &t) != nil || len(t.Contexts) == 0 {
-		return nil, errors.New("WebDriver BiDi: no browser tab")
-	}
-	tab := t.Contexts[0].Context
-	if _, err := c.call(ctx, "browsingContext.navigate", map[string]any{"context": tab, "url": u, "wait": "none"}); err != nil {
-		return nil, fmt.Errorf("the browser could not open the page: %w", err)
 	}
 
 	tick := time.NewTicker(700 * time.Millisecond)
@@ -183,6 +174,53 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 		case <-tick.C:
 		}
 	}
+}
+
+// pageTab finds the tab showing u (the browser was started on it), or opens
+// a new tab on u and brings it to the front.
+func pageTab(ctx context.Context, c *bidiConn, u string) (string, error) {
+	host := u
+	if pu, err := url.Parse(u); err == nil && pu.Host != "" {
+		host = pu.Host
+	}
+	for wait := 0; wait < 10; wait++ {
+		tree, err := c.call(ctx, "browsingContext.getTree", map[string]any{})
+		if err != nil {
+			return "", err
+		}
+		var t struct {
+			Contexts []struct {
+				Context string `json:"context"`
+				URL     string `json:"url"`
+			} `json:"contexts"`
+		}
+		json.Unmarshal(tree, &t)
+		for _, x := range t.Contexts {
+			if strings.Contains(x.URL, host) {
+				return x.Context, nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	raw, err := c.call(ctx, "browsingContext.create", map[string]any{"type": "tab"})
+	if err != nil {
+		return "", fmt.Errorf("WebDriver BiDi: no tab for the page: %w", err)
+	}
+	var created struct {
+		Context string `json:"context"`
+	}
+	if json.Unmarshal(raw, &created) != nil || created.Context == "" {
+		return "", errors.New("WebDriver BiDi: no browser tab")
+	}
+	if _, err := c.call(ctx, "browsingContext.navigate", map[string]any{"context": created.Context, "url": u, "wait": "none"}); err != nil {
+		return "", fmt.Errorf("the browser could not open the page: %w", err)
+	}
+	c.call(ctx, "browsingContext.activate", map[string]any{"context": created.Context})
+	return created.Context, nil
 }
 
 // evalString is the string a script.evaluate reply carries, or "".

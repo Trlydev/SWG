@@ -20,7 +20,7 @@ import (
 // WebDriver BiDi endpoint whose page shows the check first and sets the
 // clearance cookie after a few polls, the way a real check passes.
 func TestMain(m *testing.M) {
-	if os.Getenv("PPGMODS_FAKE_FIREFOX") == "1" {
+	if v := os.Getenv("PPGMODS_FAKE_FIREFOX"); v == "1" || v == "nostart" {
 		fakeFirefox()
 		return
 	}
@@ -45,6 +45,14 @@ func fakeFirefox() {
 	fmt.Fprintf(os.Stderr, "WebDriver BiDi listening on ws://%s\n", ln.Addr())
 	polls := 0
 	navigated := ""
+	// Like Zen: a tab of its own comes first; the page given on the command
+	// line opens in another (unless PPGMODS_FAKE_FIREFOX=nostart).
+	start := os.Args[len(os.Args)-1]
+	if os.Getenv("PPGMODS_FAKE_FIREFOX") == "nostart" || !strings.HasPrefix(start, "https://") {
+		start = "about:newtab"
+	} else {
+		navigated = start
+	}
 	http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _, _, err := ws.UpgradeHTTP(r, w)
 		if err != nil {
@@ -65,11 +73,15 @@ func fakeFirefox() {
 			var result any = map[string]any{}
 			switch req.Method {
 			case "browsingContext.getTree":
-				result = map[string]any{"contexts": []any{map[string]any{"context": "tab1"}}}
+				result = map[string]any{"contexts": []any{map[string]any{"context": "zen-own", "url": "about:blank"}, map[string]any{"context": "tab1", "url": start}}}
+			case "browsingContext.create":
+				result = map[string]any{"context": "tab2"}
 			case "browsingContext.navigate":
-				var p struct{ URL string }
+				var p struct{ Context, URL string }
 				json.Unmarshal(req.Params, &p)
-				navigated = p.URL
+				if p.Context == "tab2" {
+					navigated = p.URL
+				}
 			case "script.evaluate":
 				if strings.Contains(string(req.Params), "outerHTML") {
 					result = map[string]any{"type": "success", "result": map[string]any{"type": "string", "value": "<html>Skymods</html>"}}
@@ -108,12 +120,16 @@ func TestRunFirefox(t *testing.T) {
 	if err := os.Symlink(exe, ff); err != nil {
 		t.Skip(err)
 	}
-	t.Setenv("PPGMODS_FAKE_FIREFOX", "1")
-	res, err := Run("https://catalogue.smods.ru/", Options{Browser: ff, Timeout: 20 * time.Second, Logf: t.Logf})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Cookie("cf_clearance") != "ok123" || !strings.Contains(res.UserAgent, "Firefox/157") || res.HTML != "<html>Skymods</html>" {
-		t.Fatalf("result: %+v", res)
+	// "1": the page opens from the command line; "nostart": ppgmods must
+	// open a tab for it (the first tab, the browser's own, is never used).
+	for _, mode := range []string{"1", "nostart"} {
+		t.Setenv("PPGMODS_FAKE_FIREFOX", mode)
+		res, err := Run("https://catalogue.smods.ru/", Options{Browser: ff, Timeout: 20 * time.Second, Logf: t.Logf})
+		if err != nil {
+			t.Fatalf("%s: %v", mode, err)
+		}
+		if res.Cookie("cf_clearance") != "ok123" || !strings.Contains(res.UserAgent, "Firefox/157") || res.HTML != "<html>Skymods</html>" {
+			t.Fatalf("%s: result: %+v", mode, res)
+		}
 	}
 }
