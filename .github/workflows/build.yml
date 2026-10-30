@@ -50,14 +50,15 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = tag ]; then
             v="${GITHUB_REF_NAME}"
           elif [ "${GITHUB_REF}" = refs/heads/main ] && [ "${GITHUB_EVENT_NAME}" = push ]; then
-            # The 0.3 series begins with profiles, mod lists and the Nexus
-            # hand-over. The patch number is one more than the newest v0.3.*
-            # tag, so this push becomes v0.3.0 and later pushes count up. Counting from
+            # The 0.4 series begins with the security update (code hidden
+            # inside files, reading the code inside DLLs) and RE_PPG
+            # installs. The patch number is one more than the newest v0.4.*
+            # tag, so the first push becomes v0.4.0 and later pushes count up. Counting from
             # tags (not the run number) keeps pull-request builds, which
             # also advance that number, from skewing the version.
-            last=$(git ls-remote --tags "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 'refs/tags/v0.3.*' \
-              | grep -oE 'v0\.3\.[0-9]+' | cut -d. -f3 | sort -n | tail -1)
-            v="v0.3.$(( ${last:--1} + 1 ))"
+            last=$(git ls-remote --tags "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 'refs/tags/v0.4.*' \
+              | grep -oE 'v0\.4\.[0-9]+' | cut -d. -f3 | sort -n | tail -1)
+            v="v0.4.$(( ${last:--1} + 1 ))"
           else
             v="v0.0.0-dev.${GITHUB_RUN_NUMBER}"
           fi
