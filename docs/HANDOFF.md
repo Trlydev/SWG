@@ -1,4 +1,4 @@
-# Handoff (0.4 ready on the work branch)
+# Handoff (after v0.4.2)
 
 State of ppgmods (People Playground mod manager, Go) for the next session.
 
@@ -6,10 +6,9 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 
 - Repo: github.com/Trlydev/SWG (the git remote DogeKingC/SWG redirects there).
   Go module path: `github.com/Trlydev/SWG`.
-- Latest release: **v0.3.6**. `build.yml` now publishes **v0.4.N** on every
-  push to main (counted from the v0.4.* tags), so the next push becomes
-  v0.4.0. Pushes to other branches don't build.
-- Work branch: `claude/trusting-babbage-cu3pyj` (0.4 work, not yet on main).
+- Latest release: **v0.4.2**. `build.yml` publishes v0.4.N on every push to
+  main (counted from the v0.4.* tags). Pushes to other branches don't build.
+- Work branch: `claude/trusting-babbage-cu3pyj`.
 
 ## Rules from the owner
 
@@ -33,7 +32,9 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 | 0.3.4 | Skymods (smods.ru) Cloudflare check: stop the 2-minute loop |
 | 0.3.5 | Native window tells the person when Skymods needs them (banner, popup, Settings section) |
 | 0.3.6 | Says when RE_PPG can't run because the game is the native Linux version |
-| 0.4.0 (work branch) | Security update, RE_PPG installs, Zen check fix (below) |
+| 0.4.0 | Security update, RE_PPG installs, Zen check fix (below) |
+| 0.4.1 | RE_PPG Harmony setup (like its installer); Zen BiDi port found reliably |
+| 0.4.2 | Reinstall RE_PPG button; fixes from a 5-agent security review; one-time window code; loader files matched by name and release; Popular sorting fixed (all time from the popularity data); thumbnails shrunk and cached on disk |
 
 ## What 0.4 has
 
@@ -89,6 +90,17 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
   self-contained win-x64 .NET 10 app; the managed `RE_PPG.Compiler.dll` is
   portable) to start on Linux, plus Linux BepInEx. Proton is the supported
   way for now.
+
+## Security review (0.4.2) — still open
+
+- **Release signing (most important):** self-update only checks
+  SHA256SUMS.txt from the same release. Plan: an ed25519 key, private part
+  as the GitHub secret RELEASE_SIGNING_KEY, public part built into
+  ppgmods; build.yml signs SHA256SUMS.txt, selfupdate verifies it. Also
+  give the data jobs (loaders, popularity, archive, workshop) read-only
+  tokens with a separate publish step.
+- If a v0.5.0 tag is ever pushed by hand, main pushes keep counting 0.4.x.
+- Turning a mod back on doesn't notice deleted files.
 
 ## Untested, ask the owner
 
