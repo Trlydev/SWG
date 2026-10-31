@@ -152,6 +152,7 @@ type SearchResult struct {
 	Kind        string   `json:"kind,omitempty"`    // "contraption" when known
 	Mirrors     []string `json:"mirrors,omitempty"` // Workshop: "top-mods 2026-09-19", ...
 	Trend       string   `json:"trend,omitempty"`   // popularity sort: "+1,204 views this week"
+	Rank        int      `json:"rank,omitempty"`    // popularity sort: what it is ranked by (the period's gain, or the all-time count)
 	Version     string   `json:"version,omitempty"` // Workshop cards: highest known version of the copies
 
 	newest  time.Time
@@ -176,7 +177,7 @@ type SearchResults struct {
 type SearchOpts struct {
 	Kind   string // "mod" (default) or "contraption"
 	Sort   string // "relevance" (default), "updated" or "popular"
-	Period string // with "popular": "day", "week", "month", or "" for all time
+	Period string // with "popular": "day", "week", "month", or "all" (also "")
 }
 
 func (o SearchOpts) normalized(q string) SearchOpts {
@@ -194,6 +195,9 @@ func (o SearchOpts) normalized(q string) SearchOpts {
 	if _, ok := popularity.Periods[o.Period]; !ok || o.Sort != "popular" {
 		o.Period = ""
 	}
+	if o.Sort == "popular" && o.Period == "" {
+		o.Period = "all"
+	}
 	return o
 }
 
@@ -209,7 +213,10 @@ func Search(q string, page int) SearchResults {
 func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) SearchResults {
 	useIndexCache()
 	opt = opt.normalized(q)
-	if opt.Period != "" {
+	if opt.Sort == "popular" && opt.Period != "" {
+		// From ppgmods' popularity data, all time included: one ranking for
+		// every source (the sites' own "popular" orders differ, and the
+		// Workshop mirrors have none).
 		return searchTrending(q, page, parts, opt)
 	}
 	var r SearchResults
@@ -755,23 +762,27 @@ func searchTrending(q string, page int, parts map[string]bool, opt SearchOpts) S
 	var r SearchResults
 	ix, err := popularity.Fetch()
 	if err != nil {
-		r.Errors = append(r.Errors, "Popularity data: "+err.Error()+"; showing all-time popularity instead")
-		opt.Period = ""
-		return SearchParts(q, page, parts, opt)
+		r.Errors = append(r.Errors, "Popularity data: "+err.Error()+"; showing each site's own popular order instead")
+		opt.Sort, opt.Period = "relevance", ""
+		r2 := SearchParts(q, page, parts, opt)
+		r2.Errors = append(r.Errors, r2.Errors...)
+		return r2
 	}
 	label := map[string]string{"day": "today", "week": "this week", "month": "this month"}[opt.Period]
-	if days := ix.Days(); days == 0 {
+	if opt.Period == "all" {
+		// ranked by the all-time counts
+	} else if days := ix.Days(); days == 0 {
 		r.Notes = append(r.Notes, "Popularity tracking started today, so there is nothing to compare yet: cards are ranked by all-time counts until tomorrow.")
 	} else if days < popularity.Periods[opt.Period] {
 		r.Notes = append(r.Notes, fmt.Sprintf("Popularity tracking started %s, so \"%s\" covers the last %d day(s) for now.", ix.Since, label, days))
 	}
 	conv := func(it popularity.Item) SearchResult {
 		res := SearchResult{Ref: it.Ref, Name: it.Name, Author: it.Author, Category: it.Category, Date: YMD(it.Date), URL: it.URL,
-			Image: it.Image, Reviewed: it.Reviewed, Kind: it.Kind, Downloads: it.Gain(opt.Period)}
-		if res.Downloads == 0 {
-			res.Downloads = it.N
+			Image: it.Image, Reviewed: it.Reviewed, Kind: it.Kind, Downloads: it.N, Rank: it.Gain(opt.Period)}
+		if res.Rank == 0 {
+			res.Rank = -1 // nothing gained in the period: after everything that did
 		}
-		if g := it.Gain(opt.Period); g > 0 {
+		if g := it.Gain(opt.Period); g > 0 && opt.Period != "all" {
 			res.Trend = fmt.Sprintf("+%s %s %s", thousands(g), ix.Metric[it.Src], label)
 		} else {
 			res.Trend = fmt.Sprintf("%s %s all time", thousands(it.N), ix.Metric[it.Src])

@@ -300,8 +300,6 @@ func (b *browseView) search(q string, page int) {
 	<-done
 	if sortV != "popular" {
 		periodV = ""
-	} else if periodV == "all" {
-		periodV = ""
 	}
 	b.mu.Lock()
 	b.seq++
@@ -562,9 +560,17 @@ func mergeShown(sortV string, lists ...[]*app.SearchResult) []*app.SearchResult 
 			return resultDate(mixed[i].Date).After(resultDate(mixed[j].Date))
 		})
 	case "popular":
+		// Most to least: by what the popularity data ranks (the period's
+		// gain, or the all-time count), else by the count a site gave.
+		key := func(m *app.SearchResult) int {
+			if m.Rank != 0 {
+				return m.Rank
+			}
+			return m.Downloads
+		}
 		sort.SliceStable(mixed, func(i, j int) bool {
-			if mixed[i].Downloads != mixed[j].Downloads {
-				return mixed[i].Downloads > mixed[j].Downloads
+			if a, b := key(mixed[i]), key(mixed[j]); a != b {
+				return a > b
 			}
 			return resultDate(mixed[i].Date).After(resultDate(mixed[j].Date))
 		})
