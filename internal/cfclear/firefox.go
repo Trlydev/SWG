@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +48,9 @@ var firefoxPrefs = map[string]any{
 	"browser.download.always_ask_before_handling_new_types": false,
 	"browser.sessionstore.resume_from_crash":                false,
 	"remote.active-protocols":                               1, // WebDriver BiDi only
+	// Firefox announces the BiDi port with dump(), which release builds
+	// only print with this on.
+	"browser.dom.window.dump.enabled": true,
 }
 
 var reBiDiListening = regexp.MustCompile(`WebDriver BiDi listening on (ws://[0-9.:\[\]a-z]+)`)
@@ -80,6 +85,11 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 	if err != nil {
 		return nil, err
 	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	os.Remove(filepath.Join(profile, bidiServerFile)) // a stale one from an earlier run
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting %s: %w", filepath.Base(exe), err)
 	}
@@ -88,22 +98,52 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 		cmd.Wait()
 	}()
 
-	addr := make(chan string, 1)
-	go func() {
-		sc := bufio.NewScanner(stderr)
-		for sc.Scan() {
-			if m := reBiDiListening.FindStringSubmatch(sc.Text()); m != nil {
-				addr <- m[1]
+	// The port is announced on the browser's output (stderr or stdout,
+	// depending on the build) and, in newer versions, written to a file in
+	// the profile; whichever comes first.
+	addr := make(chan string, 2)
+	var outMu sync.Mutex
+	var lastOut []string // the browser's last lines, for the error
+	for _, r := range []io.Reader{stderr, stdout} {
+		go func(r io.Reader) {
+			sc := bufio.NewScanner(r)
+			for sc.Scan() {
+				if line := strings.TrimSpace(sc.Text()); line != "" {
+					outMu.Lock()
+					if lastOut = append(lastOut, clipLine(line)); len(lastOut) > 6 {
+						lastOut = lastOut[1:]
+					}
+					outMu.Unlock()
+				}
+				if m := reBiDiListening.FindStringSubmatch(sc.Text()); m != nil {
+					select {
+					case addr <- m[1]:
+					default:
+					}
+				}
 			}
-		}
-	}()
+		}(r)
+	}
 	var wsURL string
-	select {
-	case wsURL = <-addr:
-	case <-time.After(30 * time.Second):
-		return nil, errors.New("the browser didn't open its WebDriver BiDi port (is it Firefox-based?)")
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	deadline := time.After(30 * time.Second)
+	poll := time.NewTicker(300 * time.Millisecond)
+	defer poll.Stop()
+	for wsURL == "" {
+		select {
+		case wsURL = <-addr:
+		case <-poll.C:
+			wsURL = bidiServerAddr(profile)
+		case <-deadline:
+			outMu.Lock()
+			said := strings.Join(lastOut, " | ")
+			outMu.Unlock()
+			if said == "" {
+				said = "nothing"
+			}
+			return nil, fmt.Errorf("the browser didn't open its WebDriver BiDi port (is it Firefox-based?); it said: %s", said)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 
 	c, err := dialBiDi(ctx, wsURL+"/session")
@@ -221,6 +261,37 @@ func pageTab(ctx context.Context, c *bidiConn, u string) (string, error) {
 	}
 	c.call(ctx, "browsingContext.activate", map[string]any{"context": created.Context})
 	return created.Context, nil
+}
+
+func clipLine(s string) string {
+	if len(s) > 200 {
+		return s[:200] + "…"
+	}
+	return s
+}
+
+// bidiServerFile is where newer Firefox versions write the BiDi server's
+// address in the profile.
+const bidiServerFile = "WebDriverBiDiServer.json"
+
+// bidiServerAddr reads the BiDi server's address from the profile ("" until
+// the browser has written it).
+func bidiServerAddr(profile string) string {
+	b, err := os.ReadFile(filepath.Join(profile, bidiServerFile))
+	if err != nil {
+		return ""
+	}
+	var f struct {
+		Host string `json:"ws_host"`
+		Port int    `json:"ws_port"`
+	}
+	if json.Unmarshal(b, &f) != nil || f.Port <= 0 || f.Port > 65535 {
+		return ""
+	}
+	if f.Host == "" {
+		f.Host = "127.0.0.1"
+	}
+	return fmt.Sprintf("ws://%s", net.JoinHostPort(f.Host, strconv.Itoa(f.Port)))
 }
 
 // evalString is the string a script.evaluate reply carries, or "".

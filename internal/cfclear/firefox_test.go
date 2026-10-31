@@ -42,7 +42,21 @@ func fakeFirefox() {
 	if err != nil {
 		os.Exit(2)
 	}
-	fmt.Fprintf(os.Stderr, "WebDriver BiDi listening on ws://%s\n", ln.Addr())
+	// How the port is announced: stderr (default), stdout, or only the
+	// profile's WebDriverBiDiServer.json (PPGMODS_FAKE_FIREFOX_PORT).
+	switch os.Getenv("PPGMODS_FAKE_FIREFOX_PORT") {
+	case "stdout":
+		fmt.Fprintf(os.Stdout, "WebDriver BiDi listening on ws://%s\n", ln.Addr())
+	case "file":
+		for i, a := range os.Args {
+			if a == "--profile" && i+1 < len(os.Args) {
+				_, port, _ := net.SplitHostPort(ln.Addr().String())
+				os.WriteFile(filepath.Join(os.Args[i+1], "WebDriverBiDiServer.json"), []byte(`{"ws_host":"127.0.0.1","ws_port":`+port+`}`), 0o644)
+			}
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "WebDriver BiDi listening on ws://%s\n", ln.Addr())
+	}
 	polls := 0
 	navigated := ""
 	// Like Zen: a tab of its own comes first; the page given on the command
@@ -122,7 +136,12 @@ func TestRunFirefox(t *testing.T) {
 	}
 	// "1": the page opens from the command line; "nostart": ppgmods must
 	// open a tab for it (the first tab, the browser's own, is never used).
-	for _, mode := range []string{"1", "nostart"} {
+	for _, mode := range []string{"1", "nostart", "stdout", "file"} {
+		t.Setenv("PPGMODS_FAKE_FIREFOX_PORT", "")
+		if mode == "stdout" || mode == "file" {
+			t.Setenv("PPGMODS_FAKE_FIREFOX_PORT", mode)
+			mode = "1"
+		}
 		t.Setenv("PPGMODS_FAKE_FIREFOX", mode)
 		res, err := Run("https://catalogue.smods.ru/", Options{Browser: ff, Timeout: 20 * time.Second, Logf: t.Logf})
 		if err != nil {
