@@ -55,6 +55,10 @@ func clrName(t string) string {
 
 // analyzeDLL reports what a mod's DLL can do, read from its metadata.
 func analyzeDLL(r *Report, rel, path string) {
+	if fi, err := os.Stat(path); err == nil && fi.Size() > 64<<20 {
+		r.add(Critical, "executable-file", rel, 0, "compiled library too large to read: its code cannot be checked")
+		return
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return
@@ -65,16 +69,22 @@ func analyzeDLL(r *Report, rel, path string) {
 // analyzeDLLBytes is analyzeDLL for a DLL's bytes; depth counts how deep
 // inside other files this one was hidden.
 func analyzeDLLBytes(r *Report, rel string, b []byte, depth int) {
+	analyzeDLLWith(r, rel, b, depth, newBudget())
+}
+
+// analyzeDLLWith is analyzeDLLBytes sharing an unpacking budget with the
+// file this DLL was found in.
+func analyzeDLLWith(r *Report, rel string, b []byte, depth int, bu *budget) {
 	if len(b) > 64<<20 {
 		r.add(Critical, "executable-file", rel, 0, "compiled library too large to read: its code cannot be checked")
 		return
 	}
 	info, err := ReadCLR(b)
 	// Hidden payloads inside, whatever the metadata says.
-	reportHidden(r, rel, "", findHidden(b, true, depth), depth)
+	reportHidden(r, rel, "", bu.findHidden(b, true, depth), depth, bu)
 	if info != nil {
 		for _, res := range info.Resources {
-			reportHidden(r, rel, "resource "+clip(res.Name), findHiddenResource(res.Data, depth), depth)
+			reportHidden(r, rel, "resource "+clip(res.Name), bu.findHiddenResource(res.Data, depth), depth, bu)
 		}
 	}
 	switch {
@@ -123,6 +133,9 @@ func analyzeDLLBytes(r *Report, rel string, b []byte, depth int) {
 		}
 	}
 	for _, mr := range info.MemberRefs {
+		// mr.Type is "" for members of arrays and generic parameters, which
+		// reach nothing by themselves (a plain class written as a TypeSpec,
+		// the way to hide one, is resolved by typeSpecName).
 		if mr.Type != "" && !attr(mr.Type) {
 			refs[clrName(mr.Type)+"."+mr.Name] = true
 		}

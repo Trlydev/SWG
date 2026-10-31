@@ -566,6 +566,9 @@ func chainAt2(toks []token, i int, consts map[string]*string) (s string, next, p
 			s += t.text
 			lit = true
 		case t.kind == tIdent && consts[t.text] != nil && (i+1 >= len(toks) || toks[i+1].text != "(" && toks[i+1].text != "."):
+			if len(s)+len(*consts[t.text]) > maxJoined {
+				return s, i, parts, lit // long enough: no name is this long
+			}
 			s += *consts[t.text]
 		default:
 			return s, i, parts, lit
@@ -624,7 +627,7 @@ func stringConsts(toks []token) map[string]*string {
 			continue
 		}
 		s, next, parts, _ := chainAt2(toks, i+2, consts)
-		if parts > 0 && next < len(toks) && (toks[next].text == ";" || toks[next].text == "," || toks[next].text == "}") {
+		if parts > 0 && len(s) <= maxJoined && next < len(toks) && (toks[next].text == ";" || toks[next].text == "," || toks[next].text == "}") {
 			v := s
 			consts[name] = &v
 		}

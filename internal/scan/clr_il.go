@@ -28,15 +28,26 @@ type MethodOp struct {
 	Call string // "Type.Name"
 }
 
+// maxILOps bounds how many calls and strings are kept from one DLL's code.
+const maxILOps = 2_000_000
+
+// maxJoined bounds text built from pieces (String.Concat in IL, constants in
+// C#): longer text is not a name anyone looks up, and joining it again and
+// again would take memory without end.
+const maxJoined = 64 << 10
+
 // readMethods reads every method body in the file.
 func (m *metadata) readMethods(b []byte, l *peLayout) []Method {
 	m.methodOwner = m.methodOwners()
 	var out []Method
-	for r := 1; r <= m.rows[tMethodDef] && len(out) < 20000; r++ {
+	read := map[int]bool{} // a body shared by several methods is read once
+	ops := 0
+	for r := 1; r <= m.rows[tMethodDef] && len(out) < 20000 && ops < maxILOps; r++ {
 		rva := m.cell(tMethodDef, r, 0)
-		if rva == 0 {
+		if rva == 0 || read[rva] {
 			continue
 		}
+		read[rva] = true
 		off, ok := l.rva2off(uint32(rva))
 		if !ok {
 			continue
@@ -45,11 +56,12 @@ func (m *metadata) readMethods(b []byte, l *peLayout) []Method {
 		if !ok {
 			continue
 		}
-		ops, xc, xb := m.readIL(code)
-		if len(ops) == 0 && !xc && !xb {
+		mops, xc, xb := m.readIL(code)
+		if len(mops) == 0 && !xc && !xb {
 			continue
 		}
-		out = append(out, Method{Name: m.methodOwner[r] + "." + m.str(m.cell(tMethodDef, r, 3)), Ops: ops, XORChars: xc, XORBytes: xb})
+		ops += len(mops)
+		out = append(out, Method{Name: m.methodOwner[r] + "." + m.str(m.cell(tMethodDef, r, 3)), Ops: mops, XORChars: xc, XORBytes: xb})
 	}
 	return out
 }
@@ -66,6 +78,9 @@ func (m *metadata) methodOwners() map[int]string {
 			last = m.cell(tTypeDef, t+1, 5)
 		}
 		name := m.typeDefName(t)
+		if last > m.rows[tMethodDef]+1 {
+			last = m.rows[tMethodDef] + 1 // a crafted range past the table
+		}
 		for r := first; r >= 1 && r < last; r++ {
 			owner[r] = name
 		}
@@ -195,8 +210,14 @@ func (mt Method) JoinedStrings() []JoinedString {
 			continue
 		}
 		if op.Call == "System.String.Concat" && len(pending) >= 2 {
-			pending = []string{strings.Join(pending, "")}
-			continue
+			n := 0
+			for _, p := range pending {
+				n += len(p)
+			}
+			if n <= maxJoined {
+				pending = []string{strings.Join(pending, "")}
+				continue
+			}
 		}
 		for i, s := range pending {
 			used := ""
@@ -318,6 +339,7 @@ var feOperand = func() [256]int {
 	for _, b := range []byte{0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E} { // ldarg..stloc (wide)
 		o[b] = 2
 	}
+	o[0x12] = 1 // unaligned.
 	o[0x19] = 1 // no.
 	return o
 }()

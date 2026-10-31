@@ -13,6 +13,7 @@ var capabilityWords = map[string]string{
 	"executable-file":           "contain code the scanner can't read",
 	"disguised-binary":          "contain a program disguised as another file",
 	"hidden-executable":         "carry a hidden program or DLL inside its files",
+	"scan-error":                "contain a file the scanner couldn't read",
 	"xor-hidden-string":         "hide what it does with encrypted text",
 	"xor-decoding":              "decode hidden text while running",
 	"code-loader":               "load other compiled code while running",

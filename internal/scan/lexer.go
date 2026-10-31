@@ -282,8 +282,9 @@ func (l *lexer) stringLit() {
 			l.emit(tString, b.String(), line)
 			return
 		case c == '\\' && !verbatim && l.pos+1 < len(l.src):
-			b.WriteString(unescape(l.src[l.pos : l.pos+2+escLen(l.src[l.pos+1:])]))
-			l.pos += 2 + escLen(l.src[l.pos+1:])
+			end := min(l.pos+2+escLen(l.src[l.pos+1:]), len(l.src)) // an escape cut off by the end of the file
+			b.WriteString(unescape(l.src[l.pos:end]))
+			l.pos = end
 		case interp && c == '{' && l.peek(1) == '{':
 			b.WriteByte('{')
 			l.pos += 2

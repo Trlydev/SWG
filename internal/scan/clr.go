@@ -522,10 +522,15 @@ func (m *metadata) typeSpecName(r int) string {
 		return ""
 	}
 	sig := m.blobAt(m.cell(tTypeSpec, r, 0))
-	if len(sig) < 3 || sig[0] != 0x15 || (sig[1] != 0x12 && sig[1] != 0x11) {
+	var v int
+	switch {
+	case len(sig) >= 3 && sig[0] == 0x15 && (sig[1] == 0x12 || sig[1] == 0x11):
+		v, _ = compressed(sig[2:]) // a generic instance
+	case len(sig) >= 2 && (sig[0] == 0x12 || sig[0] == 0x11):
+		v, _ = compressed(sig[1:]) // a plain CLASS/VALUETYPE written as a TypeSpec
+	default:
 		return ""
 	}
-	v, _ := compressed(sig[2:])
 	t, x := decode(kTypeDefOrRef, v)
 	if t == tTypeRef {
 		return m.typeRefName(x)

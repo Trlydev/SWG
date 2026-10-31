@@ -29,9 +29,16 @@ type hiddenFind struct {
 }
 
 const (
-	maxInflate   = 64 << 20 // most a compressed blob may unpack to
-	maxXORSearch = 32 << 20 // larger blobs skip the XOR search
+	maxInflate   = 64 << 20  // most a compressed blob may unpack to
+	maxXORSearch = 32 << 20  // larger blobs skip the XOR search
+	inflateTotal = 256 << 20 // most all compressed blobs of one scanned file may unpack to
 )
+
+// budget bounds what one scanned file may make the search unpack, however
+// many compressed blobs it nests (a few MB could otherwise expand to GBs).
+type budget struct{ left int64 }
+
+func newBudget() *budget { return &budget{left: inflateTotal} }
 
 // dosStub is in nearly every Windows program and DLL, 0x4E bytes after its
 // start.
@@ -52,7 +59,7 @@ var xorNeedles = []struct {
 
 // findHidden looks inside b. skipStart: b is itself a program or DLL, so
 // the one at offset 0 is not hidden.
-func findHidden(b []byte, skipStart bool, depth int) []hiddenFind {
+func (bu *budget) findHidden(b []byte, skipStart bool, depth int) []hiddenFind {
 	var out []hiddenFind
 	seen := map[int]bool{}
 	add := func(f hiddenFind) {
@@ -60,8 +67,10 @@ func findHidden(b []byte, skipStart bool, depth int) []hiddenFind {
 			out = append(out, f)
 		}
 	}
-	// A plain program or DLL inside.
-	for i, n := 0, 0; n < 8; n++ {
+	// A plain program or DLL inside. Every "MZ" is looked at (decoys, and
+	// chance pairs in a large DLL, mustn't use up the search); only real
+	// headers count towards the limit.
+	for i, n := 0, 0; n < 8; {
 		k := bytes.Index(b[i:], []byte("MZ"))
 		if k < 0 {
 			break
@@ -71,19 +80,27 @@ func findHidden(b []byte, skipStart bool, depth int) []hiddenFind {
 		if (at == 0 && skipStart) || !isPE(b[at:]) {
 			continue
 		}
+		n++
 		seen[at] = true
 		add(hiddenFind{"hidden-executable", Critical, fmt.Sprintf("a Windows program or DLL is hidden inside, at byte %d", at), b[at : at+peSize(b[at:])]})
 	}
-	// Compressed: gzip anywhere (its 3-byte header is distinctive).
-	for i, n := 0, 0; n < 8 && depth < 2; n++ {
+	// Compressed: gzip anywhere (its 3-byte header is distinctive). Headers
+	// that don't open are skipped without counting; the unpacking budget
+	// bounds the work.
+	for i, n := 0, 0; n < 8 && depth < 2 && bu.left > 0; {
 		k := bytes.Index(b[i:], []byte{0x1f, 0x8b, 0x08})
 		if k < 0 {
 			break
 		}
 		at := i + k
 		i = at + 3
-		if zr, err := gzip.NewReader(bytes.NewReader(b[at:])); err == nil {
-			out = append(out, unpacked("gzip", at, readMax(zr), depth)...)
+		zr, err := gzip.NewReader(bytes.NewReader(b[at:]))
+		if err != nil {
+			continue
+		}
+		if dec := bu.read(zr); len(dec) > 0 {
+			n++
+			out = append(out, bu.unpacked("gzip", at, dec, depth)...)
 		}
 	}
 	// One-byte XOR.
@@ -116,18 +133,18 @@ func findHidden(b []byte, skipStart bool, depth int) []hiddenFind {
 // findHiddenResource looks inside one embedded resource for what the
 // whole-file search can't see: a bare zlib or deflate stream (how DLL
 // bundlers pack libraries).
-func findHiddenResource(data []byte, depth int) []hiddenFind {
-	if depth >= 2 {
+func (bu *budget) findHiddenResource(data []byte, depth int) []hiddenFind {
+	if depth >= 2 || bu.left <= 0 {
 		return nil
 	}
 	if zr, err := zlib.NewReader(bytes.NewReader(data)); err == nil {
-		return unpacked("zlib", 0, readMax(zr), depth)
+		return bu.unpacked("zlib", 0, bu.read(zr), depth)
 	}
-	return unpacked("deflate", 0, readMax(flate.NewReader(bytes.NewReader(data))), depth)
+	return bu.unpacked("deflate", 0, bu.read(flate.NewReader(bytes.NewReader(data))), depth)
 }
 
 // unpacked reports what a decompressed blob holds.
-func unpacked(how string, at int, dec []byte, depth int) []hiddenFind {
+func (bu *budget) unpacked(how string, at int, dec []byte, depth int) []hiddenFind {
 	if len(dec) == 0 {
 		return nil
 	}
@@ -135,15 +152,24 @@ func unpacked(how string, at int, dec []byte, depth int) []hiddenFind {
 	if isPE(dec) {
 		out = append(out, hiddenFind{"hidden-executable", Critical, fmt.Sprintf("a Windows program or DLL is hidden inside, %s-compressed (at byte %d)", how, at), dec})
 	}
-	for _, f := range findHidden(dec, isPE(dec), depth+1) {
+	for _, f := range bu.findHidden(dec, isPE(dec), depth+1) {
 		f.detail += " (inside " + how + "-compressed data)"
 		out = append(out, f)
 	}
 	return out
 }
 
-func readMax(r io.Reader) []byte {
-	b, _ := io.ReadAll(io.LimitReader(r, maxInflate))
+// read unpacks r, within maxInflate and what is left of the budget.
+func (bu *budget) read(r io.Reader) []byte {
+	n := int64(maxInflate)
+	if bu.left < n {
+		n = bu.left
+	}
+	if n <= 0 {
+		return nil
+	}
+	b, _ := io.ReadAll(io.LimitReader(r, n))
+	bu.left -= int64(len(b))
 	return b
 }
 
@@ -240,7 +266,7 @@ func neighbourXOR(b []byte, step int) []byte {
 
 // reportHidden adds what findHidden found in file rel. A recovered DLL is
 // analysed too, so the report says what the hidden code can do.
-func reportHidden(r *Report, rel, where string, finds []hiddenFind, depth int) {
+func reportHidden(r *Report, rel, where string, finds []hiddenFind, depth int, bu *budget) {
 	for _, f := range finds {
 		detail := f.detail
 		if where != "" {
@@ -249,7 +275,7 @@ func reportHidden(r *Report, rel, where string, finds []hiddenFind, depth int) {
 		r.add(f.sev, f.rule, rel, 0, detail)
 		if f.payload != nil && depth < 2 {
 			sub := &Report{}
-			analyzeDLLBytes(sub, rel, f.payload, depth+1)
+			analyzeDLLWith(sub, rel, f.payload, depth+1, bu)
 			for _, sf := range sub.Findings {
 				if sf.Rule == "compiled-code" || sf.Severity < Medium {
 					continue
@@ -267,6 +293,7 @@ func reportHidden(r *Report, rel, where string, finds []hiddenFind, depth int) {
 // and XOR decoding of characters or bytes. risky: the file also loads
 // code, uses reflection, starts programs or uses the network.
 func hiddenInSource(toks []token, hit func(string, Severity, int, string), risky bool) {
+	bu := newBudget()
 	var all []byte
 	first := 0
 	for _, arr := range byteArrays(toks) {
@@ -276,12 +303,12 @@ func hiddenInSource(toks []token, hit func(string, Severity, int, string), risky
 		if len(all) < maxXORSearch {
 			all = append(all, arr.b...)
 		}
-		for _, f := range findHidden(arr.b, false, 0) {
+		for _, f := range bu.findHidden(arr.b, false, 0) {
 			hit(f.rule, f.sev, arr.line, "byte array: "+f.detail)
 		}
 	}
 	if len(all) > 0 {
-		for _, f := range findHidden(all, false, 0) {
+		for _, f := range bu.findHidden(all, false, 0) {
 			if f.rule == "hidden-executable" {
 				hit(f.rule, f.sev, first, "byte arrays, joined: "+f.detail)
 			}
@@ -397,12 +424,17 @@ func parseIntLit(s string) (int64, bool) {
 // sound, mod.json) for a hidden program or XOR-hidden strings.
 func inspectAsset(r *Report, rel, path string) {
 	fi, err := os.Stat(path)
-	if err != nil || fi.Size() > maxXORSearch {
+	if err != nil {
+		return
+	}
+	if fi.Size() > maxXORSearch {
+		r.add(Medium, "too-large-to-inspect", rel, 0, fmt.Sprintf("%d MB: too large to look inside for hidden code", fi.Size()>>20))
 		return
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return
 	}
-	reportHidden(r, rel, "", findHidden(b, isNativeBinary(b), 0), 0)
+	bu := newBudget()
+	reportHidden(r, rel, "", bu.findHidden(b, isNativeBinary(b), 0), 0, bu)
 }

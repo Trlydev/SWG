@@ -155,8 +155,10 @@ func DirWith(root string, opt Options) (*Report, error) {
 			} else if gameCopy(p, opt.GameManaged) {
 				r.add(Info, "game-library", rel, 0, "identical to the game's own "+d.Name())
 			} else {
-				analyzeDLL(r, rel, p) // what it can do, from its metadata
-				inspectDLL(r, rel, p)
+				guard(r, rel, func() {
+					analyzeDLL(r, rel, p) // what it can do, from its metadata
+					inspectDLL(r, rel, p)
+				})
 			}
 		case executableExt[ext]:
 			r.add(Critical, "executable-file", rel, 0, "executable/script file "+ext+" has no place in a mod")
@@ -168,7 +170,7 @@ func DirWith(root string, opt Options) (*Report, error) {
 			if err != nil {
 				return err
 			}
-			scanSource(r, rel, string(b))
+			guard(r, rel, func() { scanSource(r, rel, string(b)) })
 		case base == "mod.json":
 			b, err := os.ReadFile(p)
 			if err != nil {
@@ -182,7 +184,7 @@ func DirWith(root string, opt Options) (*Report, error) {
 			}
 		}
 		if ext != ".cs" && ext != ".dll" && !executableExt[ext] && !nestedArchiveExt[ext] {
-			inspectAsset(r, rel, p)
+			guard(r, rel, func() { inspectAsset(r, rel, p) })
 		}
 		return nil
 	})
@@ -191,6 +193,17 @@ func DirWith(root string, opt Options) (*Report, error) {
 	}
 	sort.SliceStable(r.Findings, func(i, j int) bool { return r.Findings[i].Severity > r.Findings[j].Severity })
 	return r, err
+}
+
+// guard runs one file's checks; if they fail on a file crafted to break
+// them, the file is reported as unchecked instead of the scan stopping.
+func guard(r *Report, rel string, check func()) {
+	defer func() {
+		if e := recover(); e != nil {
+			r.add(Critical, "scan-error", rel, 0, fmt.Sprintf("the scanner couldn't read this file (%v): it is unchecked", e))
+		}
+	}()
+	check()
 }
 
 func (r *Report) add(s Severity, id, file string, line int, detail string) {
@@ -338,7 +351,7 @@ func scanListed(r *Report, root string, listed []string) error {
 // Source scans one C# file's text. Exposed for tests.
 func Source(name, src string) *Report {
 	r := &Report{Root: name, Files: 1, Scripts: 1}
-	scanSource(r, name, src)
+	guard(r, name, func() { scanSource(r, name, src) })
 	return r
 }
 

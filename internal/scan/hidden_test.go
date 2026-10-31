@@ -3,6 +3,7 @@ package scan
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -210,5 +211,55 @@ func TestDLLCode(t *testing.T) {
 		if f.Rule == "xor-decoding" || f.Rule == "reflection-sensitive-type" {
 			t.Errorf("clean DLL: %+v", f)
 		}
+	}
+}
+
+// Findings of the scanner's security review: decoys don't use up the
+// search, joining text and folding constants stay bounded, and a cut-off
+// escape doesn't crash the lexer.
+func TestScannerReview(t *testing.T) {
+	dll, _ := os.ReadFile(filepath.Join("testdata", "dll", "process.dll"))
+	decoys := append(bytes.Repeat([]byte("MZ"), 20), dll...)
+	if f := newBudget().findHidden(decoys, false, 0); len(f) == 0 {
+		t.Error("20 fake MZ headers hid the real DLL")
+	}
+	var gz bytes.Buffer
+	w := gzip.NewWriter(&gz)
+	w.Write(dll)
+	w.Close()
+	fakeGz := append(bytes.Repeat([]byte{0x1f, 0x8b, 0x08, 0x00}, 20), gz.Bytes()...)
+	found := false
+	for _, f := range newBudget().findHidden(fakeGz, false, 0) {
+		found = found || strings.Contains(f.detail, "gzip")
+	}
+	if !found {
+		t.Error("20 fake gzip headers hid the gzipped DLL")
+	}
+
+	done := make(chan bool)
+	go func() {
+		// String.Concat in a loop of 2000 over a long string.
+		mt := Method{Ops: []MethodOp{{Str: strings.Repeat("x", 20000)}}}
+		for i := 0; i < 2000; i++ {
+			mt.Ops = append(mt.Ops, MethodOp{Str: "y"}, MethodOp{Call: "System.String.Concat"})
+		}
+		mt.JoinedStrings()
+		// Constants that double 40 times.
+		var src strings.Builder
+		src.WriteString(`class C { void F() { var a0 = "xxxxxxxx";`)
+		for i := 1; i <= 40; i++ {
+			fmt.Fprintf(&src, " var a%d = a%d + a%d;", i, i-1, i-1)
+		}
+		src.WriteString(" } }")
+		Source("c.cs", src.String())
+		// An escape cut off by the end of the file.
+		Source("e.cs", `"\u`)
+		Source("e2.cs", `x = "\U00`)
+		done <- true
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("scanning took too long (unbounded joining or folding)")
 	}
 }
