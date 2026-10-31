@@ -12,25 +12,19 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func main() {
 	if len(os.Args) != 2 {
 		fail("usage: signrelease <file>")
 	}
-	blk, _ := pem.Decode([]byte(os.Getenv("RELEASE_SIGNING_KEY")))
-	if blk == nil {
-		fail("RELEASE_SIGNING_KEY is not set or not a PEM key: add the release key as a repository secret")
-	}
-	k, err := x509.ParsePKCS8PrivateKey(blk.Bytes)
+	key, err := parseKey(os.Getenv("RELEASE_SIGNING_KEY"))
 	if err != nil {
 		fail("RELEASE_SIGNING_KEY: " + err.Error())
-	}
-	key, ok := k.(ed25519.PrivateKey)
-	if !ok {
-		fail("RELEASE_SIGNING_KEY is not an Ed25519 key")
 	}
 	data, err := os.ReadFile(os.Args[1])
 	if err != nil {
@@ -41,6 +35,44 @@ func main() {
 		fail(err.Error())
 	}
 	fmt.Println("signed", os.Args[1])
+}
+
+// parseKey reads the key file's content however it was pasted into the
+// secret: as the file, as one line (the line breaks lost), or only the
+// base64 between the BEGIN and END lines. The key itself is never printed.
+func parseKey(v string) (ed25519.PrivateKey, error) {
+	if strings.TrimSpace(v) == "" {
+		return nil, errors.New("not set: add the release key as a repository secret")
+	}
+	der := []byte(nil)
+	if blk, _ := pem.Decode([]byte(v)); blk != nil {
+		der = blk.Bytes
+	} else {
+		body := v
+		for _, marker := range []string{"-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"} {
+			body = strings.ReplaceAll(body, marker, "")
+		}
+		if strings.Contains(body, "PUBLIC KEY") {
+			return nil, errors.New("this is the public key; the secret needs the private key file (ppgmods-release-key.pem)")
+		}
+		b, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(body), ""))
+		if err != nil {
+			return nil, errors.New("not a key file's content: paste the whole of ppgmods-release-key.pem")
+		}
+		der = b
+	}
+	if _, err := x509.ParsePKIXPublicKey(der); err == nil {
+		return nil, errors.New("this is the public key; the secret needs the private key file (ppgmods-release-key.pem)")
+	}
+	k, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return nil, errors.New("not a private key: paste the whole of ppgmods-release-key.pem")
+	}
+	key, ok := k.(ed25519.PrivateKey)
+	if !ok {
+		return nil, errors.New("not an Ed25519 key (make it with openssl genpkey -algorithm ed25519)")
+	}
+	return key, nil
 }
 
 func fail(msg string) {
