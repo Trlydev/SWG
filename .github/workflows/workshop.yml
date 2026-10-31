@@ -205,6 +205,8 @@ jobs:
           git add index.json
           if [ -f held.json ]; then git add held.json; else git rm -q --cached --ignore-unmatch held.json; fi
           if [ -f index.sig ]; then git add index.sig; else git rm -q --cached --ignore-unmatch index.sig; fi
+          if [ -f index.sig2 ]; then git add index.sig2; else git rm -q --cached --ignore-unmatch index.sig2; fi
+          if [ -d thumbs ]; then git add thumbs; fi # the mods' preview images the index links to
           if git diff --cached --quiet; then echo "index unchanged"; exit 0; fi
           git commit -q -m "Open Workshop index $(date -u +%F)"
           git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:workshop-data

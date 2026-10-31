@@ -148,6 +148,10 @@ func saveIndex(data string, ix *workshop.Index) error {
 	return nil
 }
 
+// thumbData is the data branch checkout where a published mod's preview
+// image is kept ("" keeps none; set by issue).
+var thumbData string
+
 func issue(args []string) error {
 	fs := flag.NewFlagSet("issue", flag.ExitOnError)
 	data := fs.String("data", "data", "checkout of the workshop-data branch")
@@ -155,6 +159,7 @@ func issue(args []string) error {
 	fs.Parse(args)
 	os.MkdirAll(*data, 0o755)
 	os.MkdirAll(*out, 0o755)
+	thumbData = *data
 	ev := readEvent()
 	ix, err := loadIndex(*data)
 	if err != nil {
@@ -381,7 +386,10 @@ func submit(ix *workshop.Index, ev event, out string, approveSHA string) *outcom
 		s.WorkshopID = "" // a Workshop ID claim is held above; never kept unapproved
 	}
 	if old != nil && old.SHA256 == res.SHA256 {
-		old.Name, old.Author, old.Description, old.Tags, old.Image, old.License = s.Name, s.Author, s.Description, s.Tags, s.Image, s.License
+		old.Name, old.Author, old.Description, old.Tags, old.License = s.Name, s.Author, s.Description, s.Tags, s.License
+		if s.Image != "" {
+			old.Image = s.Image // else keep the preview taken from the file
+		}
 		old.Version, old.Issue, old.WorkshopID = s.Version, ev.number, s.WorkshopID
 		old.Approved = old.Approved || approved && len(holds) > 0
 		old.Withdrawn, old.WithdrawnReason = false, ""
@@ -392,8 +400,12 @@ func submit(ix *workshop.Index, ev event, out string, approveSHA string) *outcom
 		return reject([]string{"internal error: " + err.Error()})
 	}
 	now := time.Now().UTC()
+	img := s.Image
+	if img == "" && thumbData != "" {
+		img = keepThumb(thumbData, work) // the mod's own preview, for the app's cards
+	}
 	e := workshop.Entry{Slug: slug, Name: s.Name, Author: s.Author, Kind: s.Kind, Version: s.Version, Description: s.Description,
-		Tags: s.Tags, Image: s.Image, WorkshopID: s.WorkshopID, License: s.License, File: workshop.AssetURL(name),
+		Tags: s.Tags, Image: img, WorkshopID: s.WorkshopID, License: s.License, File: workshop.AssetURL(name),
 		SHA256: res.SHA256, Size: res.Size, ScanMax: res.ScanMax, Findings: res.Findings, Rules: res.Rules, Published: now, First: now,
 		Maintainers: []string{ev.author}, Owner: ev.author, Issue: ev.number, Approved: approved && len(holds) > 0}
 	if old != nil {
@@ -530,13 +542,13 @@ func refresh(args []string) error {
 		return err
 	}
 	downloadCounts(ix)
-	rescan(ix)
+	rescan(ix, *data)
 	return saveIndex(*data, ix)
 }
 
 // rescan checks every published file again with today's scanner: a file
 // that is flagged now (and wasn't approved) is withdrawn.
-func rescan(ix *workshop.Index) {
+func rescan(ix *workshop.Index, data string) {
 	for i := range ix.Entries {
 		e := &ix.Entries[i]
 		if e.Withdrawn {
@@ -546,6 +558,9 @@ func rescan(ix *workshop.Index) {
 		sub := &workshop.Submission{Name: e.Name, Author: e.Author, Kind: e.Kind, Version: e.Version, Download: e.File,
 			SHA256: e.SHA256, Maintainers: []string{e.Owner}}
 		res := workshop.Check(client, sub, work)
+		if e.Image == "" && res.SHA256 == e.SHA256 { // the published file, unpacked
+			e.Image = keepThumb(data, work) // the mod's own preview, for the app's cards
+		}
 		os.RemoveAll(work)
 		var why []string
 		for _, p := range res.Problems {
@@ -565,6 +580,24 @@ func rescan(ix *workshop.Index) {
 			fmt.Printf("withdrew %s: %s\n", e.Slug, why[0])
 		}
 	}
+}
+
+// keepThumb takes the preview image out of a checked file unpacked in
+// work (workshop.Check's work/x), keeps it in data/thumbs and returns its
+// link for the index ("" if the file has none).
+func keepThumb(data, work string) string {
+	b, name := workshop.ThumbFrom(filepath.Join(work, "x"))
+	if b == nil {
+		return ""
+	}
+	dir := filepath.Join(data, "thumbs")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return ""
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), b, 0o644); err != nil {
+		return ""
+	}
+	return workshop.ThumbURL(name)
 }
 
 // downloadCounts adds up each entry's release-asset downloads.
