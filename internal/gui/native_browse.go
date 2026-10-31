@@ -806,6 +806,7 @@ type thumbLoader struct {
 	mu     sync.Mutex
 	cache  map[string]image.Image
 	failed map[string]bool
+	flight map[string]chan struct{} // downloads in progress, so one image is fetched once
 	boxes  map[string][]*thumbBox
 	sem    chan struct{}
 	client *http.Client
@@ -827,15 +828,16 @@ type thumbBox struct {
 }
 
 func newThumbLoader(u *ui) *thumbLoader {
-	return &thumbLoader{u: u, cache: map[string]image.Image{}, failed: map[string]bool{}, boxes: map[string][]*thumbBox{},
-		sem: make(chan struct{}, 6), client: &http.Client{Timeout: 30 * time.Second}, tried: map[string]bool{}}
+	go pruneThumbDisk()
+	return &thumbLoader{u: u, cache: map[string]image.Image{}, failed: map[string]bool{}, flight: map[string]chan struct{}{}, boxes: map[string][]*thumbBox{},
+		sem: make(chan struct{}, 10), client: &http.Client{Timeout: 30 * time.Second}, tried: map[string]bool{}}
 }
 
 func (t *thumbLoader) forget() {
 	t.mu.Lock()
 	t.boxes = map[string][]*thumbBox{}
 	t.queue = nil
-	if len(t.cache) > 400 {
+	if len(t.cache) > 1500 { // shrunk images: ~1 MB each at most
 		t.cache = map[string]image.Image{}
 	}
 	t.mu.Unlock()
@@ -911,24 +913,42 @@ func (t *thumbLoader) show(tb *thumbBox, img image.Image) {
 
 // get returns a decoded image: "thumb:<ref>" is one ppgmods extracted.
 func (t *thumbLoader) get(src string) image.Image {
-	t.mu.Lock()
-	if img, ok := t.cache[src]; ok {
+	for {
+		t.mu.Lock()
+		if img, ok := t.cache[src]; ok {
+			t.mu.Unlock()
+			return img
+		}
+		if t.failed[src] {
+			t.mu.Unlock()
+			return nil
+		}
+		wait, busy := t.flight[src]
+		if !busy {
+			t.flight[src] = make(chan struct{})
+			t.mu.Unlock()
+			break
+		}
 		t.mu.Unlock()
-		return img
+		<-wait // another card is fetching the same image: use its result
 	}
-	if t.failed[src] {
+	defer func() {
+		t.mu.Lock()
+		close(t.flight[src])
+		delete(t.flight, src)
 		t.mu.Unlock()
-		return nil
-	}
-	t.mu.Unlock()
-	t.sem <- struct{}{}
-	defer func() { <-t.sem }()
+	}()
 	var data []byte
+	fromDisk := false
 	if ref, ok := strings.CutPrefix(src, "thumb:"); ok {
 		if p := app.ThumbPath(ref); p != "" {
 			data, _ = os.ReadFile(p)
 		}
+	} else if data = readThumbDisk(src); data != nil {
+		fromDisk = true
 	} else if strings.HasPrefix(src, "https://") {
+		t.sem <- struct{}{}
+		defer func() { <-t.sem }()
 		req, _ := http.NewRequest("GET", src, nil)
 		req.Header.Set("User-Agent", sources.UserAgent)
 		if resp, err := t.client.Do(req); err == nil {
@@ -942,6 +962,12 @@ func (t *thumbLoader) get(src string) image.Image {
 	if len(data) > 0 {
 		if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil && cfg.Width*cfg.Height <= 40e6 {
 			img, _, _ = image.Decode(bytes.NewReader(data))
+		}
+	}
+	if img != nil {
+		img = shrink(img) // small images draw fast and take little memory
+		if !fromDisk && strings.HasPrefix(src, "https://") {
+			writeThumbDisk(src, img)
 		}
 	}
 	t.mu.Lock()
