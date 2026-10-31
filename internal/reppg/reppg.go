@@ -132,8 +132,8 @@ func Install(ctx context.Context, gameDir string, logf func(string, ...any)) (st
 	if game.DetectLoader(gameDir).NativeLinux {
 		return "", errors.New("People Playground runs as its native Linux version here, and RE_PPG only works in the Windows version: in Steam, People Playground, Properties, Compatibility, force Proton, let Steam install the Windows version, then install RE_PPG")
 	}
-	if _, err := os.Stat(filepath.Join(gameDir, "BepInEx", "core", "BepInEx.dll")); err != nil {
-		logf("downloading BepInEx 5.4.23.5 (the loader RE_PPG runs on)")
+	if missing := bepInExMissing(gameDir); missing != "" {
+		logf("downloading BepInEx 5.4.23.5 (the loader RE_PPG runs on; %s is missing)", missing)
 		if err := installBepInEx(ctx, gameDir); err != nil {
 			return "", fmt.Errorf("installing BepInEx: %w", err)
 		}
@@ -196,12 +196,38 @@ func Install(ctx context.Context, gameDir string, logf func(string, ...any)) (st
 		}
 		items = append(items, item{File{p, f.Size, f.Sha256}, ent})
 	}
+	verified := func(p string) []byte {
+		for _, it := range items {
+			if it.f.Path == p {
+				b, err := readEntry(it.ent, it.f.Size)
+				if err == nil && int64(len(b)) == it.f.Size {
+					return b
+				}
+			}
+		}
+		return nil
+	}
+	// The base manifest carries no version; the package's own signed
+	// seed/update.json does, and must be the latest release.
+	if seed := verified("RE_PPG/bootstrap/seed/update.json"); seed != nil {
+		sm, err := ParseSigned(seed)
+		if err != nil {
+			return "", fmt.Errorf("RE_PPG-base.zip: its update.json: %w", err)
+		}
+		if sm.Version != latest.Version {
+			return "", fmt.Errorf("RE_PPG-base.zip is version %q, not the latest release %s", sm.Version, latest.Version)
+		}
+	}
+	plan, err := planHarmony(gameDir, verified)
+	if err != nil {
+		return "", err
+	}
 	for _, it := range items {
 		if err := writeEntry(it.ent, gameDir, it.f.Path, it.f.Size); err != nil {
 			return "", fmt.Errorf("writing %s: %w (is the game running?)", it.f.Path, err)
 		}
 	}
-	if err := stageHarmony(gameDir, logf); err != nil {
+	if err := plan.apply(gameDir, logf); err != nil {
 		return "", err
 	}
 	logf("installed RE_PPG %s (%d files, each checked against RE_PPG's signed list)", latest.Version, len(items))
@@ -242,92 +268,120 @@ func installBepInEx(ctx context.Context, gameDir string) error {
 // folder for older mods (RE_PPG's installer pins the same hash).
 var legacyHarmonySHA256 = "0de0118c8f1d4408de389ca33b46d2ff7778f3a8541b430cae729ec913d899c7"
 
-// stageHarmony does what RE_PPG's installer does after copying its files:
+// bepInExFiles must all be present for BepInEx to count as installed: a
+// half-finished extraction is repaired by installing it again.
+var bepInExFiles = []string{"winhttp.dll", "doorstop_config.ini", "BepInEx/core/BepInEx.dll", "BepInEx/core/BepInEx.Preloader.dll",
+	"BepInEx/core/0Harmony.dll", "BepInEx/core/MonoMod.Utils.dll", "BepInEx/core/MonoMod.RuntimeDetour.dll", "BepInEx/core/Mono.Cecil.dll"}
+
+// bepInExMissing names a BepInEx file the game folder lacks ("" if none).
+func bepInExMissing(gameDir string) string {
+	for _, f := range bepInExFiles {
+		if _, err := os.Stat(filepath.Join(gameDir, filepath.FromSlash(f))); err != nil {
+			return f
+		}
+	}
+	return ""
+}
+
+// harmonyPlan is what RE_PPG's installer does after copying its files,
+// decided before anything is written:
 //   - BepInEx's Harmony is replaced by RE_PPG's patched one, when BepInEx's
 //     is the version RE_PPG patched (compatibility.json: its hash, and the
 //     hashes of the libraries next to it);
 //   - older mods get a Harmony in People Playground_Data/Managed, unless the
 //     game already has one there.
 //
-// Both files come from the signed base package, already checked.
-func stageHarmony(gameDir string, logf func(string, ...any)) error {
-	boot := filepath.Join(gameDir, "RE_PPG", "bootstrap")
+// The files come from the signed, checked package (never from the folder).
+type harmonyPlan struct {
+	core, managed []byte // what to write; nil: nothing
+}
+
+const (
+	compatPath  = "RE_PPG/bootstrap/harmony/compatibility.json"
+	patchedPath = "RE_PPG/bootstrap/harmony/0Harmony.dll"
+	legacyPath  = "RE_PPG/bootstrap/legacy-harmony/0Harmony.dll"
+)
+
+// planHarmony checks the game folder against RE_PPG's Harmony files.
+// verified returns a file of the signed package (nil if it isn't in it).
+func planHarmony(gameDir string, verified func(string) []byte) (*harmonyPlan, error) {
+	plan := &harmonyPlan{}
+	raw, patched := verified(compatPath), verified(patchedPath)
+	if raw == nil && patched == nil {
+		return plan, nil // a release without the Harmony step
+	}
+	if raw == nil || patched == nil {
+		return nil, errors.New("RE_PPG's package lists only part of its Harmony files")
+	}
 	var compat struct {
 		OriginalSha256, PatchedSha256 string
 		Dependencies                  map[string]string
 	}
-	raw, err := os.ReadFile(filepath.Join(boot, "harmony", "compatibility.json"))
-	if err != nil {
-		return fmt.Errorf("RE_PPG's Harmony compatibility list: %w", err)
-	}
 	if err := json.Unmarshal(bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf")), &compat); err != nil || compat.OriginalSha256 == "" || compat.PatchedSha256 == "" {
-		return errors.New("RE_PPG's Harmony compatibility list is invalid")
+		return nil, errors.New("RE_PPG's Harmony compatibility list is invalid")
 	}
-	patched := filepath.Join(boot, "harmony", "0Harmony.dll")
-	if h, err := fileSHA(patched); err != nil || !strings.EqualFold(h, compat.PatchedSha256) {
-		return errors.New("RE_PPG's patched Harmony doesn't match its compatibility list")
+	if !strings.EqualFold(sha(patched), compat.PatchedSha256) {
+		return nil, errors.New("RE_PPG's patched Harmony doesn't match its compatibility list")
 	}
 	core := filepath.Join(gameDir, "BepInEx", "core")
 	cur, err := fileSHA(filepath.Join(core, "0Harmony.dll"))
 	switch {
 	case err != nil:
-		return errors.New("BepInEx/core/0Harmony.dll is missing: reinstall BepInEx 5.4.23.5 (delete the BepInEx folder and install RE_PPG again)")
+		return nil, errors.New("BepInEx/core/0Harmony.dll is missing: reinstall BepInEx 5.4.23.5 (delete the BepInEx folder and install RE_PPG again)")
 	case strings.EqualFold(cur, compat.PatchedSha256):
 		// already RE_PPG's
 	case strings.EqualFold(cur, compat.OriginalSha256):
 		for name, want := range compat.Dependencies {
 			if h, err := fileSHA(filepath.Join(core, filepath.Base(name))); err != nil || !strings.EqualFold(h, want) {
-				return fmt.Errorf("BepInEx/core/%s isn't from BepInEx 5.4.23.5, which RE_PPG needs: delete the BepInEx folder and install RE_PPG again", filepath.Base(name))
+				return nil, fmt.Errorf("BepInEx/core/%s isn't from BepInEx 5.4.23.5, which RE_PPG needs: delete the BepInEx folder and install RE_PPG again", filepath.Base(name))
 			}
 		}
-		if err := copyFile(patched, filepath.Join(core, "0Harmony.dll")); err != nil {
-			return fmt.Errorf("installing RE_PPG's Harmony: %w (is the game running?)", err)
-		}
-		logf("replaced BepInEx's Harmony with RE_PPG's patched one")
+		plan.core = patched
 	default:
-		return errors.New("BepInEx/core/0Harmony.dll isn't from BepInEx 5.4.23.5, which RE_PPG needs: delete the BepInEx folder and install RE_PPG again")
+		return nil, errors.New("BepInEx/core/0Harmony.dll isn't from BepInEx 5.4.23.5, which RE_PPG needs: delete the BepInEx folder and install RE_PPG again")
 	}
 
-	legacy := filepath.Join(boot, "legacy-harmony", "0Harmony.dll")
-	if h, err := fileSHA(legacy); err != nil || h != legacyHarmonySHA256 {
-		return errors.New("RE_PPG's Harmony for older mods doesn't match the expected file")
+	legacy := verified(legacyPath)
+	if legacy == nil || sha(legacy) != legacyHarmonySHA256 {
+		return nil, errors.New("RE_PPG's Harmony for older mods is missing from its package or doesn't match the expected file")
 	}
 	dst := filepath.Join(gameDir, "People Playground_Data", "Managed", "0Harmony.dll")
 	if b, err := os.ReadFile(dst); err == nil {
-		if h := sha256.Sum256(b); hex.EncodeToString(h[:]) == legacyHarmonySHA256 {
-			return nil // RE_PPG's, from an earlier install
+		if sha(b) != legacyHarmonySHA256 {
+			if info, err := scan.ReadCLR(b); err != nil || info.Assembly != "0Harmony" {
+				return nil, errors.New("People Playground_Data/Managed/0Harmony.dll isn't Harmony, so older mods can't use it; RE_PPG's installer stops here too")
+			}
 		}
-		if info, err := scan.ReadCLR(b); err != nil || info.Assembly != "0Harmony" {
-			return errors.New("People Playground_Data/Managed/0Harmony.dll isn't Harmony, so older mods can't use it; RE_PPG's installer stops here too")
+		return plan, nil // the game's own, or RE_PPG's from an earlier install
+	}
+	plan.managed = legacy
+	return plan, nil
+}
+
+func (p *harmonyPlan) apply(gameDir string, logf func(string, ...any)) error {
+	if p.core != nil {
+		if err := writeFile(gameDir, "BepInEx/core/0Harmony.dll", p.core); err != nil {
+			return fmt.Errorf("installing RE_PPG's Harmony: %w (is the game running?)", err)
 		}
-		logf("kept the game's own Harmony in People Playground_Data/Managed")
-		return nil
+		logf("replaced BepInEx's Harmony with RE_PPG's patched one")
 	}
-	if err := copyFile(legacy, dst); err != nil {
-		return fmt.Errorf("installing Harmony for older mods: %w (is the game running?)", err)
+	if p.managed != nil {
+		if err := writeFile(gameDir, "People Playground_Data/Managed/0Harmony.dll", p.managed); err != nil {
+			return fmt.Errorf("installing Harmony for older mods: %w (is the game running?)", err)
+		}
+		logf("installed Harmony for older mods in People Playground_Data/Managed")
 	}
-	logf("installed Harmony for older mods in People Playground_Data/Managed")
 	return nil
 }
 
-// copyFile copies src to dst through a temporary file.
-func copyFile(src, dst string) error {
-	b, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	tmp := dst + ".ppgmods-tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, dst); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return nil
+func sha(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
+// writeFile writes b to dir/p through a temporary file.
+func writeFile(dir, p string, b []byte) error {
+	return writeFrom(dir, p, bytes.NewReader(b), int64(len(b)))
 }
 
 // zipPath normalises a zip entry name (RE_PPG's use backslashes).
@@ -408,23 +462,63 @@ func checkEntry(f *zip.File, size int64, sum string) error {
 
 // writeEntry writes a zip entry to dir/p through a temporary file.
 func writeEntry(f *zip.File, dir, p string, size int64) error {
-	dst := filepath.Join(dir, filepath.FromSlash(p))
-	if rel, err := filepath.Rel(dir, dst); err != nil || strings.HasPrefix(rel, "..") {
-		return fmt.Errorf("path %q leaves the game folder", p)
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
 	rc, err := f.Open()
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
+	return writeFrom(dir, p, rc, size)
+}
+
+// writeFrom writes up to size bytes of r to dir/p (readable by all, like the
+// game's own files). The file must stay inside dir, also when a folder on
+// the way is a symbolic link.
+func writeFrom(dir, p string, r io.Reader, size int64) error {
+	dst := filepath.Join(dir, filepath.FromSlash(p))
+	if !inside(dir, dst) {
+		return fmt.Errorf("path %q leaves the game folder", p)
+	}
+	// Check where the folders lead before creating any: the deepest one that
+	// exists, resolved, must be in the game folder (and again once made).
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return err
+	}
+	staysIn := func() bool {
+		at := filepath.Dir(dst)
+		for {
+			if _, err := os.Lstat(at); err == nil {
+				break
+			}
+			up := filepath.Dir(at)
+			if up == at {
+				return false
+			}
+			at = up
+		}
+		real, err := filepath.EvalSymlinks(at)
+		return err == nil && (real == realDir || inside(realDir, real))
+	}
+	if !staysIn() {
+		return fmt.Errorf("path %q leads out of the game folder (a symbolic link)", p)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	if !staysIn() {
+		return fmt.Errorf("path %q leads out of the game folder (a symbolic link)", p)
+	}
+	if fi, err := os.Lstat(dst); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%q is a symbolic link; not replacing it", p)
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(dst), ".ppgmods-*")
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(tmp, io.LimitReader(rc, size))
+	_, err = io.Copy(tmp, io.LimitReader(r, size))
+	if err == nil {
+		err = tmp.Chmod(0o644)
+	}
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}
@@ -435,6 +529,12 @@ func writeEntry(f *zip.File, dir, p string, size int64) error {
 		os.Remove(tmp.Name())
 	}
 	return err
+}
+
+// inside reports whether path is below dir.
+func inside(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 // fetch GETs u, once more after a moment if GitHub answers with a server

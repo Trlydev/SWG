@@ -42,12 +42,13 @@ func TestRealManifest(t *testing.T) {
 }
 
 type fakeRelease struct {
-	key      *rsa.PrivateKey
-	files    map[string][]byte // what the manifest lists
-	extra    map[string][]byte // in the zip, not listed
-	tamper   string            // listed file whose zip content differs
-	bep      []byte
-	signWith *rsa.PrivateKey
+	key         *rsa.PrivateKey
+	files       map[string][]byte // what the manifest lists
+	extra       map[string][]byte // in the zip, not listed
+	tamper      string            // listed file whose zip content differs
+	bep         []byte
+	signWith    *rsa.PrivateKey
+	baseVersion string // the base manifest's version, if not 1.2.3
 }
 
 func sign(t *testing.T, key *rsa.PrivateKey, v any) []byte {
@@ -69,6 +70,14 @@ func (fr *fakeRelease) serve(t *testing.T) *httptest.Server {
 	var files []File
 	var zb bytes.Buffer
 	zw := zip.NewWriter(&zb)
+	files0 := fr.files
+	if fr.baseVersion != "" { // the package's own seed/update.json, with this version
+		fr.files = map[string][]byte{}
+		for k, v := range files0 {
+			fr.files[k] = v
+		}
+		fr.files["RE_PPG/bootstrap/seed/update.json"] = sign(t, signer, Manifest{Product: "RE_PPG", Version: fr.baseVersion})
+	}
 	for p, c := range fr.files {
 		h := sha256.Sum256(c)
 		files = append(files, File{Path: p, Size: int64(len(c)), Sha256: hex.EncodeToString(h[:])})
@@ -83,7 +92,7 @@ func (fr *fakeRelease) serve(t *testing.T) *httptest.Server {
 		w.Write(c)
 	}
 	w, _ := zw.Create("base-manifest.json")
-	w.Write(sign(t, signer, Manifest{Product: "RE_PPG-base", Version: "1.2.3", Files: files}))
+	w.Write(sign(t, signer, Manifest{Product: "RE_PPG-base", Files: files})) // like RE_PPG's: no version
 	zw.Close()
 	update := sign(t, signer, Manifest{Product: "RE_PPG", Version: "1.2.3"})
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +110,19 @@ func (fr *fakeRelease) serve(t *testing.T) *httptest.Server {
 }
 
 // BepInEx files of the fake release, and RE_PPG's Harmony files matching them.
-var bepFiles = []string{"winhttp.dll", "doorstop_config.ini", "BepInEx/core/BepInEx.dll", "BepInEx/core/0Harmony.dll", "BepInEx/core/MonoMod.Utils.dll"}
+var bepFiles = append([]string(nil), bepInExFiles...)
+
+// fakeBepInEx puts a complete (fake) BepInEx in g, with someone's files.
+func fakeBepInEx(g string, harmony string) {
+	for _, f := range bepFiles {
+		p := filepath.Join(g, filepath.FromSlash(f))
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte("bep:"+f), 0o644)
+	}
+	if harmony != "" {
+		os.WriteFile(filepath.Join(g, "BepInEx", "core", "0Harmony.dll"), []byte(harmony), 0o644)
+	}
+}
 
 func bepZip() []byte {
 	var b bytes.Buffer
@@ -196,11 +217,13 @@ func TestInstall(t *testing.T) {
 // Managed/0Harmony.dll that isn't Harmony is left alone (and stops it).
 func TestHarmonyRefuses(t *testing.T) {
 	g := setup(t, &fakeRelease{files: baseFiles})
-	os.MkdirAll(filepath.Join(g, "BepInEx", "core"), 0o755)
-	os.WriteFile(filepath.Join(g, "BepInEx", "core", "BepInEx.dll"), []byte("someone's BepInEx"), 0o644)
-	os.WriteFile(filepath.Join(g, "BepInEx", "core", "0Harmony.dll"), []byte("another Harmony"), 0o644)
+	fakeBepInEx(g, "another Harmony")
 	if _, err := Install(context.Background(), g, nil); err == nil || !strings.Contains(err.Error(), "5.4.23.5") {
 		t.Errorf("other BepInEx Harmony: %v", err)
+	}
+	// Refused before anything was written (no half-installed RE_PPG).
+	if _, err := os.Stat(filepath.Join(g, "BepInEx", "plugins", "RE_PPG", "RE_PPG.Loader.dll")); err == nil {
+		t.Error("RE_PPG files written although the Harmony check failed")
 	}
 	if b, _ := os.ReadFile(filepath.Join(g, "BepInEx", "core", "0Harmony.dll")); string(b) != "another Harmony" {
 		t.Error("replaced a Harmony RE_PPG wasn't made for")
@@ -230,8 +253,7 @@ func TestInstallRefuses(t *testing.T) {
 	}
 	for name, fr := range cases {
 		g := setup(t, fr)
-		os.MkdirAll(filepath.Join(g, "BepInEx", "core"), 0o755)
-		os.WriteFile(filepath.Join(g, "BepInEx", "core", "BepInEx.dll"), []byte("existing"), 0o644)
+		fakeBepInEx(g, "")
 		if _, err := Install(context.Background(), g, nil); err == nil {
 			t.Errorf("%s: installed", name)
 		}
@@ -263,5 +285,62 @@ func TestNewer(t *testing.T) {
 		if got := Newer(c.a, c.b); got != c.want {
 			t.Errorf("Newer(%q, %q) = %v", c.a, c.b, got)
 		}
+	}
+}
+
+// Findings of the security review: a half-installed BepInEx is repaired,
+// Harmony files must come from the signed list, the signed version must be
+// the latest, written files are readable, and symlinks can't lead out.
+func TestInstallReview(t *testing.T) {
+	// A BepInEx file missing (an earlier extraction stopped halfway).
+	g := setup(t, &fakeRelease{files: baseFiles})
+	fakeBepInEx(g, "")
+	os.Remove(filepath.Join(g, "winhttp.dll"))
+	if _, err := Install(context.Background(), g, nil); err != nil {
+		t.Fatalf("repair: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(g, "winhttp.dll")); err != nil {
+		t.Error("missing BepInEx file not put back")
+	}
+	if fi, err := os.Stat(filepath.Join(g, "BepInEx", "plugins", "RE_PPG", "RE_PPG.Loader.dll")); err != nil || fi.Mode().Perm() != 0o644 {
+		t.Errorf("written file mode: %v %v", fi, err)
+	}
+
+	// Harmony files planted in the folder but not in the signed list: unused.
+	noHarmony := map[string][]byte{"BepInEx/plugins/RE_PPG/RE_PPG.Loader.dll": []byte("loader")}
+	g = setup(t, &fakeRelease{files: noHarmony})
+	fakeBepInEx(g, "")
+	boot := filepath.Join(g, "RE_PPG", "bootstrap", "harmony")
+	os.MkdirAll(boot, 0o755)
+	os.WriteFile(filepath.Join(boot, "0Harmony.dll"), []byte("planted"), 0o644)
+	compat, _ := json.Marshal(map[string]any{"OriginalSha256": hexSHA([]byte("bep:BepInEx/core/0Harmony.dll")), "PatchedSha256": hexSHA([]byte("planted"))})
+	os.WriteFile(filepath.Join(boot, "compatibility.json"), compat, 0o644)
+	if _, err := Install(context.Background(), g, nil); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(g, "BepInEx", "core", "0Harmony.dll")); string(b) == "planted" {
+		t.Error("used a Harmony the signed list doesn't vouch for")
+	}
+
+	// A symlinked folder that points outside the game folder.
+	g = setup(t, &fakeRelease{files: baseFiles})
+	fakeBepInEx(g, "")
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(g, "RE_PPG")); err == nil {
+		if _, err := Install(context.Background(), g, nil); err == nil {
+			t.Error("installed through a symlink leading out of the game folder")
+		}
+		if ents, _ := os.ReadDir(outside); len(ents) > 0 {
+			t.Errorf("wrote outside the game folder: %v", ents)
+		}
+	}
+}
+
+func TestInstallVersionMismatch(t *testing.T) {
+	fr := &fakeRelease{files: baseFiles, baseVersion: "1.2.2"}
+	g := setup(t, fr)
+	fakeBepInEx(g, "")
+	if _, err := Install(context.Background(), g, nil); err == nil || !strings.Contains(err.Error(), "not the latest") {
+		t.Errorf("older signed base zip: %v", err)
 	}
 }
