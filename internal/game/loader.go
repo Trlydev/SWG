@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Loader describes how C# mods can run in an installed game. People
@@ -82,17 +83,27 @@ func DetectLoader(gameDir string) Loader {
 	return l
 }
 
-// isNativeLinux reports whether gameDir holds a Linux Unity player and no
-// Windows one.
+// isNativeLinux reports whether gameDir holds the native Linux version: a
+// Linux Unity player and no Windows one, or both (Steam can leave the other
+// version's files behind when it switches) with the Linux one newer.
 func isNativeLinux(gameDir string) bool {
-	if _, err := os.Stat(filepath.Join(gameDir, "UnityPlayer.dll")); err == nil {
-		return false
+	newest := func(names ...string) (t time.Time, ok bool) {
+		for _, n := range names {
+			ms, _ := filepath.Glob(filepath.Join(gameDir, n))
+			for _, m := range ms {
+				if fi, err := os.Stat(m); err == nil {
+					ok = true
+					if fi.ModTime().After(t) {
+						t = fi.ModTime()
+					}
+				}
+			}
+		}
+		return t, ok
 	}
-	if _, err := os.Stat(filepath.Join(gameDir, "UnityPlayer.so")); err == nil {
-		return true
-	}
-	ms, _ := filepath.Glob(filepath.Join(gameDir, "*.x86_64"))
-	return len(ms) > 0
+	lin, isLin := newest("UnityPlayer.so", "*.x86_64")
+	win, isWin := newest("UnityPlayer.dll", "*.exe")
+	return isLin && (!isWin || lin.After(win))
 }
 
 // DLLsUnder lists .dll files below dir (relative paths, sorted).

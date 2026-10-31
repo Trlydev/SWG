@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestDetectLoader(t *testing.T) {
@@ -31,9 +32,16 @@ func TestDetectNativeLinux(t *testing.T) {
 	if !DetectLoader(g).NativeLinux {
 		t.Error("Linux player not detected")
 	}
+	// Both versions' files: the newer one is installed.
+	old := time.Now().Add(-48 * time.Hour)
 	os.WriteFile(filepath.Join(g, "UnityPlayer.dll"), []byte("MZ"), 0o644)
+	os.Chtimes(filepath.Join(g, "UnityPlayer.dll"), old, old)
+	if !DetectLoader(g).NativeLinux {
+		t.Error("Linux version with Windows leftovers not taken for native Linux")
+	}
+	os.Chtimes(filepath.Join(g, "People Playground.x86_64"), old.Add(-time.Hour), old.Add(-time.Hour))
 	if DetectLoader(g).NativeLinux {
-		t.Error("Windows version (Proton) taken for native Linux")
+		t.Error("Windows version (Proton) with Linux leftovers taken for native Linux")
 	}
 	g = t.TempDir()
 	os.WriteFile(filepath.Join(g, "UnityPlayer.so"), []byte("\x7fELF"), 0o644)

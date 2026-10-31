@@ -100,15 +100,41 @@ func (fr *fakeRelease) serve(t *testing.T) *httptest.Server {
 	}))
 }
 
+// BepInEx files of the fake release, and RE_PPG's Harmony files matching them.
+var bepFiles = []string{"winhttp.dll", "doorstop_config.ini", "BepInEx/core/BepInEx.dll", "BepInEx/core/0Harmony.dll", "BepInEx/core/MonoMod.Utils.dll"}
+
 func bepZip() []byte {
 	var b bytes.Buffer
 	zw := zip.NewWriter(&b)
-	for _, p := range []string{"winhttp.dll", "doorstop_config.ini", "BepInEx/core/BepInEx.dll"} {
+	for _, p := range bepFiles {
 		w, _ := zw.Create(p)
 		w.Write([]byte("bep:" + p))
 	}
 	zw.Close()
 	return b.Bytes()
+}
+
+func hexSHA(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
+// withHarmony adds RE_PPG's Harmony files to a fake base package.
+func withHarmony(files map[string][]byte) map[string][]byte {
+	out := map[string][]byte{}
+	for k, v := range files {
+		out[k] = v
+	}
+	patched := []byte("patched harmony")
+	compat, _ := json.Marshal(map[string]any{
+		"OriginalSha256": hexSHA([]byte("bep:BepInEx/core/0Harmony.dll")),
+		"PatchedSha256":  hexSHA(patched),
+		"Dependencies":   map[string]string{"MonoMod.Utils.dll": hexSHA([]byte("bep:BepInEx/core/MonoMod.Utils.dll"))},
+	})
+	out["RE_PPG/bootstrap/harmony/compatibility.json"] = append([]byte("\xef\xbb\xbf"), compat...) // RE_PPG's has a BOM
+	out["RE_PPG/bootstrap/harmony/0Harmony.dll"] = patched
+	out["RE_PPG/bootstrap/legacy-harmony/0Harmony.dll"] = []byte("legacy harmony")
+	return out
 }
 
 func setup(t *testing.T, fr *fakeRelease) string {
@@ -120,18 +146,21 @@ func setup(t *testing.T, fr *fakeRelease) string {
 	srv := fr.serve(t)
 	t.Cleanup(srv.Close)
 	h := sha256.Sum256(fr.bep)
-	oldKey, oldRel, oldURL, oldSHA := publisherKey, releases, bepInExURL, bepInExSHA256
+	oldKey, oldRel, oldURL, oldSHA, oldLegacy := publisherKey, releases, bepInExURL, bepInExSHA256, legacyHarmonySHA256
 	publisherKey, releases, bepInExURL, bepInExSHA256 = &key.PublicKey, srv.URL, srv.URL+"/bepinex.zip", hex.EncodeToString(h[:])
-	t.Cleanup(func() { publisherKey, releases, bepInExURL, bepInExSHA256 = oldKey, oldRel, oldURL, oldSHA })
+	legacyHarmonySHA256 = hexSHA([]byte("legacy harmony"))
+	t.Cleanup(func() {
+		publisherKey, releases, bepInExURL, bepInExSHA256, legacyHarmonySHA256 = oldKey, oldRel, oldURL, oldSHA, oldLegacy
+	})
 	g := t.TempDir()
 	os.WriteFile(filepath.Join(g, "UnityPlayer.dll"), []byte("MZ"), 0o644)
 	return g
 }
 
-var baseFiles = map[string][]byte{
+var baseFiles = withHarmony(map[string][]byte{
 	"BepInEx/plugins/RE_PPG/RE_PPG.Loader.dll": []byte("loader"),
 	"RE_PPG/bootstrap/seed/RE_PPG.Runtime.dll": []byte("runtime"),
-}
+})
 
 func TestInstall(t *testing.T) {
 	g := setup(t, &fakeRelease{files: baseFiles, extra: map[string][]byte{"RE_PPG/unlisted.dll": []byte("not signed")}})
@@ -149,6 +178,43 @@ func TestInstall(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(g, "RE_PPG", "unlisted.dll")); err == nil {
 		t.Error("a file the signed list doesn't name was written")
+	}
+	// Harmony, as RE_PPG's installer sets it up.
+	if b, _ := os.ReadFile(filepath.Join(g, "BepInEx", "core", "0Harmony.dll")); string(b) != "patched harmony" {
+		t.Errorf("BepInEx's Harmony not replaced: %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(g, "People Playground_Data", "Managed", "0Harmony.dll")); string(b) != "legacy harmony" {
+		t.Errorf("no Harmony for older mods: %q", b)
+	}
+	// Installing again keeps working (BepInEx's Harmony is RE_PPG's now).
+	if _, err := Install(context.Background(), g, nil); err != nil {
+		t.Errorf("second install: %v", err)
+	}
+}
+
+// RE_PPG's Harmony goes only over the BepInEx Harmony it was made for, and a
+// Managed/0Harmony.dll that isn't Harmony is left alone (and stops it).
+func TestHarmonyRefuses(t *testing.T) {
+	g := setup(t, &fakeRelease{files: baseFiles})
+	os.MkdirAll(filepath.Join(g, "BepInEx", "core"), 0o755)
+	os.WriteFile(filepath.Join(g, "BepInEx", "core", "BepInEx.dll"), []byte("someone's BepInEx"), 0o644)
+	os.WriteFile(filepath.Join(g, "BepInEx", "core", "0Harmony.dll"), []byte("another Harmony"), 0o644)
+	if _, err := Install(context.Background(), g, nil); err == nil || !strings.Contains(err.Error(), "5.4.23.5") {
+		t.Errorf("other BepInEx Harmony: %v", err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(g, "BepInEx", "core", "0Harmony.dll")); string(b) != "another Harmony" {
+		t.Error("replaced a Harmony RE_PPG wasn't made for")
+	}
+
+	g = setup(t, &fakeRelease{files: baseFiles})
+	managed := filepath.Join(g, "People Playground_Data", "Managed")
+	os.MkdirAll(managed, 0o755)
+	os.WriteFile(filepath.Join(managed, "0Harmony.dll"), []byte("not a DLL"), 0o644)
+	if _, err := Install(context.Background(), g, nil); err == nil || !strings.Contains(err.Error(), "isn't Harmony") {
+		t.Errorf("Managed/0Harmony.dll that isn't Harmony: %v", err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(managed, "0Harmony.dll")); string(b) != "not a DLL" {
+		t.Error("the game's Managed/0Harmony.dll was replaced")
 	}
 }
 

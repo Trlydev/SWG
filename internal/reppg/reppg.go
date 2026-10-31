@@ -13,6 +13,7 @@ package reppg
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rsa"
@@ -32,6 +33,7 @@ import (
 	"time"
 
 	"github.com/Trlydev/SWG/internal/game"
+	"github.com/Trlydev/SWG/internal/scan"
 )
 
 // RE_PPG's publisher key, from RE_PPG/bootstrap/publisher-public.xml.
@@ -199,6 +201,9 @@ func Install(ctx context.Context, gameDir string, logf func(string, ...any)) (st
 			return "", fmt.Errorf("writing %s: %w (is the game running?)", it.f.Path, err)
 		}
 	}
+	if err := stageHarmony(gameDir, logf); err != nil {
+		return "", err
+	}
 	logf("installed RE_PPG %s (%d files, each checked against RE_PPG's signed list)", latest.Version, len(items))
 	return latest.Version, nil
 }
@@ -229,6 +234,98 @@ func installBepInEx(ctx context.Context, gameDir string) error {
 		if err := writeEntry(f, gameDir, p, int64(f.UncompressedSize64)); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// legacyHarmonySHA256 is the Harmony RE_PPG puts in the game's Managed
+// folder for older mods (RE_PPG's installer pins the same hash).
+var legacyHarmonySHA256 = "0de0118c8f1d4408de389ca33b46d2ff7778f3a8541b430cae729ec913d899c7"
+
+// stageHarmony does what RE_PPG's installer does after copying its files:
+//   - BepInEx's Harmony is replaced by RE_PPG's patched one, when BepInEx's
+//     is the version RE_PPG patched (compatibility.json: its hash, and the
+//     hashes of the libraries next to it);
+//   - older mods get a Harmony in People Playground_Data/Managed, unless the
+//     game already has one there.
+//
+// Both files come from the signed base package, already checked.
+func stageHarmony(gameDir string, logf func(string, ...any)) error {
+	boot := filepath.Join(gameDir, "RE_PPG", "bootstrap")
+	var compat struct {
+		OriginalSha256, PatchedSha256 string
+		Dependencies                  map[string]string
+	}
+	raw, err := os.ReadFile(filepath.Join(boot, "harmony", "compatibility.json"))
+	if err != nil {
+		return fmt.Errorf("RE_PPG's Harmony compatibility list: %w", err)
+	}
+	if err := json.Unmarshal(bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf")), &compat); err != nil || compat.OriginalSha256 == "" || compat.PatchedSha256 == "" {
+		return errors.New("RE_PPG's Harmony compatibility list is invalid")
+	}
+	patched := filepath.Join(boot, "harmony", "0Harmony.dll")
+	if h, err := fileSHA(patched); err != nil || !strings.EqualFold(h, compat.PatchedSha256) {
+		return errors.New("RE_PPG's patched Harmony doesn't match its compatibility list")
+	}
+	core := filepath.Join(gameDir, "BepInEx", "core")
+	cur, err := fileSHA(filepath.Join(core, "0Harmony.dll"))
+	switch {
+	case err != nil:
+		return errors.New("BepInEx/core/0Harmony.dll is missing: reinstall BepInEx 5.4.23.5 (delete the BepInEx folder and install RE_PPG again)")
+	case strings.EqualFold(cur, compat.PatchedSha256):
+		// already RE_PPG's
+	case strings.EqualFold(cur, compat.OriginalSha256):
+		for name, want := range compat.Dependencies {
+			if h, err := fileSHA(filepath.Join(core, filepath.Base(name))); err != nil || !strings.EqualFold(h, want) {
+				return fmt.Errorf("BepInEx/core/%s isn't from BepInEx 5.4.23.5, which RE_PPG needs: delete the BepInEx folder and install RE_PPG again", filepath.Base(name))
+			}
+		}
+		if err := copyFile(patched, filepath.Join(core, "0Harmony.dll")); err != nil {
+			return fmt.Errorf("installing RE_PPG's Harmony: %w (is the game running?)", err)
+		}
+		logf("replaced BepInEx's Harmony with RE_PPG's patched one")
+	default:
+		return errors.New("BepInEx/core/0Harmony.dll isn't from BepInEx 5.4.23.5, which RE_PPG needs: delete the BepInEx folder and install RE_PPG again")
+	}
+
+	legacy := filepath.Join(boot, "legacy-harmony", "0Harmony.dll")
+	if h, err := fileSHA(legacy); err != nil || h != legacyHarmonySHA256 {
+		return errors.New("RE_PPG's Harmony for older mods doesn't match the expected file")
+	}
+	dst := filepath.Join(gameDir, "People Playground_Data", "Managed", "0Harmony.dll")
+	if b, err := os.ReadFile(dst); err == nil {
+		if h := sha256.Sum256(b); hex.EncodeToString(h[:]) == legacyHarmonySHA256 {
+			return nil // RE_PPG's, from an earlier install
+		}
+		if info, err := scan.ReadCLR(b); err != nil || info.Assembly != "0Harmony" {
+			return errors.New("People Playground_Data/Managed/0Harmony.dll isn't Harmony, so older mods can't use it; RE_PPG's installer stops here too")
+		}
+		logf("kept the game's own Harmony in People Playground_Data/Managed")
+		return nil
+	}
+	if err := copyFile(legacy, dst); err != nil {
+		return fmt.Errorf("installing Harmony for older mods: %w (is the game running?)", err)
+	}
+	logf("installed Harmony for older mods in People Playground_Data/Managed")
+	return nil
+}
+
+// copyFile copies src to dst through a temporary file.
+func copyFile(src, dst string) error {
+	b, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	tmp := dst + ".ppgmods-tmp"
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, dst); err != nil {
+		os.Remove(tmp)
+		return err
 	}
 	return nil
 }
@@ -340,12 +437,29 @@ func writeEntry(f *zip.File, dir, p string, size int64) error {
 	return err
 }
 
-func get(ctx context.Context, u string, max int64) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
-	if err != nil {
-		return nil, err
+// fetch GETs u, once more after a moment if GitHub answers with a server
+// error (they come and go).
+func fetch(ctx context.Context, u string) (*http.Response, error) {
+	for try := 0; ; try++ {
+		req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := client.Do(req)
+		if err != nil || resp.StatusCode < 500 || try == 1 {
+			return resp, err
+		}
+		resp.Body.Close()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(3 * time.Second):
+		}
 	}
-	resp, err := client.Do(req)
+}
+
+func get(ctx context.Context, u string, max int64) ([]byte, error) {
+	resp, err := fetch(ctx, u)
 	if err != nil {
 		return nil, err
 	}
@@ -358,11 +472,7 @@ func get(ctx context.Context, u string, max int64) ([]byte, error) {
 
 // download saves u to a temporary file and returns its path.
 func download(ctx context.Context, u string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := client.Do(req)
+	resp, err := fetch(ctx, u)
 	if err != nil {
 		return "", err
 	}
