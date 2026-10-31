@@ -211,6 +211,9 @@ func Apply(r *Release, logf func(string, ...any)) error {
 // Cleanup removes the executable left behind by a previous update.
 func Cleanup() {
 	if exe, err := os.Executable(); err == nil {
+		if real, err := filepath.EvalSymlinks(exe); err == nil {
+			exe = real // Apply renamed the real file, not a link to it
+		}
 		os.Remove(exe + ".old")
 	}
 }

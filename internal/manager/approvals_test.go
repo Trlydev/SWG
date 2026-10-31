@@ -58,8 +58,14 @@ func TestVerifyApprovals(t *testing.T) {
 	if n, txt := bad(m.verifyApprovals(gameDir)); n != 1 || !strings.Contains(txt, "didn't write") {
 		t.Fatalf("forged approval: %d\n%s", n, txt)
 	}
+	// An unsafe approval spelled in capitals (RE_PPG on Windows finds it
+	// all the same) is noticed and revoked too.
+	write(strings.ToUpper(fp("e"))+".UNSAFE", game.UnsafeApprovalText)
+	if n, txt := bad(m.verifyApprovals(gameDir)); n != 2 || !strings.Contains(txt, "Trust and run") { // and the forged one, still there
+		t.Fatalf("capitalised approval: %d flagged\n%s", n, txt)
+	}
 	n, err := m.RevokeUnsafeApprovals()
-	if err != nil || n != 3 {
+	if err != nil || n != 4 {
 		t.Fatalf("revoked %d, %v", n, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, fp("a"))); err != nil {

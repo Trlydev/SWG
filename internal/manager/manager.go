@@ -16,6 +16,7 @@ import (
 	"github.com/Trlydev/SWG/internal/archive"
 	"github.com/Trlydev/SWG/internal/game"
 	"github.com/Trlydev/SWG/internal/loaders"
+	"github.com/Trlydev/SWG/internal/reppg"
 	"github.com/Trlydev/SWG/internal/scan"
 )
 
@@ -899,6 +900,7 @@ func (m *Manager) verifyGameCode() []Problem {
 		}
 	}
 	probs = append(probs, m.verifyLoaderFiles(gameDir)...)
+	probs = append(probs, verifyDoorstop(gameDir)...)
 	flagged := map[string]bool{}
 	for _, p := range probs {
 		flagged[p.Folder] = true
@@ -915,6 +917,38 @@ func (m *Manager) verifyGameCode() []Problem {
 			}
 			probs = append(probs, Problem{"BepInEx/" + kind.dir + "/" + rel,
 				"BepInEx " + strings.TrimSuffix(kind.dir, "s") + " that is not part of RE_PPG: it runs before every mod with full access to your PC. Keep it only if you installed it on purpose.", false, ""})
+		}
+	}
+	return probs
+}
+
+// verifyDoorstop checks doorstop_config.ini, which tells the game which
+// DLL to load first: BepInEx's preloader, checked with the loader files.
+// Pointing it, or the DLL search path, elsewhere would run a DLL none of
+// the checks look at.
+func verifyDoorstop(gameDir string) []Problem {
+	b, err := os.ReadFile(filepath.Join(gameDir, "doorstop_config.ini"))
+	if err != nil {
+		return nil
+	}
+	fix := "Reinstall RE_PPG from Settings (it puts back BepInEx's own doorstop_config.ini) and check your PC for malware."
+	var probs []Problem
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line[0] == '#' || line[0] == ';' || line[0] == '[' {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		k, v = strings.ToLower(strings.TrimSpace(k)), strings.TrimSpace(v)
+		norm := strings.TrimPrefix(strings.ToLower(strings.ReplaceAll(strings.Trim(v, `"`), `\`, "/")), "./")
+		switch {
+		case k == "target_assembly" && norm != "bepinex/core/bepinex.preloader.dll":
+			probs = append(probs, Problem{"doorstop_config.ini", "makes the game load " + v + " first instead of BepInEx's preloader: a DLL no check looks at. " + fix, true, ""})
+		case k == "dll_search_path_override" && v != "":
+			probs = append(probs, Problem{"doorstop_config.ini", "makes the game look for its DLLs in " + v + " first. " + fix, true, ""})
 		}
 	}
 	return probs
@@ -963,6 +997,12 @@ func (m *Manager) verifyLoaderFiles(gameDir string) []Problem {
 	var probs []Problem
 	versions := map[string]bool{}
 	matched := 0
+	// "Newer than our list" only explains an unknown file while the RE_PPG
+	// in the game folder is a release the list doesn't have yet.
+	listed := false
+	if v := reppg.Installed(gameDir); v != "" {
+		listed = ix.HasRelease("RE_PPG v" + v)
+	}
 	for _, rel := range files {
 		p := filepath.Join(gameDir, filepath.FromSlash(rel))
 		h, err := fileSHA(p)
@@ -974,8 +1014,12 @@ func (m *Manager) verifyLoaderFiles(gameDir string) []Problem {
 			versions[off[0].Project+" "+off[0].Version] = true
 			continue
 		}
+		// A file's time is set by whoever wrote it, so it never makes a file
+		// trusted: a time in the future, or one well before the list, is
+		// not "newer than the list".
 		fi, _ := os.Stat(p)
-		if fi != nil && ix.Updated.After(fi.ModTime().Add(12*time.Hour)) {
+		future := fi != nil && fi.ModTime().After(time.Now().Add(time.Hour))
+		if fi == nil || listed || future || ix.Updated.After(fi.ModTime().Add(12*time.Hour)) {
 			probs = append(probs, Problem{rel, "matches no official RE_PPG or BepInEx release: something replaced or added it. Reinstall RE_PPG from its official release (it reinstalls BepInEx) and check your PC for malware.", true, ""})
 		} else {
 			probs = append(probs, Problem{rel, "newer than our list of official RE_PPG and BepInEx releases (updated " + ix.Updated.Format("2006-01-02 15:04") + " UTC); if RE_PPG just updated itself, run Verify again later.", false, ""})

@@ -1197,8 +1197,10 @@ func (s *server) do(j *job, req actionReq) error {
 		a.Opt.WorkshopID = strings.TrimSpace(req.WorkshopID)
 		err := a.Import(m, req.Path)
 		s.offerRetry(j, err, req)
-		if strings.HasPrefix(req.Path, uploadDir()) {
-			os.Remove(req.Path)
+		// An uploaded file is deleted once imported; only a file directly in
+		// the upload folder, never a path that merely starts like it.
+		if p := filepath.Clean(req.Path); filepath.Dir(p) == filepath.Clean(uploadDir()) {
+			os.Remove(p)
 		}
 		return err
 	case "update":

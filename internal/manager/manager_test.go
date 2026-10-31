@@ -201,6 +201,16 @@ func TestVerifyLoaderFilesAgainstReleases(t *testing.T) {
 	if p := got["RE_PPG / BepInEx"]; !strings.Contains(p.Issue, "2 files match official releases") {
 		t.Errorf("summary: %+v", p)
 	}
+
+	// A file's time decides nothing: one dated in the future is not "newer
+	// than the list", it's unknown.
+	write("RE_PPG/Future.dll", "set ahead", -365*24*time.Hour)
+	probs, _ = m.Verify()
+	for _, p := range probs {
+		if p.Folder == "RE_PPG/Future.dll" && !p.Bad {
+			t.Errorf("a file dated in the future passed as newer than the list: %+v", p)
+		}
+	}
 }
 
 func fileSHAOf(b []byte) (string, error) {
@@ -423,5 +433,19 @@ func TestUpdateNotHeldForDLLNowReadable(t *testing.T) {
 	rep.Findings = append(rep.Findings, scan.Finding{Severity: scan.High, Rule: "network", File: "Mod/Other.cs"})
 	if err := m.Check(&Candidate{Key: "sky:1"}, rep, prev); !errors.As(err, &rej) || !strings.Contains(strings.Join(rej.Reasons, " "), "new findings") {
 		t.Fatalf("a really new finding didn't hold the update: %v", err)
+	}
+}
+
+// doorstop_config.ini decides which DLL the game loads first.
+func TestVerifyDoorstop(t *testing.T) {
+	g := t.TempDir()
+	write := func(cfg string) { os.WriteFile(filepath.Join(g, "doorstop_config.ini"), []byte(cfg), 0o644) }
+	write("[General]\nenabled = true\ntarget_assembly=BepInEx\\core\\BepInEx.Preloader.dll\n[UnityMono]\ndll_search_path_override =\n")
+	if p := verifyDoorstop(g); len(p) != 0 {
+		t.Errorf("BepInEx's own config flagged: %+v", p)
+	}
+	write("[General]\ntarget_assembly=C:\\Users\\x\\AppData\\evil.dll\n[UnityMono]\ndll_search_path_override = C:\\temp\n")
+	if p := verifyDoorstop(g); len(p) != 2 || !p[0].Bad || !p[1].Bad {
+		t.Errorf("changed config: %+v", p)
 	}
 }

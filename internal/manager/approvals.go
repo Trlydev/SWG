@@ -71,7 +71,9 @@ func listApprovals(gameDir string) []approval {
 				continue
 			}
 			name := e.Name()
-			fp, unsafe := strings.CutSuffix(name, ".unsafe")
+			// Case-insensitive: on Windows (NTFS) RE_PPG finds <fp>.unsafe
+			// under any spelling of the name.
+			fp, unsafe := strings.CutSuffix(strings.ToLower(name), ".unsafe")
 			if len(fp) != 64 || strings.Trim(fp, "0123456789abcdef") != "" {
 				continue // not an approval
 			}

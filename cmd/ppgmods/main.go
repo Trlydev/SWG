@@ -121,7 +121,16 @@ func main() {
 		return
 	}
 	cmd := args[0]
-	a, rest, gopt, err := parseFlags(args[1:])
+	flagArgs := args[1:]
+	if cmd == "nxm" {
+		// A website can start this through an nxm:// link: it takes exactly
+		// the link, never flags (which could loosen the safety checks).
+		if len(flagArgs) != 1 || !strings.HasPrefix(strings.ToLower(flagArgs[0]), "nxm://") {
+			fatal(fmt.Errorf("usage: ppgmods nxm <nxm://peopleplayground/mods/...>"))
+		}
+		flagArgs = []string{"--", flagArgs[0]}
+	}
+	a, rest, gopt, err := parseFlags(flagArgs)
 	if err != nil {
 		fatal(err)
 	}
