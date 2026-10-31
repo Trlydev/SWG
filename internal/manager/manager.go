@@ -426,7 +426,14 @@ func (m *Manager) backup(prev *Installed) error {
 	if err != nil {
 		return err
 	}
-	dest := filepath.Join(base, strings.ReplaceAll(prev.Key, ":", "-"), time.Now().UTC().Format("20060102T150405Z"))
+	stamp := filepath.Join(base, strings.ReplaceAll(prev.Key, ":", "-"), time.Now().UTC().Format("20060102T150405Z"))
+	dest := stamp
+	for i := 2; ; i++ { // two backups in the same second keep both (and sort in order)
+		if _, err := os.Lstat(dest); err != nil {
+			break
+		}
+		dest = fmt.Sprintf("%s-%d", stamp, i)
+	}
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return err
 	}
@@ -469,7 +476,24 @@ func (m *Manager) Rollback(key string) error {
 	if err := json.Unmarshal(b, &prev); err != nil {
 		return err
 	}
-	if cur := m.State.Mods[key]; cur != nil {
+	// Every folder the backup goes back into must be free, or be one of the
+	// current version's (removed first): never someone else's folder.
+	cur := m.State.Mods[key]
+	for _, f := range prev.Folders {
+		if err := plainFolder(m.dirFor(&prev), f); err != nil {
+			return err
+		}
+		ours := false
+		if cur != nil && m.dirFor(cur) == m.dirFor(&prev) {
+			for _, c := range cur.Folders {
+				ours = ours || c == f
+			}
+		}
+		if _, err := os.Lstat(filepath.Join(m.dirFor(&prev), f)); err == nil && !ours {
+			return fmt.Errorf("can't roll back %s: %s is already there and isn't this mod's; move it away first", key, f)
+		}
+	}
+	if cur != nil {
 		for _, f := range cur.Folders {
 			if err := removeFolder(m.dirFor(cur), f); err != nil {
 				return err

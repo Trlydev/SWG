@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -8,7 +9,12 @@ import (
 )
 
 // moveTree renames src to dst, falling back to copy+delete across volumes.
+// dst must not exist: a folder already there is never merged into or
+// deleted (after a failed copy only what this call created is removed).
 func moveTree(src, dst string) error {
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%s already exists", dst)
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
@@ -16,7 +22,7 @@ func moveTree(src, dst string) error {
 		return nil
 	}
 	if err := copyTree(src, dst); err != nil {
-		os.RemoveAll(dst)
+		os.RemoveAll(dst) // it didn't exist before: this call made it
 		return err
 	}
 	return os.RemoveAll(src)

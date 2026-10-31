@@ -449,3 +449,47 @@ func TestVerifyDoorstop(t *testing.T) {
 		t.Errorf("changed config: %+v", p)
 	}
 }
+
+// moveTree never merges into or deletes a folder that is already there.
+func TestMoveTreeRefusesExisting(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	os.WriteFile(filepath.Join(src, "mod.json"), []byte("new"), 0o644)
+	os.WriteFile(filepath.Join(dst, "precious.cs"), []byte("keep"), 0o644)
+	if err := moveTree(src, dst); err == nil {
+		t.Fatal("moved onto an existing folder")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dst, "precious.cs")); string(b) != "keep" {
+		t.Error("the existing folder was changed or deleted")
+	}
+}
+
+// Rolling back never deletes a folder that isn't the mod's (a folder of
+// the same name installed by hand since).
+func TestRollbackLeavesOthersFolder(t *testing.T) {
+	m := newTestManager(t)
+	src := zipOf(t, map[string]string{"Plane/mod.json": `{"Name":"Plane","Scripts":["script.cs"]}`, "Plane/script.cs": "public class A {}"})
+	if err := m.Install(&Candidate{Key: "gb:1", Name: "Plane", Path: src}); err != nil {
+		t.Fatal(err)
+	}
+	inst := m.State.Mods["gb:1"]
+	if err := m.backup(inst); err != nil {
+		t.Fatal(err)
+	}
+	delete(m.State.Mods, "gb:1")
+	other := filepath.Join(m.ModsDir, inst.Folders[0])
+	os.MkdirAll(other, 0o755)
+	os.WriteFile(filepath.Join(other, "precious.cs"), []byte("keep"), 0o644)
+	if err := m.Rollback("gb:1"); err == nil {
+		t.Fatal("rolled back over someone else's folder")
+	}
+	if b, _ := os.ReadFile(filepath.Join(other, "precious.cs")); string(b) != "keep" {
+		t.Error("someone else's folder was deleted")
+	}
+	// Two backups in the same second are both kept.
+	if err := m.backup(&Installed{Key: "gb:2"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.backup(&Installed{Key: "gb:2"}); err != nil {
+		t.Fatalf("second backup in the same second: %v", err)
+	}
+}

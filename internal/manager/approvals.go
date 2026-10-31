@@ -100,8 +100,11 @@ func (m *Manager) verifyApprovals(gameDir string) []Problem {
 	all := listApprovals(gameDir)
 	seen, known := loadSeenApprovals()
 	if len(all) == 0 {
-		if !known {
-			seen.save() // the baseline: no approvals, so any later one is new
+		if !known || len(seen.Seen) > 0 {
+			// The baseline: no approvals, so any later one is new (also one
+			// that was revoked and comes back).
+			seen.Seen = map[string]time.Time{}
+			seen.save()
 		}
 		return nil
 	}

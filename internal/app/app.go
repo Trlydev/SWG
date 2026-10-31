@@ -1441,6 +1441,9 @@ func (a *App) candidate(p string) (*manager.Candidate, error) {
 			return nil, err
 		}
 	}
+	if ws != "" && !reWorkshopDir.MatchString(ws) {
+		return nil, fmt.Errorf("%q is not a Workshop ID (6 to 12 digits)", ws)
+	}
 	if ws != "" {
 		c.Key, c.SteamOrig, c.Source = "sky:"+ws, true, "https://steamcommunity.com/sharedfiles/filedetails/?id="+ws
 		if st.IsDir() {

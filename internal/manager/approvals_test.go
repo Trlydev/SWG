@@ -110,3 +110,31 @@ func TestVerifyApprovalsBaselineWhenEmpty(t *testing.T) {
 		t.Fatal("an approval planted after an empty first Verify was not flagged")
 	}
 }
+
+// An approval that was revoked (the folder emptied) and comes back is new.
+func TestVerifyApprovalsRevokedComesBack(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("lays out a Proton prefix")
+	}
+	t.Setenv("PPGMODS_HOME", t.TempDir())
+	lib := t.TempDir()
+	gameDir := filepath.Join(lib, "steamapps", "common", "People Playground")
+	os.MkdirAll(filepath.Join(gameDir, "Mods"), 0o755)
+	dir := filepath.Join(lib, "steamapps", "compatdata", game.AppID, "pfx", "drive_c", "users", "steamuser", "AppData", "Local", "RE_PPG", "local-mods", "x", "launch-approvals")
+	os.MkdirAll(dir, 0o755)
+	m := &Manager{State: &State{Mods: map[string]*Installed{}}, ModsDir: filepath.Join(gameDir, "Mods")}
+	unsafe := filepath.Join(dir, strings.Repeat("f", 64)+".unsafe")
+	m.verifyApprovals(gameDir) // baseline: none
+	os.WriteFile(unsafe, []byte(game.UnsafeApprovalText), 0o644)
+	m.verifyApprovals(gameDir) // flagged once, now seen
+	os.Remove(unsafe)          // revoked
+	m.verifyApprovals(gameDir)
+	os.WriteFile(unsafe, []byte(game.UnsafeApprovalText), 0o644) // back again
+	flagged := false
+	for _, p := range m.verifyApprovals(gameDir) {
+		flagged = flagged || p.Bad
+	}
+	if !flagged {
+		t.Error("a revoked approval that came back was not flagged")
+	}
+}
