@@ -1,19 +1,30 @@
 "use strict";
 
-// Session token: passed in the URL fragment by ppgmods, never sent to servers.
-const TOKEN = (() => {
+// Session token. ppgmods opens the window with a one-time code in the URL
+// fragment (#c=...), swapped once for the token here: a browser's command
+// line, where the URL appears, can be read by other users of the PC. A
+// token in the fragment (#<token>, printed with --no-window) is used as is.
+let TOKEN = "";
+const tokenReady = (async () => {
   const h = location.hash.slice(1);
-  try {
-    if (h) sessionStorage.setItem("ppgm-token", h);
-    return h || sessionStorage.getItem("ppgm-token") || "";
-  } catch { return h; }
+  if (location.hash) history.replaceState(null, "", location.pathname);
+  let saved = "";
+  try { saved = sessionStorage.getItem("ppgm-token") || ""; } catch {}
+  if (h.startsWith("c=")) {
+    const r = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: h.slice(2) }) });
+    if (r.ok) TOKEN = (await r.json()).token || "";
+    else TOKEN = saved; // a reload after the code was spent
+  } else {
+    TOKEN = h || saved;
+  }
+  try { if (TOKEN) sessionStorage.setItem("ppgm-token", TOKEN); } catch {}
 })();
-if (location.hash) history.replaceState(null, "", location.pathname);
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
 async function api(path, opts = {}) {
+  await tokenReady;
   const headers = { "X-Token": TOKEN, ...(opts.headers || {}) };
   let body = opts.body;
   if (body && !(body instanceof Blob) && typeof body !== "string") {

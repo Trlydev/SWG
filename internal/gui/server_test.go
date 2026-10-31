@@ -126,3 +126,29 @@ func TestSettingsTheme(t *testing.T) {
 		}
 	}
 }
+
+// The window gets a one-time code, swapped once for the token: the code a
+// browser's command line shows is useless after that.
+func TestWindowCode(t *testing.T) {
+	s := &server{token: "tok123", host: "127.0.0.1:1234"}
+	h := s.guard(http.HandlerFunc(s.handleSession))
+	u := s.windowURL()
+	code := u[strings.Index(u, "#c=")+3:]
+	swap := func(c string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "http://127.0.0.1:1234/api/session", strings.NewReader(`{"code":"`+c+`"}`))
+		r.Host = "127.0.0.1:1234"
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	if w := swap(code); w.Code != 200 || !strings.Contains(w.Body.String(), "tok123") {
+		t.Fatalf("first swap: %d %s", w.Code, w.Body)
+	}
+	if w := swap(code); w.Code != 403 {
+		t.Errorf("a spent code was accepted again: %d", w.Code)
+	}
+	if w := swap("guess"); w.Code != 403 {
+		t.Errorf("a made-up code was accepted: %d", w.Code)
+	}
+}

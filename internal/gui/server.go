@@ -60,6 +60,9 @@ type server struct {
 	host    string
 	quit    chan struct{}
 
+	codeMu sync.Mutex
+	codes  map[string]time.Time // one-time window codes -> when issued
+
 	logMu sync.Mutex
 	logs  []string
 	base  int // index of logs[0] in the overall log
@@ -273,7 +276,10 @@ func Run(opt app.Options, g Options) error {
 	srv := &http.Server{Handler: s.handler, ReadHeaderTimeout: 10 * time.Second}
 	go srv.Serve(ln)
 
-	url := fmt.Sprintf("http://%s/#%s", s.host, s.token)
+	// The window gets a one-time code, not the token: a browser's command
+	// line can be read by other users of the PC, and the code is spent once
+	// the page has swapped it for the token.
+	url := s.windowURL()
 	writeInstance(s.host, s.token)
 	defer removeInstance(s.token)
 	s.logf("ppgmods %s started (window address http://%s)", g.Version, s.host)
@@ -288,7 +294,7 @@ func Run(opt app.Options, g Options) error {
 		}
 		go s.watchdog()
 	} else {
-		fmt.Println(url)
+		fmt.Printf("http://%s/#%s\n", s.host, s.token) // the terminal is the person's own
 	}
 	// Track mods already in the game folders (installed by hand or from the
 	// sites) so they show as installed.
@@ -692,7 +698,60 @@ func runningInstance() string {
 	if resp.StatusCode != 200 {
 		return ""
 	}
-	return fmt.Sprintf("http://%s/#%s", in.Host, in.Token)
+	// A one-time code for the window, not the token itself.
+	req, _ = http.NewRequest("POST", "http://"+in.Host+"/api/window-url", strings.NewReader("{}"))
+	req.Header.Set("X-Token", in.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var out struct{ URL string }
+	if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&out) != nil {
+		return ""
+	}
+	return out.URL
+}
+
+// codeTTL is how long a one-time window code can be swapped for the token.
+const codeTTL = 2 * time.Minute
+
+// windowURL is the window's address with a fresh one-time code.
+func (s *server) windowURL() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	code := hex.EncodeToString(b)
+	s.codeMu.Lock()
+	if s.codes == nil {
+		s.codes = map[string]time.Time{}
+	}
+	for c, at := range s.codes {
+		if time.Since(at) > codeTTL {
+			delete(s.codes, c)
+		}
+	}
+	s.codes[code] = time.Now()
+	s.codeMu.Unlock()
+	return fmt.Sprintf("http://%s/#c=%s", s.host, code)
+}
+
+// handleSession swaps a one-time window code for the session token, once.
+func (s *server) handleSession(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Code string }
+	if r.Method != http.MethodPost || json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&req) != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	s.codeMu.Lock()
+	at, ok := s.codes[req.Code]
+	delete(s.codes, req.Code)
+	s.codeMu.Unlock()
+	if !ok || req.Code == "" || time.Since(at) > codeTTL {
+		http.Error(w, "this window link was used already or has expired: open the window from ppgmods again", http.StatusForbidden)
+		return
+	}
+	writeJSON(w, map[string]string{"token": s.token})
 }
 
 func (s *server) routes() http.Handler {
@@ -711,6 +770,14 @@ func (s *server) routes() http.Handler {
 		mux.Handle("/", http.FileServer(http.FS(static)))
 	}
 	mux.HandleFunc("/api/state", s.handleState)
+	mux.HandleFunc("/api/session", s.handleSession)
+	mux.HandleFunc("/api/window-url", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "POST only", http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, map[string]string{"url": s.windowURL()})
+	})
 	mux.HandleFunc("/api/log", s.handleLog)
 	mux.HandleFunc("/api/search", s.handleSearch)
 	mux.HandleFunc("/api/job", s.handleJob)
@@ -783,6 +850,9 @@ func (s *server) guard(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			tok := r.Header.Get("X-Token")
+			if r.URL.Path == "/api/session" {
+				tok = s.token // the one-time code is checked by the handler
+			}
 			if r.URL.Path == "/api/thumb" && tok == "" {
 				tok = r.URL.Query().Get("t") // <img> tags cannot send headers
 			}
