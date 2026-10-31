@@ -20,3 +20,22 @@ func TestMergeShownPopular(t *testing.T) {
 		t.Errorf("order: %s %s %s", got[0].Ref, got[1].Ref, got[2].Ref)
 	}
 }
+
+// Open Workshop cards (their index has no images) get their thumbnail by a
+// background pre-scan, like Workshop mirror mods.
+func TestPrescanThumb(t *testing.T) {
+	for _, c := range []struct {
+		m    app.SearchResult
+		want bool
+	}{
+		{app.SearchResult{Ref: "ow:blitzpunk", Size: "4.3 MB"}, true},
+		{app.SearchResult{Ref: "ow:huge", Size: "40 MB"}, false},
+		{app.SearchResult{Ref: "sky:123", Size: "1.2 MB"}, true},
+		{app.SearchResult{Ref: "sky:123", Size: "5 MB"}, false},
+		{app.SearchResult{Ref: "gb:1", Size: "1 MB"}, false},
+	} {
+		if got := prescanThumb(&c.m); got != c.want {
+			t.Errorf("%s %s: %v", c.m.Ref, c.m.Size, got)
+		}
+	}
+}

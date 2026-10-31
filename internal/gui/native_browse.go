@@ -995,10 +995,12 @@ func (t *thumbLoader) reload(ref string) {
 	}
 }
 
-// enqueue pre-scans a small Workshop mirror mod to get its own thumbnail
-// and author (Valve deleted the images of the removed mods).
+// enqueue pre-scans a small mod to get its own thumbnail and author: a
+// Workshop mirror mod (Valve deleted the images of the removed mods) or an
+// Open Workshop mod (its index has no images; its files come from GitHub,
+// checked by hash, so larger ones are fine).
 func (t *thumbLoader) enqueue(m *app.SearchResult) {
-	if !strings.HasPrefix(m.Ref, "sky:") || m.AfterCutoff || t.u.state().Settings.NoBgThumbs || sizeBytes(m.Size) > 3<<20 {
+	if !prescanThumb(m) || t.u.state().Settings.NoBgThumbs {
 		return
 	}
 	t.mu.Lock()
@@ -1012,6 +1014,18 @@ func (t *thumbLoader) enqueue(m *app.SearchResult) {
 		t.workers++
 		go t.pump()
 	}
+}
+
+// prescanThumb reports whether a card without an image may be pre-scanned
+// in the background to get the mod's own thumbnail.
+func prescanThumb(m *app.SearchResult) bool {
+	switch {
+	case strings.HasPrefix(m.Ref, "sky:"):
+		return !m.AfterCutoff && sizeBytes(m.Size) <= 3<<20
+	case strings.HasPrefix(m.Ref, "ow:"):
+		return sizeBytes(m.Size) <= 10<<20
+	}
+	return false
 }
 
 // paused reports whether background fetching should wait: a task is
