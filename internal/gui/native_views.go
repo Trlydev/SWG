@@ -1338,8 +1338,14 @@ func (v *settingsView) renderSetup(st *stateView) {
 		upd := widget.NewButton("Update RE_PPG to "+rp.Latest, func() { v.u.installREPPG(true) })
 		upd.Importance = widget.HighImportance
 		objs = append(objs, muted("RE_PPG "+rp.Latest+" is out (you have "+orStr(rp.Installed, "an older one")+")."), container.NewHBox(upd))
-	case rp.Installed != "" && rp.Latest != "":
-		objs = append(objs, muted("RE_PPG "+rp.Installed+" is the latest release."))
+	default:
+		// Installed and up to date (or the latest is unknown): installing
+		// again repairs missing or changed files and Harmony.
+		if rp.Installed != "" && rp.Latest != "" {
+			objs = append(objs, muted("RE_PPG "+rp.Installed+" is the latest release."))
+		}
+		again := widget.NewButton("Reinstall RE_PPG", func() { v.u.installREPPG(true) })
+		objs = append(objs, container.NewHBox(again))
 	}
 	if l.REPPG {
 		u := v.u

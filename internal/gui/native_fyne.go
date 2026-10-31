@@ -820,14 +820,14 @@ func (u *ui) openURL(link string) {
 func (u *ui) installREPPG(update bool) {
 	title, action := "Install RE_PPG?", "Install"
 	if update {
-		title, action = "Update RE_PPG?", "Update"
+		title, action = "Reinstall or update RE_PPG?", "Install"
 	}
 	body := container.NewVBox(
 		text("ppgmods downloads RE_PPG from its official GitHub releases (and BepInEx, which it runs on, if it's missing) and checks every file against RE_PPG's own signature before writing it to the game folder."),
 		warnBox("RE_PPG runs C# mods with full access to your PC, like the game used to. ppgmods' checks still apply to every mod you install here."),
 		small("Close People Playground first."))
 	u.confirm(title, body, action, false, func() {
-		u.run(map[string]any{"action": "reppg-install"}, map[bool]string{false: "Installing RE_PPG", true: "Updating RE_PPG"}[update])
+		u.run(map[string]any{"action": "reppg-install"}, "Installing RE_PPG")
 	})
 }
 
