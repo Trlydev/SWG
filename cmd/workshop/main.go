@@ -128,14 +128,23 @@ func saveIndex(data string, ix *workshop.Index) error {
 	if err := os.WriteFile(filepath.Join(data, "index.json"), b, 0o644); err != nil {
 		return err
 	}
-	if key := os.Getenv("WORKSHOP_SIGNING_KEY"); key != "" {
+	// index.sig with WORKSHOP_SIGNING_KEY; index.sig2 with
+	// WORKSHOP_SIGNING_KEY_2 (a second key, while keys change: see
+	// internal/workshop/key.go).
+	for file, env := range map[string]string{"index.sig": "WORKSHOP_SIGNING_KEY", "index.sig2": "WORKSHOP_SIGNING_KEY_2"} {
+		key := os.Getenv(env)
+		if key == "" {
+			os.Remove(filepath.Join(data, file))
+			continue
+		}
 		sig, err := workshop.Sign(b, key)
 		if err != nil {
+			return fmt.Errorf("%s: %w", env, err)
+		}
+		if err := os.WriteFile(filepath.Join(data, file), []byte(sig+"\n"), 0o644); err != nil {
 			return err
 		}
-		return os.WriteFile(filepath.Join(data, "index.sig"), []byte(sig+"\n"), 0o644)
 	}
-	os.Remove(filepath.Join(data, "index.sig"))
 	return nil
 }
 

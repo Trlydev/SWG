@@ -3,8 +3,12 @@ package workshop
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -60,5 +64,45 @@ func TestValidate(t *testing.T) {
 	}
 	if ValidSlug("../etc") || ValidSlug("A") || !ValidSlug("quick-draw") {
 		t.Fatal("slugs")
+	}
+}
+
+// Keys made with openssl (PEM private key, base64 SPKI public key) sign
+// and verify; the built-in keys parse; the index is accepted when either
+// signature (index.sig or index.sig2) verifies with a trusted key.
+func TestSigningKeyFormats(t *testing.T) {
+	for _, k := range append([]string{PublicKey}, ExtraPublicKeys...) {
+		if parsePublicKey(k) == nil {
+			t.Errorf("built-in key doesn't parse: %s", k)
+		}
+	}
+	pub, priv, _ := ed25519.GenerateKey(nil)
+	der, _ := x509.MarshalPKCS8PrivateKey(priv)
+	privPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	spki, _ := x509.MarshalPKIXPublicKey(pub)
+	pubB64 := base64.StdEncoding.EncodeToString(spki)
+	index := []byte(`{"entries":[]}` + "\n")
+	sig, err := Sign(index, privPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !Verify(index, sig, pubB64) {
+		t.Error("PEM-signed index doesn't verify with the SPKI public key")
+	}
+
+	_, oldPriv, _ := ed25519.GenerateKey(nil)
+	oldPub := base64.StdEncoding.EncodeToString(oldPriv.Public().(ed25519.PublicKey))
+	oldSig, _ := Sign(index, base64.StdEncoding.EncodeToString(oldPriv))
+	savedPK, savedExtra := PublicKey, ExtraPublicKeys
+	defer func() { PublicKey, ExtraPublicKeys = savedPK, savedExtra }()
+	PublicKey, ExtraPublicKeys = pubB64, []string{oldPub}
+	if _, err := parse(index, oldSig, ""); err != nil {
+		t.Errorf("old key's index.sig refused: %v", err)
+	}
+	if _, err := parse(index, "", sig); err != nil {
+		t.Errorf("new key's index.sig2 refused: %v", err)
+	}
+	if _, err := parse(append(index, ' '), oldSig, sig); err == nil {
+		t.Error("a changed index was accepted")
 	}
 }

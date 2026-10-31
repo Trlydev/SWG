@@ -14,11 +14,15 @@ import (
 	"encoding/json"
 )
 
-// PublicKey verifies index.sig. While it is empty (no signing key set up
-// yet), the index is trusted as served by GitHub over HTTPS; once set, an
-// index without a valid signature is refused. Make a key pair with
-// `go run ./cmd/workshop keygen`.
-var PublicKey = signingPublicKey
+// PublicKey verifies the index's signature (index.sig or index.sig2). While
+// it is empty (no signing key set up yet), the index is trusted as served
+// by GitHub over HTTPS; once set, an index without a valid signature is
+// refused. ExtraPublicKeys are also trusted (a previous key, while keys
+// change).
+var (
+	PublicKey       = signingPublicKey
+	ExtraPublicKeys = []string{previousPublicKey}
+)
 
 var (
 	idxMu sync.Mutex
@@ -54,7 +58,8 @@ func FetchIndex() (*Index, error) {
 	if CacheDir != "" {
 		if b, rerr := os.ReadFile(filepath.Join(CacheDir, "workshop-index.json")); rerr == nil {
 			sig, _ := os.ReadFile(filepath.Join(CacheDir, "workshop-index.sig"))
-			if ix, perr := parse(b, string(sig)); perr == nil {
+			sig2, _ := os.ReadFile(filepath.Join(CacheDir, "workshop-index.sig2"))
+			if ix, perr := parse(b, string(sig), string(sig2)); perr == nil {
 				idx, idxAt = ix, time.Now().Add(-10*time.Minute)
 				return ix, nil
 			}
@@ -108,7 +113,8 @@ func download() (*Index, error) {
 		return nil, fmt.Errorf("Open Workshop index: HTTP %d", code)
 	}
 	sig, _, _ := get(base + "index.sig")
-	ix, err := parse(b, string(sig))
+	sig2, _, _ := get(base + "index.sig2")
+	ix, err := parse(b, string(sig), string(sig2))
 	if err != nil {
 		return nil, err
 	}
@@ -116,13 +122,23 @@ func download() (*Index, error) {
 		os.MkdirAll(CacheDir, 0o755)
 		os.WriteFile(filepath.Join(CacheDir, "workshop-index.json"), b, 0o644)
 		os.WriteFile(filepath.Join(CacheDir, "workshop-index.sig"), sig, 0o644)
+		os.WriteFile(filepath.Join(CacheDir, "workshop-index.sig2"), sig2, 0o644)
 	}
 	return ix, nil
 }
 
-func parse(b []byte, sig string) (*Index, error) {
-	if PublicKey != "" && !Verify(b, sig, PublicKey) {
-		return nil, ErrBadSignature
+// parse checks that one of the signatures verifies with a trusted key.
+func parse(b []byte, sigs ...string) (*Index, error) {
+	if PublicKey != "" {
+		ok := false
+		for _, k := range append([]string{PublicKey}, ExtraPublicKeys...) {
+			for _, sig := range sigs {
+				ok = ok || (k != "" && sig != "" && Verify(b, sig, k))
+			}
+		}
+		if !ok {
+			return nil, ErrBadSignature
+		}
 	}
 	var ix Index
 	if err := json.Unmarshal(b, &ix); err != nil {

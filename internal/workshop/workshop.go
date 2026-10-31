@@ -13,9 +13,11 @@ package workshop
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -449,23 +451,50 @@ func (ix *Index) Marshal() []byte {
 	return append(b, '\n')
 }
 
-// Sign signs index bytes with a base64 ed25519 private key.
-func Sign(index []byte, privB64 string) (string, error) {
-	k, err := base64.StdEncoding.DecodeString(strings.TrimSpace(privB64))
-	if err != nil || len(k) != ed25519.PrivateKeySize {
+// Sign signs index bytes with an Ed25519 private key: a PEM key file
+// (`openssl genpkey -algorithm ed25519`) or base64 (`workshop keygen`).
+func Sign(index []byte, priv string) (string, error) {
+	var k ed25519.PrivateKey
+	if blk, _ := pem.Decode([]byte(priv)); blk != nil {
+		if pk, err := x509.ParsePKCS8PrivateKey(blk.Bytes); err == nil {
+			k, _ = pk.(ed25519.PrivateKey)
+		}
+	} else if b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(priv)); err == nil && len(b) == ed25519.PrivateKeySize {
+		k = ed25519.PrivateKey(b)
+	}
+	if k == nil {
 		return "", errors.New("bad signing key")
 	}
-	return base64.StdEncoding.EncodeToString(ed25519.Sign(ed25519.PrivateKey(k), index)), nil
+	return base64.StdEncoding.EncodeToString(ed25519.Sign(k, index)), nil
 }
 
-// Verify checks an index signature against a base64 ed25519 public key.
-func Verify(index []byte, sigB64, pubB64 string) bool {
-	k, err := base64.StdEncoding.DecodeString(strings.TrimSpace(pubB64))
-	if err != nil || len(k) != ed25519.PublicKeySize {
+// Verify checks an index signature against an Ed25519 public key: base64 of
+// the raw key or of a public key file (SPKI DER), or the PEM file itself.
+func Verify(index []byte, sigB64, pub string) bool {
+	k := parsePublicKey(pub)
+	if k == nil {
 		return false
 	}
 	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(sigB64))
-	return err == nil && ed25519.Verify(ed25519.PublicKey(k), index, sig)
+	return err == nil && ed25519.Verify(k, index, sig)
+}
+
+func parsePublicKey(s string) ed25519.PublicKey {
+	var der []byte
+	if blk, _ := pem.Decode([]byte(s)); blk != nil {
+		der = blk.Bytes
+	} else if b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(s)); err == nil {
+		if len(b) == ed25519.PublicKeySize {
+			return ed25519.PublicKey(b)
+		}
+		der = b
+	}
+	if k, err := x509.ParsePKIXPublicKey(der); err == nil {
+		if ek, ok := k.(ed25519.PublicKey); ok {
+			return ek
+		}
+	}
+	return nil
 }
 
 // NewKey makes a signing key pair (base64).
