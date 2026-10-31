@@ -946,6 +946,30 @@ func (m *Manager) verifyGameCode() []Problem {
 	return probs
 }
 
+// officialFile reports whether a loader file matching official hashes off
+// is official where it is: the same file name, and for RE_PPG the release
+// installed here (when the list has it). An older official file swapped
+// in, or one from another place, doesn't count.
+func officialFile(rel string, off []loaders.File, installed string, listed bool) bool {
+	for _, f := range off {
+		if !strings.EqualFold(path.Base(strings.ReplaceAll(f.Path, `\`, "/")), path.Base(filepath.ToSlash(rel))) {
+			continue
+		}
+		if f.Project == "RE_PPG" && listed && f.Version != "v"+installed {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func orUnknown(v string) string {
+	if v == "" {
+		return "version unknown"
+	}
+	return v
+}
+
 // verifyDoorstop checks doorstop_config.ini, which tells the game which
 // DLL to load first: BepInEx's preloader, checked with the loader files.
 // Pointing it, or the DLL search path, elsewhere would run a DLL none of
@@ -1024,8 +1048,9 @@ func (m *Manager) verifyLoaderFiles(gameDir string) []Problem {
 	// "Newer than our list" only explains an unknown file while the RE_PPG
 	// in the game folder is a release the list doesn't have yet.
 	listed := false
-	if v := reppg.Installed(gameDir); v != "" {
-		listed = ix.HasRelease("RE_PPG v" + v)
+	installed := reppg.Installed(gameDir)
+	if installed != "" {
+		listed = ix.HasRelease("RE_PPG v" + installed)
 	}
 	for _, rel := range files {
 		p := filepath.Join(gameDir, filepath.FromSlash(rel))
@@ -1034,6 +1059,10 @@ func (m *Manager) verifyLoaderFiles(gameDir string) []Problem {
 			continue
 		}
 		if off := ix.Lookup(h); len(off) > 0 {
+			if !officialFile(rel, off, installed, listed) {
+				probs = append(probs, Problem{rel, fmt.Sprintf("is an official %s %s file, but not this one (%s) or not from the RE_PPG installed here (%s): something may have swapped in an older or different file. Reinstall RE_PPG from Settings.", off[0].Project, off[0].Version, path.Base(off[0].Path), orUnknown(installed)), true, ""})
+				continue
+			}
 			matched++
 			versions[off[0].Project+" "+off[0].Version] = true
 			continue

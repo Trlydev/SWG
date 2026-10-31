@@ -179,10 +179,12 @@ func TestVerifyLoaderFilesAgainstReleases(t *testing.T) {
 	write("RE_PPG/Replaced.dll", "not from any release", 72*time.Hour)
 	write("RE_PPG/JustUpdated.dll", "brand new", time.Minute)
 	ix := &loaders.Index{Updated: time.Now().Add(-time.Hour)}
-	for _, s := range []string{"official core", "official compiler"} {
+	for s, path := range map[string]string{"official core": "BepInEx/core/BepInEx.dll", "official compiler": `RE_PPG\RE_PPG.Compiler.exe`} {
 		h, _ := fileSHAOf([]byte(s))
-		ix.Add(h, loaders.File{Project: "RE_PPG", Version: "v0.2.16"})
+		ix.Add(h, loaders.File{Project: "RE_PPG", Version: "v0.2.16", Path: path})
 	}
+	// An official file under another name.
+	write("RE_PPG/RE_PPG.Loader.dll", "official compiler", 72*time.Hour)
 	m := &Manager{ModsDir: mods, State: &State{Mods: map[string]*Installed{}}, Releases: func() *loaders.Index { return ix }}
 	probs, err := m.Verify()
 	if err != nil {
@@ -197,6 +199,9 @@ func TestVerifyLoaderFilesAgainstReleases(t *testing.T) {
 	}
 	if p, ok := got["RE_PPG/JustUpdated.dll"]; !ok || p.Bad {
 		t.Errorf("JustUpdated.dll should be a note: %+v", p)
+	}
+	if p := got["RE_PPG/RE_PPG.Loader.dll"]; !p.Bad {
+		t.Errorf("an official file under another name passed: %+v", p)
 	}
 	if p := got["RE_PPG / BepInEx"]; !strings.Contains(p.Issue, "2 files match official releases") {
 		t.Errorf("summary: %+v", p)
@@ -491,5 +496,24 @@ func TestRollbackLeavesOthersFolder(t *testing.T) {
 	}
 	if err := m.backup(&Installed{Key: "gb:2"}); err != nil {
 		t.Fatalf("second backup in the same second: %v", err)
+	}
+}
+
+// For RE_PPG, the file must be from the release installed here when the
+// list has that release.
+func TestOfficialFile(t *testing.T) {
+	off := []loaders.File{{Project: "RE_PPG", Version: "v0.2.20", Path: `BepInEx\plugins\RE_PPG\RE_PPG.Loader.dll`}}
+	rel := "BepInEx/plugins/RE_PPG/RE_PPG.Loader.dll"
+	if officialFile(rel, off, "0.2.31", true) {
+		t.Error("an older release's file passed while the installed release is listed")
+	}
+	if !officialFile(rel, off, "0.2.31", false) {
+		t.Error("an installed release the list doesn't have yet can't be checked by version")
+	}
+	if !officialFile(rel, append(off, loaders.File{Project: "RE_PPG", Version: "v0.2.31", Path: off[0].Path}), "0.2.31", true) {
+		t.Error("a file unchanged since an older release is in the installed one too")
+	}
+	if officialFile("RE_PPG/other.dll", off, "", false) {
+		t.Error("another file name passed")
 	}
 }
