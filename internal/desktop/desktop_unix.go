@@ -38,13 +38,28 @@ Type=Application
 Name=%s
 GenericName=People Playground mod manager
 Comment=Recover, install and update People Playground mods safely
-Exec="%s" gui
+Exec=%s gui
 Icon=ppgmods
 Terminal=false
 Categories=Game;Utility;
 Keywords=People Playground;PPG;mods;workshop;
 StartupNotify=true
-`, AppName, exe)
+`, AppName, execQuote(exe))
+}
+
+// execQuote quotes a path for a desktop entry's Exec key, as the desktop
+// entry spec asks: in double quotes with " ` $ \ escaped by a backslash,
+// then backslashes doubled (the string escaping applied first) and % as %%.
+func execQuote(p string) string {
+	var b strings.Builder
+	for _, c := range p {
+		if strings.ContainsRune("\"`$\\", c) {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(c)
+	}
+	q := `"` + b.String() + `"`
+	return strings.ReplaceAll(strings.ReplaceAll(q, `\`, `\\`), "%", "%%")
 }
 
 func paths() (menu, desk, png, svg string) {
@@ -125,12 +140,12 @@ func RegisterNXM(exe string) (string, error) {
 	content := fmt.Sprintf(`[Desktop Entry]
 Type=Application
 Name=%s (Nexus Mods links)
-Exec="%s" nxm %%u
+Exec=%s nxm %%u
 Icon=ppgmods
 NoDisplay=true
 Terminal=false
 MimeType=x-scheme-handler/nxm;
-`, AppName, exe)
+`, AppName, execQuote(exe))
 	if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
 		return prev, err
 	}

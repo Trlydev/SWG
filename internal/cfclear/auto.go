@@ -240,13 +240,31 @@ func Forget(site string) error {
 	delete(lastAttempt, site)
 	autoMu.Unlock()
 	goRejectedAt.Store(0)
-	if exe, err := FindBrowser(); err == nil {
-		if d, err := ProfileDir(exe); err == nil {
-			browserMu.Lock()
-			os.RemoveAll(d)
-			browserMu.Unlock()
+	// Every profile ppgmods made, also for a browser used before (another
+	// PPGMODS_BROWSER, or one since uninstalled): only ppgmods-* folders.
+	dirs := map[string]bool{}
+	if d, err := manager.ConfigDir(); err == nil {
+		ms, _ := filepath.Glob(filepath.Join(d, "browser", "ppgmods-*"))
+		for _, m := range ms {
+			dirs[m] = true
 		}
 	}
+	browsers := FindBrowsers()
+	if exe, err := FindBrowser(); err == nil {
+		browsers = append(browsers, exe)
+	}
+	for _, exe := range browsers {
+		if d, err := ProfileDir(exe); err == nil {
+			dirs[d] = true
+		}
+	}
+	browserMu.Lock()
+	for d := range dirs {
+		if strings.HasPrefix(filepath.Base(d), "ppgmods-") {
+			os.RemoveAll(d)
+		}
+	}
+	browserMu.Unlock()
 	return Clear(site)
 }
 

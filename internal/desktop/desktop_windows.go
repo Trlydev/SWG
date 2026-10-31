@@ -108,7 +108,11 @@ func Uninstall(logf func(string, ...any)) error {
 	dir := installDir()
 	if strings.EqualFold(filepath.Dir(Executable()), dir) {
 		// Windows cannot delete a running program: let cmd do it after we exit.
-		return hidden("cmd", "/c", "ping -n 3 127.0.0.1 >nul & rmdir /s /q \""+dir+"\"").Start()
+		// The command line is written out by hand: Go would quote the inner
+		// quotes as \", which cmd.exe doesn't understand.
+		c := hidden("cmd")
+		c.SysProcAttr.CmdLine = `cmd /c "ping -n 3 127.0.0.1 >nul & rmdir /s /q "` + dir + `""`
+		return c.Start()
 	}
 	return os.RemoveAll(dir)
 }
