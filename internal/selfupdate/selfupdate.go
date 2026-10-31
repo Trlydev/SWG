@@ -5,9 +5,13 @@ package selfupdate
 
 import (
 	"bufio"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +38,7 @@ type Release struct {
 	Newer    bool   `json:"newer"`
 	asset    string
 	sumsURL  string
+	sigURL   string // SHA256SUMS.txt.sig
 	assetURL string
 }
 
@@ -83,6 +88,8 @@ func Latest() (*Release, error) {
 			r.assetURL = a.URL
 		case "SHA256SUMS.txt":
 			r.sumsURL = a.URL
+		case "SHA256SUMS.txt.sig":
+			r.sigURL = a.URL
 		}
 	}
 	// Only this repository's own release files are downloaded.
@@ -141,9 +148,22 @@ func download(url string, w io.Writer) error {
 	return err
 }
 
-func expectedSum(sumsURL, asset string) (string, error) {
+func expectedSum(sumsURL, sigURL, asset string) (string, error) {
 	var b strings.Builder
 	if err := download(sumsURL, &b); err != nil {
+		return "", err
+	}
+	// The checksums are only trusted with the release key's signature: a
+	// checksum file next to the binary proves nothing about who put both
+	// there.
+	if sigURL == "" {
+		return "", errors.New("this release isn't signed (no SHA256SUMS.txt.sig): not updating")
+	}
+	var sig strings.Builder
+	if err := download(sigURL, &sig); err != nil {
+		return "", err
+	}
+	if err := verifySums([]byte(b.String()), sig.String()); err != nil {
 		return "", err
 	}
 	sc := bufio.NewScanner(strings.NewReader(b.String()))
@@ -170,7 +190,7 @@ func Apply(r *Release, logf func(string, ...any)) error {
 	if exe, err = filepath.EvalSymlinks(exe); err != nil {
 		return err
 	}
-	want, err := expectedSum(r.sumsURL, r.asset)
+	want, err := expectedSum(r.sumsURL, r.sigURL, r.asset)
 	if err != nil {
 		return err
 	}
@@ -205,6 +225,30 @@ func Apply(r *Release, logf func(string, ...any)) error {
 		return err
 	}
 	logf("updated to %s", r.Version)
+	return nil
+}
+
+// releaseKey is the public half of the release key: releases are signed in
+// build.yml with the private half (the RELEASE_SIGNING_KEY secret).
+const releaseKey = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAM3W2swxqNSlYYGwM53gmP8TBaxCp+/3FJObGyVVB1DM=
+-----END PUBLIC KEY-----`
+
+var publicKey = func() ed25519.PublicKey {
+	blk, _ := pem.Decode([]byte(releaseKey))
+	k, err := x509.ParsePKIXPublicKey(blk.Bytes)
+	if err != nil {
+		panic(err)
+	}
+	return k.(ed25519.PublicKey)
+}()
+
+// verifySums checks a release's SHA256SUMS.txt against its signature.
+func verifySums(sums []byte, sigB64 string) error {
+	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(sigB64))
+	if err != nil || !ed25519.Verify(publicKey, sums, sig) {
+		return errors.New("the release's signature doesn't match the release key: not updating")
+	}
 	return nil
 }
 

@@ -171,6 +171,23 @@ jobs:
           path: dist
       - name: Checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      # Releases are signed: ppgmods' self-update only trusts a SHA256SUMS.txt
+      # signed with the release key (the secret is used by this step alone).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: github.event_name == 'push'
+        with:
+          persist-credentials: false
+          path: src
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        if: github.event_name == 'push'
+        with:
+          go-version-file: src/go.mod
+          cache: false
+      - name: Sign checksums
+        if: github.event_name == 'push'
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: cd src && go run ./cmd/signrelease ../dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ppgmods-${{ needs.version.outputs.version }}
@@ -199,5 +216,5 @@ jobs:
             **Linux:** download `ppgmods-linux-amd64`, run `chmod +x ppgmods-linux-amd64 && ./ppgmods-linux-amd64`, then click **Install**. It goes to `~/.local/bin` with an application-menu entry and desktop shortcut.
             Already installed? The app checks for new releases and shows an **Update now** banner.
 
-            Verify downloads against `SHA256SUMS.txt`.
+            Verify downloads against `SHA256SUMS.txt` (signed: `SHA256SUMS.txt.sig`).
           files: dist/*
