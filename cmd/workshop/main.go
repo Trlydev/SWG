@@ -128,34 +128,21 @@ func saveIndex(data string, ix *workshop.Index) error {
 	if err := os.WriteFile(filepath.Join(data, "index.json"), b, 0o644); err != nil {
 		return err
 	}
-	// index.sig with WORKSHOP_SIGNING_KEY; index.sig2 with
-	// WORKSHOP_SIGNING_KEY_2 (a second key, while keys change: see
-	// internal/workshop/key.go). A key ppgmods doesn't trust would make
-	// every copy refuse the index, so it is refused here. Only the main key
-	// stops the refresh; a broken second key leaves index.sig2 out.
-	for _, f := range []struct{ file, env string }{{"index.sig", "WORKSHOP_SIGNING_KEY"}, {"index.sig2", "WORKSHOP_SIGNING_KEY_2"}} {
-		key := os.Getenv(f.env)
-		if key == "" {
-			os.Remove(filepath.Join(data, f.file))
-			continue
-		}
-		sig, err := workshop.Sign(b, key)
-		if err == nil && !workshop.Trusted(b, sig) {
-			err = fmt.Errorf("its public key isn't one ppgmods trusts (internal/workshop/key.go)")
-		}
-		if err != nil {
-			if f.file == "index.sig2" {
-				fmt.Fprintf(os.Stderr, "warning: %s: %v; index.sig2 left out\n", f.env, err)
-				os.Remove(filepath.Join(data, f.file))
-				continue
-			}
-			return fmt.Errorf("%s: %w", f.env, err)
-		}
-		if err := os.WriteFile(filepath.Join(data, f.file), []byte(sig+"\n"), 0o644); err != nil {
-			return err
-		}
+	// index.sig with WORKSHOP_SIGNING_KEY. A key ppgmods doesn't trust
+	// would make every copy refuse the index, so it is refused here.
+	key := os.Getenv("WORKSHOP_SIGNING_KEY")
+	if key == "" {
+		os.Remove(filepath.Join(data, "index.sig"))
+		return nil
 	}
-	return nil
+	sig, err := workshop.Sign(b, key)
+	if err == nil && !workshop.Trusted(b, sig) {
+		err = fmt.Errorf("its public key isn't the one ppgmods trusts (internal/workshop/key.go)")
+	}
+	if err != nil {
+		return fmt.Errorf("WORKSHOP_SIGNING_KEY: %w", err)
+	}
+	return os.WriteFile(filepath.Join(data, "index.sig"), []byte(sig+"\n"), 0o644)
 }
 
 // thumbData is the data branch checkout where a published mod's preview

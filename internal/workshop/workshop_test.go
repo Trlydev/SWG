@@ -68,13 +68,11 @@ func TestValidate(t *testing.T) {
 }
 
 // Keys made with openssl (PEM private key, base64 SPKI public key) sign
-// and verify; the built-in keys parse; the index is accepted when either
-// signature (index.sig or index.sig2) verifies with a trusted key.
+// and verify; the built-in key parses; only an index signed with it is
+// accepted.
 func TestSigningKeyFormats(t *testing.T) {
-	for _, k := range append([]string{PublicKey}, ExtraPublicKeys...) {
-		if parsePublicKey(k) == nil {
-			t.Errorf("built-in key doesn't parse: %s", k)
-		}
+	if parsePublicKey(PublicKey) == nil {
+		t.Errorf("built-in key doesn't parse: %s", PublicKey)
 	}
 	pub, priv, _ := ed25519.GenerateKey(nil)
 	der, _ := x509.MarshalPKCS8PrivateKey(priv)
@@ -90,20 +88,19 @@ func TestSigningKeyFormats(t *testing.T) {
 		t.Error("PEM-signed index doesn't verify with the SPKI public key")
 	}
 
-	_, oldPriv, _ := ed25519.GenerateKey(nil)
-	oldPub := base64.StdEncoding.EncodeToString(oldPriv.Public().(ed25519.PublicKey))
-	oldSig, _ := Sign(index, base64.StdEncoding.EncodeToString(oldPriv))
-	savedPK, savedExtra := PublicKey, ExtraPublicKeys
-	defer func() { PublicKey, ExtraPublicKeys = savedPK, savedExtra }()
-	PublicKey, ExtraPublicKeys = pubB64, []string{oldPub}
-	if _, err := parse(index, oldSig, ""); err != nil {
-		t.Errorf("old key's index.sig refused: %v", err)
+	saved := PublicKey
+	defer func() { PublicKey = saved }()
+	PublicKey = pubB64
+	if _, err := parse(index, sig); err != nil {
+		t.Errorf("signed index refused: %v", err)
 	}
-	if _, err := parse(index, "", sig); err != nil {
-		t.Errorf("new key's index.sig2 refused: %v", err)
-	}
-	if _, err := parse(append(index, ' '), oldSig, sig); err == nil {
+	if _, err := parse(append(index, ' '), sig); err == nil {
 		t.Error("a changed index was accepted")
+	}
+	_, other, _ := ed25519.GenerateKey(nil)
+	otherSig, _ := Sign(index, base64.StdEncoding.EncodeToString(other))
+	if _, err := parse(index, otherSig); err == nil {
+		t.Error("an index signed with another key was accepted")
 	}
 }
 

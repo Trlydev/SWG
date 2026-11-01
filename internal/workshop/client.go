@@ -14,15 +14,10 @@ import (
 	"encoding/json"
 )
 
-// PublicKey verifies the index's signature (index.sig or index.sig2). While
-// it is empty (no signing key set up yet), the index is trusted as served
-// by GitHub over HTTPS; once set, an index without a valid signature is
-// refused. ExtraPublicKeys are also trusted (the spare key, for a
-// key change).
-var (
-	PublicKey       = signingPublicKey
-	ExtraPublicKeys = []string{spareKey}
-)
+// PublicKey verifies the index's signature (index.sig). While it is empty
+// (no signing key set up yet), the index is trusted as served by GitHub
+// over HTTPS; once set, an index without a valid signature is refused.
+var PublicKey = signingPublicKey
 
 var (
 	idxMu sync.Mutex
@@ -58,8 +53,7 @@ func FetchIndex() (*Index, error) {
 	if CacheDir != "" {
 		if b, rerr := os.ReadFile(filepath.Join(CacheDir, "workshop-index.json")); rerr == nil {
 			sig, _ := os.ReadFile(filepath.Join(CacheDir, "workshop-index.sig"))
-			sig2, _ := os.ReadFile(filepath.Join(CacheDir, "workshop-index.sig2"))
-			if ix, perr := parse(b, string(sig), string(sig2)); perr == nil {
+			if ix, perr := parse(b, string(sig)); perr == nil {
 				idx, idxAt = ix, time.Now().Add(-10*time.Minute)
 				return ix, nil
 			}
@@ -113,8 +107,7 @@ func download() (*Index, error) {
 		return nil, fmt.Errorf("Open Workshop index: HTTP %d", code)
 	}
 	sig, _, _ := get(base + "index.sig")
-	sig2, _, _ := get(base + "index.sig2")
-	ix, err := parse(b, string(sig), string(sig2))
+	ix, err := parse(b, string(sig))
 	if err != nil {
 		return nil, err
 	}
@@ -122,27 +115,18 @@ func download() (*Index, error) {
 		os.MkdirAll(CacheDir, 0o755)
 		os.WriteFile(filepath.Join(CacheDir, "workshop-index.json"), b, 0o644)
 		os.WriteFile(filepath.Join(CacheDir, "workshop-index.sig"), sig, 0o644)
-		os.WriteFile(filepath.Join(CacheDir, "workshop-index.sig2"), sig2, 0o644)
 	}
 	return ix, nil
 }
 
-// Trusted reports whether one of the signatures verifies with a key
-// ppgmods trusts.
-func Trusted(b []byte, sigs ...string) bool {
-	for _, k := range append([]string{PublicKey}, ExtraPublicKeys...) {
-		for _, sig := range sigs {
-			if k != "" && sig != "" && Verify(b, sig, k) {
-				return true
-			}
-		}
-	}
-	return false
+// Trusted reports whether sig verifies the index with ppgmods' key.
+func Trusted(b []byte, sig string) bool {
+	return sig != "" && Verify(b, sig, PublicKey)
 }
 
-// parse checks that one of the signatures verifies with a trusted key.
-func parse(b []byte, sigs ...string) (*Index, error) {
-	if PublicKey != "" && !Trusted(b, sigs...) {
+// parse checks the index's signature.
+func parse(b []byte, sig string) (*Index, error) {
+	if PublicKey != "" && !Trusted(b, sig) {
 		return nil, ErrBadSignature
 	}
 	var ix Index

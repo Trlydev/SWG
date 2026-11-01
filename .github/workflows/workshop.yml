@@ -106,7 +106,6 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           WORKSHOP_SIGNING_KEY: ${{ secrets.WORKSHOP_SIGNING_KEY }}
-          WORKSHOP_SIGNING_KEY_2: ${{ secrets.WORKSHOP_SIGNING_KEY_2 }}
           GITHUB_TOKEN: ${{ github.token }}
       - name: Pause or resume
         if: github.event_name == 'workflow_dispatch' && (inputs.action == 'pause' || inputs.action == 'resume')
@@ -116,7 +115,6 @@ jobs:
           REASON: ${{ inputs.reason }}
           SINCE: ${{ inputs.since }}
           WORKSHOP_SIGNING_KEY: ${{ secrets.WORKSHOP_SIGNING_KEY }}
-          WORKSHOP_SIGNING_KEY_2: ${{ secrets.WORKSHOP_SIGNING_KEY_2 }}
       - name: Bulk upload
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'bulk'
         run: |
@@ -129,7 +127,6 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
           GH_TOKEN: ${{ github.token }}
           WORKSHOP_SIGNING_KEY: ${{ secrets.WORKSHOP_SIGNING_KEY }}
-          WORKSHOP_SIGNING_KEY_2: ${{ secrets.WORKSHOP_SIGNING_KEY_2 }}
       - name: Review queue
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'review'
         run: |
@@ -151,7 +148,6 @@ jobs:
           IDS: ${{ inputs.ids }}
           REPO_OWNER: ${{ github.repository_owner }}
           WORKSHOP_SIGNING_KEY: ${{ secrets.WORKSHOP_SIGNING_KEY }}
-          WORKSHOP_SIGNING_KEY_2: ${{ secrets.WORKSHOP_SIGNING_KEY_2 }}
       - name: Pause or resume every source
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.action == 'pause-all' || inputs.action == 'resume-all')
         # The app reads blocklist.json from main on every action. A push made
@@ -182,7 +178,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           WORKSHOP_SIGNING_KEY: ${{ secrets.WORKSHOP_SIGNING_KEY }}
-          WORKSHOP_SIGNING_KEY_2: ${{ secrets.WORKSHOP_SIGNING_KEY_2 }}
       - name: Upload the new file
         env:
           GH_TOKEN: ${{ github.token }}
@@ -205,7 +200,6 @@ jobs:
           git add index.json
           if [ -f held.json ]; then git add held.json; else git rm -q --cached --ignore-unmatch held.json; fi
           if [ -f index.sig ]; then git add index.sig; else git rm -q --cached --ignore-unmatch index.sig; fi
-          if [ -f index.sig2 ]; then git add index.sig2; else git rm -q --cached --ignore-unmatch index.sig2; fi
           if [ -d thumbs ]; then git add thumbs; fi # the mods' preview images the index links to
           if git diff --cached --quiet; then echo "index unchanged"; exit 0; fi
           git commit -q -m "Open Workshop index $(date -u +%F)"
