@@ -22,6 +22,7 @@ import (
 	"github.com/Trlydev/SWG/internal/game"
 	"github.com/Trlydev/SWG/internal/gui"
 	"github.com/Trlydev/SWG/internal/manager"
+	"github.com/Trlydev/SWG/internal/modpack"
 	"github.com/Trlydev/SWG/internal/reppg"
 	"github.com/Trlydev/SWG/internal/scan"
 	"github.com/Trlydev/SWG/internal/selfupdate"
@@ -58,8 +59,9 @@ Keep up to date:
   reppg [status | install]   install or update RE_PPG (and BepInEx), the loader for
                              C# mods; every file is checked against RE_PPG's signature
   revoke-approvals           delete RE_PPG's "Trust and run" approvals (it asks again)
-  export-list [file]         save the installed mods as a list to share
-  import-list <file>         install a list's mods (each downloaded and scanned)
+  export-list [file]         save the installed mods as a modpack (.ppgm) and print its code
+  import-list <file|code>    install a modpack's mods (each downloaded and scanned)
+  <file>.ppgm                open a modpack in the window
   off <key> / on <key>       turn a mod off (moved out, the game won't load it) or back on
   profile [list | save <name> | use <name> | delete <name>]
                              saved sets of the mods that are on
@@ -122,6 +124,14 @@ func main() {
 	}
 	cmd := args[0]
 	flagArgs := args[1:]
+	if len(args) == 1 && gui.IsPackPath(cmd) {
+		// Opening a .ppgm file: show the modpack in the window. It takes
+		// exactly the file, never flags.
+		if err := gui.OpenPack(app.DefaultOptions(), gui.Options{Version: version}, cmd); err != nil {
+			fatal(err)
+		}
+		return
+	}
 	if cmd == "nxm" {
 		// A website can start this through an nxm:// link: it takes exactly
 		// the link, never flags (which could loosen the safety checks).
@@ -404,15 +414,20 @@ func run(cmd string, args []string, a *app.App, g gui.Options) error {
 		return err
 	case "export-list":
 		l, skipped := app.ExportList(m.State)
-		b, _ := json.MarshalIndent(l, "", "  ")
-		out := "ppgmods-mod-list.json"
+		out := "ppgmods-modpack" + modpack.Ext
 		if len(args) > 0 {
 			out = args[0]
+		}
+		code := app.ListCode(l)
+		b := []byte(code + "\n")
+		if strings.EqualFold(filepath.Ext(out), ".json") { // the older list file
+			b, _ = json.MarshalIndent(l, "", "  ")
 		}
 		if err := os.WriteFile(out, b, 0o644); err != nil {
 			return err
 		}
 		logf("saved %d item(s) to %s", len(l.Mods), out)
+		fmt.Println(code)
 		if skipped > 0 {
 			logf("%d item(s) found on this PC without a source can't be downloaded again, so they aren't in the list", skipped)
 		}
@@ -421,9 +436,12 @@ func run(cmd string, args []string, a *app.App, g gui.Options) error {
 		if err := need(args, 1, "mod list file"); err != nil {
 			return err
 		}
-		b, err := os.ReadFile(args[0])
-		if err != nil {
-			return err
+		b := []byte(args[0]) // a pasted modpack code
+		if !modpack.Find(args[0]) {
+			var err error
+			if b, err = os.ReadFile(args[0]); err != nil {
+				return err
+			}
 		}
 		l, err := app.ParseList(b)
 		if err != nil {

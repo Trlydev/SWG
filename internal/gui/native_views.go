@@ -22,6 +22,7 @@ import (
 
 	"github.com/Trlydev/SWG/internal/app"
 	"github.com/Trlydev/SWG/internal/manager"
+	"github.com/Trlydev/SWG/internal/modpack"
 )
 
 // ---------- details ----------
@@ -578,9 +579,9 @@ func newInstalled(u *ui) *installedPane {
 	find := u.busyButton("Find already-installed", func() {
 		u.run(map[string]any{"action": "find-installed"}, "Looking for mods installed without this app")
 	})
-	export := u.busyButton("Export list", func() { u.run(map[string]any{"action": "list-export"}, "Saving the mod list") })
+	export := u.busyButton("Share as modpack", func() { u.run(map[string]any{"action": "list-export"}, "Saving the modpack") })
 	export.Importance = widget.LowImportance
-	importList := u.busyButton("Import list…", func() {
+	importList := u.busyButton("Open modpack…", func() {
 		dialog.ShowFileOpen(func(r fyne.URIReadCloser, err error) {
 			if err != nil || r == nil {
 				return
@@ -589,6 +590,16 @@ func newInstalled(u *ui) *installedPane {
 			b, err := io.ReadAll(io.LimitReader(r, 1<<20+1))
 			if err != nil {
 				u.toast(err.Error())
+				return
+			}
+			if modpack.Find(string(b)) {
+				go func() {
+					if err := u.s.call("POST", "/api/pack-offer", map[string]any{"text": string(b)}, nil); err != nil {
+						u.toast(err.Error())
+						return
+					}
+					u.refreshState()
+				}()
 				return
 			}
 			u.run(map[string]any{"action": "list-import", "list": string(b)}, "Installing the mods of the list")

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Trlydev/SWG/internal/manager"
+	"github.com/Trlydev/SWG/internal/modpack"
 )
 
 // A mod list is a shareable file naming the installed mods by where they
@@ -60,14 +61,38 @@ func ExportList(st *manager.State) (l *ModList, skipped int) {
 	return l, skipped
 }
 
-// ParseList reads a mod list file, refusing anything that isn't one.
+// ListCode is the list as a modpack code (PPG1.…): one line to paste into a
+// chat or save as a .ppgm file.
+func ListCode(l *ModList) string {
+	p := modpack.Pack{Name: l.Profile}
+	for _, it := range l.Mods {
+		p.Entries = append(p.Entries, modpack.Entry{Ref: it.Ref, Name: it.Name, Contraption: it.Kind == manager.KindContraption, Off: it.Off})
+	}
+	return p.Encode()
+}
+
+// ParseList reads a mod list: a modpack code (pasted, or a .ppgm file) or a
+// mod list file; anything else is refused.
 func ParseList(b []byte) (*ModList, error) {
 	if len(b) > 1<<20 {
 		return nil, errors.New("that file is too large to be a mod list")
 	}
 	var l ModList
-	if err := json.Unmarshal(b, &l); err != nil || l.Format != ModListFormat {
-		return nil, errors.New("that file isn't a ppgmods mod list")
+	if modpack.Find(string(b)) {
+		p, err := modpack.Decode(string(b))
+		if err != nil {
+			return nil, err
+		}
+		l = ModList{Format: ModListFormat, Version: 1, Profile: p.Name}
+		for _, e := range p.Entries {
+			kind := manager.KindMod
+			if e.Contraption {
+				kind = manager.KindContraption
+			}
+			l.Mods = append(l.Mods, ModListItem{Ref: e.Ref, Name: e.Name, Kind: kind, Off: e.Off})
+		}
+	} else if err := json.Unmarshal(b, &l); err != nil || l.Format != ModListFormat {
+		return nil, errors.New("that isn't a ppgmods modpack or mod list")
 	}
 	if len(l.Mods) > maxListItems {
 		return nil, fmt.Errorf("the list has %d items; at most %d can be imported at once", len(l.Mods), maxListItems)

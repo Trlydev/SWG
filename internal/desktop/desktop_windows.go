@@ -92,6 +92,9 @@ func Install(o Options, logf func(string, ...any)) (string, error) {
 	regSet("URLInfoAbout", "REG_SZ", "https://github.com/Trlydev/SWG")
 	regSet("NoModify", "REG_DWORD", "1")
 	regSet("NoRepair", "REG_DWORD", "1")
+	if err := RegisterModpacks(exe); err == nil {
+		logf("registered .ppgm modpack files")
+	}
 	return exe, nil
 }
 
@@ -105,6 +108,7 @@ func Uninstall(logf func(string, ...any)) error {
 		}
 	}
 	hidden("reg", "delete", uninstallKey, "/f").Run()
+	UnregisterModpacks()
 	dir := installDir()
 	if strings.EqualFold(filepath.Dir(Executable()), dir) {
 		// Windows cannot delete a running program: let cmd do it after we exit.
@@ -161,4 +165,33 @@ func UnregisterNXM(prev string) {
 		return
 	}
 	hidden("reg", "delete", nxmKey, "/f").Run()
+}
+
+const packClass = "PPGMods.Modpack"
+
+// RegisterModpacks makes .ppgm files (ppgmods modpacks) open in exe.
+func RegisterModpacks(exe string) error {
+	for _, args := range [][]string{
+		{"add", `HKCU\Software\Classes\.ppgm`, "/ve", "/d", packClass, "/f"},
+		{"add", `HKCU\Software\Classes\` + packClass, "/ve", "/d", "People Playground modpack", "/f"},
+		{"add", `HKCU\Software\Classes\` + packClass + `\DefaultIcon`, "/ve", "/d", exe + ",0", "/f"},
+		{"add", `HKCU\Software\Classes\` + packClass + `\shell\open\command`, "/ve", "/d", `"` + exe + `" "%1"`, "/f"},
+	} {
+		if err := hidden("reg", args...).Run(); err != nil {
+			return fmt.Errorf("registering .ppgm files: %v", err)
+		}
+	}
+	return nil
+}
+
+// ModpacksRegistered reports whether .ppgm files open in exe.
+func ModpacksRegistered(exe string) bool {
+	out, err := hidden("reg", "query", `HKCU\Software\Classes\`+packClass+`\shell\open\command`, "/ve").Output()
+	return err == nil && strings.Contains(strings.ToLower(string(out)), strings.ToLower(`"`+exe+`"`))
+}
+
+// UnregisterModpacks removes the .ppgm association.
+func UnregisterModpacks() {
+	hidden("reg", "delete", `HKCU\Software\Classes\.ppgm`, "/f").Run()
+	hidden("reg", "delete", `HKCU\Software\Classes\`+packClass, "/f").Run()
 }

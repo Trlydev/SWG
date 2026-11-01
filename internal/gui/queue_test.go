@@ -3,6 +3,7 @@ package gui
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -114,6 +115,49 @@ func TestAutoUpdateSetting(t *testing.T) {
 		s.handleSettings(httptest.NewRecorder(), r)
 		if autoUpdateOn.Load() != want {
 			t.Errorf("%s: auto update %v, want %v", body, autoUpdateOn.Load(), want)
+		}
+	}
+}
+
+// A pasted code or a .ppgm file is shown first, never installed straight
+// away; anything that isn't a modpack is refused.
+func TestPackOffer(t *testing.T) {
+	t.Setenv("PPGMODS_HOME", t.TempDir())
+	s := &server{opt: app.DefaultOptions(), quit: make(chan struct{})}
+	code := app.ListCode(&app.ModList{Profile: "war", Mods: []app.ModListItem{{Ref: "gb:1", Name: "A"}, {Ref: "tw:2", Name: "B", Kind: "contraption"}}})
+	r := httptest.NewRequest("POST", "/api/pack-offer", strings.NewReader(`{"text":"try `+code+`"}`))
+	w := httptest.NewRecorder()
+	s.handlePackOffer(w, r)
+	if w.Code != 200 || s.packOffer == nil || s.packOffer.Name != "war" || len(s.packOffer.Items) != 2 || !s.packOffer.Items[1].Contraption {
+		t.Fatalf("%d %s %+v", w.Code, w.Body, s.packOffer)
+	}
+	if s.job != nil {
+		t.Fatal("an offer must not start an install")
+	}
+	for _, body := range []string{`{"text":"gb:1"}`, `{"text":"PPG1.!!"}`, `{"text":"{\"format\":\"ppgmods-mod-list\",\"mods\":[]}"}`} {
+		w := httptest.NewRecorder()
+		s.handlePackOffer(w, httptest.NewRequest("POST", "/api/pack-offer", strings.NewReader(body)))
+		if w.Code != 400 {
+			t.Errorf("%s: %d", body, w.Code)
+		}
+	}
+
+	dir := t.TempDir()
+	good, big, other := dir+"/a.ppgm", dir+"/b.ppgm", dir+"/c.ppgm"
+	os.WriteFile(good, []byte(code+"\n"), 0o644)
+	os.WriteFile(big, []byte(strings.Repeat("x", maxPackFile+1)), 0o644)
+	os.WriteFile(other, []byte("hello"), 0o644)
+	if txt, err := ReadPackFile(good); err != nil || !strings.Contains(txt, code) {
+		t.Errorf("good file: %v", err)
+	}
+	for _, p := range []string{big, other, dir + "/missing.ppgm"} {
+		if _, err := ReadPackFile(p); err == nil {
+			t.Errorf("%s accepted", p)
+		}
+	}
+	for arg, want := range map[string]bool{"a.ppgm": true, `C:\x\A.PPGM`: true, "gui": false, "x.ppgm.exe": false, ".ppgm/x": false} {
+		if IsPackPath(arg) != want {
+			t.Errorf("IsPackPath(%q) = %v", arg, !want)
 		}
 	}
 }

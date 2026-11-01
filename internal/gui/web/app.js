@@ -401,8 +401,8 @@ function jobDone(j) {
     if (j.name === "ow-share" && j.data) return showShare(j.data);
     if (j.name === "revoke-approvals" && j.data) { toast("Revoked " + j.data.revoked + " Trust and run approval(s); RE_PPG asks again before running those mods", 7000); return; }
     if (j.name === "list-export" && j.data) {
-      toast("Saved the list of " + j.data.count + " item(s): share the file, and anyone can install the same mods with Import list", 8000,
-        { label: "Show file", run: () => api("/api/open?what=exports") });
+      toast("Saved a modpack of " + j.data.count + " item(s). Its code: " + j.data.code, 15000,
+        { label: "Copy code", run: () => navigator.clipboard.writeText(j.data.code) });
       return;
     }
     if (j.name === "remove" && j.data && j.data.others) {

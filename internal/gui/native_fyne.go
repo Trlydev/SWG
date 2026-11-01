@@ -31,6 +31,7 @@ func init() { nativeUI = runNative }
 // stateView is /api/state.
 type stateView struct {
 	NXMOffer     *nxmOffer       `json:"nxm_offer"`
+	PackOffer    *packOffer      `json:"pack_offer"`
 	Nexus        nexusView       `json:"nexus"`
 	Version      string          `json:"version"`
 	Paths        app.Paths       `json:"paths"`
@@ -106,6 +107,7 @@ type ui struct {
 	installedSig string
 	nexusSig     string
 	nxmShownAt   time.Time
+	packShownAt  time.Time
 	thumbs       *thumbLoader
 }
 
@@ -402,6 +404,7 @@ func (u *ui) refreshState() {
 		}
 		u.installed.setAuto(&st)
 		u.showNXMOffer(st.NXMOffer)
+		u.showPackOffer(st.PackOffer)
 		if follow {
 			u.setJob(st.Job, "")
 		}
@@ -642,7 +645,7 @@ func (u *ui) jobDone(j *job) {
 		case j.Name == "revoke-approvals" && j.Data != nil:
 			u.toast("Revoked " + j.Data["revoked"] + " Trust and run approval(s); RE_PPG asks again before running those mods")
 		case j.Name == "list-export" && j.Data != nil:
-			u.toastAction("Saved the list of "+j.Data["count"]+" item(s): share the file, and anyone can install the same mods with Import list", "Show file", func() { u.open("exports") })
+			u.showPackCode(j.Data)
 		case j.Name == "remove" && j.Data["others"] != "":
 			u.toastAction("Removed. Another copy is still in your Mods folder ("+j.Data["others"]+"), not installed by ppgmods.", "Open Mods folder", func() { u.open("mods") })
 		default:
@@ -798,6 +801,79 @@ func (u *ui) showNXMOffer(o *nxmOffer) {
 		u.run(map[string]any{"action": "nxm", "path": o.URL}, "Installing "+o.Name+" from Nexus Mods")
 	}, func() { go u.s.call("POST", "/api/nxm-dismiss", map[string]any{}, nil) })
 	u.win.RequestFocus()
+}
+
+// showPackOffer asks before installing a modpack that was opened or pasted.
+func (u *ui) showPackOffer(o *packOffer) {
+	if o == nil || o.At.Equal(u.packShownAt) {
+		return
+	}
+	u.packShownAt = o.At
+	list := container.New(&vlist{gap: 4})
+	if o.Name != "" {
+		list.Add(widget.NewLabelWithStyle(o.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+	}
+	todo := 0
+	for _, group := range []struct {
+		title       string
+		contraption bool
+	}{{"Mods", false}, {"Contraptions", true}} {
+		var rows []fyne.CanvasObject
+		for _, it := range o.Items {
+			if it.Contraption != group.contraption {
+				continue
+			}
+			name := orStr(it.Name, it.Ref)
+			var tags []fyne.CanvasObject
+			if it.Installed {
+				tags = append(tags, pill("installed", pOK))
+			} else {
+				todo++
+			}
+			if it.Off {
+				tags = append(tags, pill("off", pNeutral))
+			}
+			rows = append(rows, container.NewBorder(nil, nil, nil, container.NewHBox(tags...), widget.NewLabel(name)))
+		}
+		if len(rows) > 0 {
+			list.Add(h2(fmt.Sprintf("%s (%d)", group.title, len(rows))))
+			for _, r := range rows {
+				list.Add(r)
+			}
+		}
+	}
+	list.Add(small("A modpack only names mods; each one is downloaded from its site and scanned like any install. Anything that fails the checks is skipped."))
+	action := fmt.Sprintf("Install %d", todo)
+	if todo == 0 {
+		action = ""
+		list.Add(text("Everything in it is already installed."))
+	}
+	dismiss := func() { go u.s.call("POST", "/api/pack-dismiss", map[string]any{}, nil) }
+	u.dialog("Open modpack?", list, action, false, func() {
+		dismiss()
+		u.run(map[string]any{"action": "list-import", "list": o.Text}, fmt.Sprintf("Installing the modpack (%d)", todo))
+	}, dismiss)
+	u.win.RequestFocus()
+}
+
+// showPackCode shows a saved modpack's code, to copy into a chat.
+func (u *ui) showPackCode(d map[string]string) {
+	code := widget.NewEntry()
+	code.SetText(d["code"])
+	code.Wrapping = fyne.TextWrapBreak
+	code.MultiLine = true
+	code.SetMinRowsVisible(3)
+	body := container.NewVBox(
+		text("Your "+d["count"]+" item(s) as one code. Paste it into a chat; anyone with ppgmods pastes it into Browse's link box (or opens the .ppgm file) to get the same mods."),
+		code,
+		container.NewHBox(widget.NewButtonWithIcon("Copy code", theme.ContentCopyIcon(), func() {
+			u.win.Clipboard().SetContent(d["code"])
+			u.toast("Code copied")
+		}), widget.NewButton("Show .ppgm file", func() { u.open("exports") })))
+	if d["skipped"] != "" && d["skipped"] != "0" {
+		body.Add(small(d["skipped"] + " item(s) found on this PC without a source can't be downloaded again, so they aren't in it."))
+	}
+	u.message2("Modpack saved", body)
 }
 
 func (u *ui) showShare(d map[string]string) {

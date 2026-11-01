@@ -96,3 +96,34 @@ func buttonTexts(o fyne.CanvasObject) map[string]bool {
 	}
 	return got
 }
+
+// Cards carry no Subscribe button: picking is the tick box; a subscribed
+// card shows "queued" until it is installed.
+func TestCardHasNoSubscribeButton(t *testing.T) {
+	a := test.NewTempApp(t)
+	a.Settings().SetTheme(newTheme())
+	u := &ui{app: a}
+	u.thumbs = newThumbLoader(u)
+	b := &browseView{u: u, cards: map[string]*browseCard{}, selected: map[string]*app.SearchResult{}}
+	b.selCount, b.selBar = widget.NewLabel(""), container.NewStack()
+	grid := container.NewGridWithColumns(2)
+	for _, m := range []*app.SearchResult{
+		{Ref: "gb:1", Name: "Alchemy Remade", Kind: "mod", Source: "GameBanana", Author: "PIKO", Category: "Gameplay"},
+		{Ref: "tw:2", Name: "Uranium Reactor", Kind: "mod", Source: "True Workshop", Author: "U"},
+	} {
+		grid.Add(b.card(m).root)
+	}
+	w := test.NewTempWindow(t, grid)
+	w.Resize(fyne.NewSize(520, 330))
+	if got := buttonTexts(grid); len(got) != 0 {
+		t.Fatalf("cards have buttons: %v", got)
+	}
+	b.cards["gb:1"].pick.SetChecked(true)
+	b.cards["tw:2"].queued.Show()
+	b.cards["tw:2"].foot.Refresh()
+	if p := os.Getenv("CARD_PNG"); p != "" {
+		f, _ := os.Create(p)
+		png.Encode(f, w.Canvas().Capture())
+		f.Close()
+	}
+}

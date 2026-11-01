@@ -30,6 +30,7 @@ import (
 	_ "golang.org/x/image/webp"
 
 	"github.com/Trlydev/SWG/internal/app"
+	"github.com/Trlydev/SWG/internal/modpack"
 	"github.com/Trlydev/SWG/internal/sources"
 )
 
@@ -58,7 +59,7 @@ type browseCard struct {
 	pickBox   *fyne.Container
 	meta      *widget.Label
 	foot      *fyne.Container
-	install   *widget.Button
+	queued    fyne.CanvasObject // pill: picked and subscribed, waiting to install
 	pick      *widget.Check
 }
 
@@ -158,10 +159,21 @@ func newBrowse(u *ui) *browseView {
 	b.selBar = container.NewStack(selBg, container.New(layout.NewCustomPaddedLayout(6, 6, 12, 8), container.NewHBox(b.selCount, instSel, clear)))
 	b.selBar.Hide()
 	b.link = widget.NewEntry()
-	b.link.SetPlaceHolder("Have a link? Paste a GameBanana / Steam Workshop / Nexus link or ID (gb:123, sky:123)")
+	b.link.SetPlaceHolder("Have a link? Paste a GameBanana / Steam Workshop / Nexus link, an ID (gb:123, sky:123) or a modpack code (PPG1.…)")
 	installLink := func() {
 		v := strings.TrimSpace(b.link.Text)
 		if v == "" {
+			return
+		}
+		if modpack.Find(v) {
+			b.link.SetText("")
+			go func() {
+				if err := u.s.call("POST", "/api/pack-offer", map[string]any{"text": v}, nil); err != nil {
+					u.toast(err.Error())
+					return
+				}
+				u.refreshState()
+			}()
 			return
 		}
 		ref := v
@@ -654,20 +666,13 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 	if !installed {
 		c.installed.Hide()
 	}
-	c.install = widget.NewButton("Subscribe", nil)
-	c.install.OnTapped = func() {
-		c.install.SetText("Queued")
-		c.install.Disable()
-		u.install(m.Ref, m.Name, nil, "", "")
-	}
-	c.install.Importance = widget.HighImportance
+	c.queued = pill("queued", pKind)
+	c.queued.Hide()
+	pills = append(pills, c.queued)
 	b.mu.Lock()
 	picked := b.selected[m.Ref] != nil
 	b.mu.Unlock()
-	if installed || m.AfterCutoff {
-		c.install.Hide()
-	}
-	c.foot = container.NewBorder(nil, nil, nil, container.NewVBox(layout.NewSpacer(), c.install), flowBox(6, pills...))
+	c.foot = flowBox(6, pills...)
 
 	bg := canvas.NewRectangle(p.surface)
 	bg.CornerRadius = 10
@@ -693,6 +698,7 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 	pbg.A = 225
 	pickBg := canvas.NewRectangle(pbg)
 	pickBg.CornerRadius = 6
+	pickBg.StrokeColor, pickBg.StrokeWidth = p.accent, 1.5 // easy to spot on any thumbnail
 	pickBox := container.NewStack(pickBg, c.pick)
 	if !c.pick.Visible() {
 		pickBox.Hide()
@@ -730,7 +736,7 @@ func (b *browseView) markInstalled() {
 		}
 		c.pick.SetChecked(false)
 		c.pickBox.Hide()
-		c.install.Hide()
+		c.queued.Hide()
 		c.installed.Show()
 		c.foot.Refresh()
 	}
@@ -745,14 +751,14 @@ func (b *browseView) setBusy(on bool) {
 	b.mu.Unlock()
 }
 
-// resetQueued gives "Queued" cards their Subscribe button back once nothing
+// resetQueued takes the "queued" mark off cards once nothing
 // is running or waiting (an install that was refused or failed).
 func (b *browseView) resetQueued() {
 	keys := b.u.installedKeys()
 	for ref, c := range b.cards {
-		if !keys[ref] && c.install.Disabled() && c.install.Text == "Queued" {
-			c.install.SetText("Subscribe")
-			c.install.Enable()
+		if !keys[ref] && c.queued.Visible() {
+			c.queued.Hide()
+			c.foot.Refresh()
 		}
 	}
 }
@@ -848,8 +854,8 @@ func (b *browseView) showCart() {
 		for _, m := range append(mods, cons...) {
 			refs = append(refs, m.Ref)
 			if c := b.cards[m.Ref]; c != nil {
-				c.install.SetText("Queued")
-				c.install.Disable()
+				c.queued.Show()
+				c.foot.Refresh()
 			}
 		}
 		d.Hide()

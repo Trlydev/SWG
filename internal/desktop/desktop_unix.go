@@ -99,6 +99,9 @@ func Install(o Options, logf func(string, ...any)) (string, error) {
 			}
 		}
 	}
+	if err := RegisterModpacks(exe); err == nil {
+		logf("registered .ppgm modpack files")
+	}
 	exec.Command("update-desktop-database", filepath.Dir(menu)).Run()
 	exec.Command("gtk-update-icon-cache", "-q", filepath.Join(dataHome(), "icons", "hicolor")).Run()
 	return exe, nil
@@ -113,6 +116,7 @@ func Uninstall(logf func(string, ...any)) error {
 			logf("removed %s", p)
 		}
 	}
+	UnregisterModpacks()
 	exec.Command("update-desktop-database", filepath.Dir(menu)).Run()
 	return nil
 }
@@ -164,4 +168,66 @@ func UnregisterNXM(prev string) {
 		exec.Command("xdg-mime", "default", prev, "x-scheme-handler/nxm").Run()
 	}
 	exec.Command("update-desktop-database", filepath.Dir(file)).Run()
+}
+
+const (
+	packDesktop = "ppgmods-modpack.desktop"
+	packMime    = "application/x-ppgmods-modpack"
+)
+
+func packPaths() (entry, mime string) {
+	d := dataHome()
+	return filepath.Join(d, "applications", packDesktop), filepath.Join(d, "mime", "packages", "ppgmods-modpack.xml")
+}
+
+// RegisterModpacks makes .ppgm files (ppgmods modpacks) open in exe.
+func RegisterModpacks(exe string) error {
+	entryFile, mimeFile := packPaths()
+	os.MkdirAll(filepath.Dir(entryFile), 0o755)
+	os.MkdirAll(filepath.Dir(mimeFile), 0o755)
+	xml := `<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="` + packMime + `">
+    <comment>People Playground modpack</comment>
+    <icon name="ppgmods"/>
+    <glob pattern="*.ppgm"/>
+  </mime-type>
+</mime-info>
+`
+	if err := os.WriteFile(mimeFile, []byte(xml), 0o644); err != nil {
+		return err
+	}
+	content := fmt.Sprintf(`[Desktop Entry]
+Type=Application
+Name=%s (modpacks)
+Exec=%s %%f
+Icon=ppgmods
+NoDisplay=true
+Terminal=false
+MimeType=%s;
+`, AppName, execQuote(exe), packMime)
+	if err := os.WriteFile(entryFile, []byte(content), 0o644); err != nil {
+		return err
+	}
+	exec.Command("update-mime-database", filepath.Join(dataHome(), "mime")).Run()
+	exec.Command("update-desktop-database", filepath.Dir(entryFile)).Run()
+	exec.Command("xdg-mime", "default", packDesktop, packMime).Run()
+	return nil
+}
+
+// ModpacksRegistered reports whether .ppgm files open in exe.
+func ModpacksRegistered(exe string) bool {
+	entryFile, mimeFile := packPaths()
+	b, err := os.ReadFile(entryFile)
+	_, merr := os.Stat(mimeFile)
+	return err == nil && merr == nil && strings.Contains(string(b), "Exec="+execQuote(exe)+" ")
+}
+
+// UnregisterModpacks removes the .ppgm association.
+func UnregisterModpacks() {
+	entryFile, mimeFile := packPaths()
+	os.Remove(entryFile)
+	os.Remove(mimeFile)
+	exec.Command("update-mime-database", filepath.Join(dataHome(), "mime")).Run()
+	exec.Command("update-desktop-database", filepath.Dir(entryFile)).Run()
 }

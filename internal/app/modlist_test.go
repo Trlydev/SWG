@@ -58,3 +58,22 @@ func TestImportListSkipsInstalled(t *testing.T) {
 		t.Fatalf("summary %+v, off %v", sum, st.Mods["gb:1"].Off)
 	}
 }
+
+// A modpack code reads as the same list as the file it came from.
+func TestListCodeRoundTrip(t *testing.T) {
+	l := &ModList{Format: ModListFormat, Version: 1, Profile: "war", Mods: []ModListItem{
+		{Ref: "gb:1", Name: "A", Kind: manager.KindMod},
+		{Ref: "tw:168", Name: "Tank", Kind: manager.KindContraption, Off: true},
+	}}
+	code := ListCode(l)
+	got, err := ParseList([]byte("Get my mods: " + code))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Profile != "war" || len(got.Mods) != 2 || got.Mods[1] != l.Mods[1] || got.Mods[0] != l.Mods[0] {
+		t.Fatalf("%+v", got)
+	}
+	if _, err := ParseList([]byte("PPG1.garbage!")); err == nil {
+		t.Error("a damaged code was accepted")
+	}
+}

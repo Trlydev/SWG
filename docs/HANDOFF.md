@@ -1,4 +1,4 @@
-# Handoff (after v0.4.2)
+# Handoff (after v0.4.6)
 
 State of ppgmods (People Playground mod manager, Go) for the next session.
 
@@ -6,7 +6,7 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 
 - Repo: github.com/Trlydev/SWG (the git remote DogeKingC/SWG redirects there).
   Go module path: `github.com/Trlydev/SWG`.
-- Latest release: **v0.4.2**. `build.yml` publishes v0.4.N on every push to
+- Latest release: **v0.4.6**. `build.yml` publishes v0.4.N on every push to
   main (counted from the v0.4.* tags). Pushes to other branches don't build.
 - Work branch: `claude/trusting-babbage-cu3pyj`.
 
@@ -34,6 +34,10 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 | 0.3.6 | Says when RE_PPG can't run because the game is the native Linux version |
 | 0.4.0 | Security update, RE_PPG installs, Zen check fix (below) |
 | 0.4.1 | RE_PPG Harmony setup (like its installer); Zen BiDi port found reliably |
+| 0.4.3 | Signed releases (Ed25519, RELEASE_SIGNING_KEY); Open Workshop thumbnails in the index |
+| 0.4.4 | Skymods check: tick the box in a plain browser window (worked for the owner) |
+| 0.4.5 | Open Workshop index signed with the original key only (WORKSHOP_SIGNING_KEY); key read however pasted |
+| 0.4.6 | Subscribe: tick cards into a cart, Subscribe installs all; installs queue while a task runs; automatic updates (Settings) |
 | 0.4.2 | Reinstall RE_PPG button; fixes from a 5-agent security review; one-time window code; loader files matched by name and release; Popular sorting fixed (all time from the popularity data); thumbnails shrunk and cached on disk |
 
 ## What 0.4 has
@@ -71,6 +75,19 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 - `scan.Hollow` (`hollow.go`): copies a DLL with its native methods given
   empty bodies. Groundwork for a deep check; nothing uses it. The deep
   check's runner was not built (a safety filter stopped that work).
+
+## Modpacks (since 0.4.7, from WBMM's .wbm)
+
+- `internal/modpack`: a list as one line, `PPG1.` + base64url(deflate(tiny
+  binary list)): source (gb/sky/tw/nx/ow), ID (number or slug), contraption,
+  off, name. No files or URLs; installing goes through the normal checks.
+- Installed tab: "Share as modpack" saves a `.ppgm` file and shows the code
+  (Copy code); "Open modpack…" and Browse's link box take a code or file
+  and show what it would install before anything happens.
+- `.ppgm` opens in ppgmods on a double-click (registered by install-app,
+  and on start for installed copies from before). `ppgmods file.ppgm`
+  hands it to the open window (`/api/pack-offer`). Old JSON lists still
+  import.
 
 ## Findings worth knowing
 

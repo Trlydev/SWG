@@ -36,6 +36,7 @@ import (
 	"github.com/Trlydev/SWG/internal/desktop"
 	"github.com/Trlydev/SWG/internal/game"
 	"github.com/Trlydev/SWG/internal/manager"
+	"github.com/Trlydev/SWG/internal/modpack"
 	"github.com/Trlydev/SWG/internal/reppg"
 	"github.com/Trlydev/SWG/internal/selfupdate"
 	"github.com/Trlydev/SWG/internal/sources"
@@ -86,11 +87,12 @@ type server struct {
 	logFile  *os.File
 	relaunch string // executable to start after shutting down
 
-	handler  http.Handler  // the API, called in-process by the native window
-	show     chan struct{} // native window: bring it to the front
-	offerMu  sync.Mutex
-	nxmOffer *nxmOffer // a Nexus "Mod Manager Download" link waiting for the person to confirm
-	quitOnce sync.Once
+	handler   http.Handler  // the API, called in-process by the native window
+	show      chan struct{} // native window: bring it to the front
+	offerMu   sync.Mutex
+	nxmOffer  *nxmOffer  // a Nexus "Mod Manager Download" link waiting for the person to confirm
+	packOffer *packOffer // a modpack waiting for the person to confirm
+	quitOnce  sync.Once
 }
 
 type job struct {
@@ -228,6 +230,8 @@ func Run(opt app.Options, g Options) error {
 	resumePort, resumeToken := takeResume()
 	startNXM := os.Getenv(nxmEnv) // launched by a Nexus link with no window open
 	os.Unsetenv(nxmEnv)
+	startPack := os.Getenv(packEnv) // launched by opening a .ppgm file
+	os.Unsetenv(packEnv)
 	native := nativeUI != nil && !g.NoWindow && !g.Web
 	if !g.NoWindow && g.Port == 0 && resumeToken == "" {
 		if url := runningInstance(); url != "" {
@@ -277,6 +281,20 @@ func Run(opt app.Options, g Options) error {
 	}
 	if startNXM != "" {
 		s.offerNXM(startNXM)
+	}
+	if startPack != "" {
+		if err := s.offerPack(startPack); err != nil {
+			s.logf("modpack: %v", err)
+		}
+	}
+	if desktop.IsInstalled() && !desktop.ModpacksRegistered(desktop.InstallPath()) {
+		// Installed before modpacks existed (an update doesn't re-run
+		// the install): open .ppgm files here from now on.
+		go func() {
+			if err := desktop.RegisterModpacks(desktop.InstallPath()); err == nil {
+				s.logf("registered .ppgm modpack files")
+			}
+		}()
 	}
 	s.handler = s.routes()
 	srv := &http.Server{Handler: s.handler, ReadHeaderTimeout: 10 * time.Second}
@@ -812,6 +830,13 @@ func (s *server) routes() http.Handler {
 		}
 		writeJSON(w, map[string]bool{"ok": true})
 	})
+	mux.HandleFunc("/api/pack-offer", s.handlePackOffer)
+	mux.HandleFunc("/api/pack-dismiss", func(w http.ResponseWriter, r *http.Request) {
+		s.offerMu.Lock()
+		s.packOffer = nil
+		s.offerMu.Unlock()
+		writeJSON(w, map[string]bool{"ok": true})
+	})
 	mux.HandleFunc("/api/nxm-dismiss", func(w http.ResponseWriter, r *http.Request) {
 		s.offerMu.Lock()
 		s.nxmOffer = nil
@@ -988,7 +1013,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 	queued, autoNote := len(s.queue), s.autoNote
 	s.jobMu.Unlock()
 	s.offerMu.Lock()
-	offer := s.nxmOffer
+	offer, pack := s.nxmOffer, s.packOffer
 	s.offerMu.Unlock()
 	loader := game.DetectLoader(paths.Game)
 	noCompiler := 0
@@ -1009,6 +1034,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		"loader":                loader,
 		"scripts_need_compiler": noCompiler,
 		"nxm_offer":             offer,
+		"pack_offer":            pack,
 		"nexus":                 nexusStatus(),
 		"version":               s.version,
 		"paths":                 paths,
@@ -1326,15 +1352,15 @@ func (s *server) do(j *job, req actionReq) error {
 		return nil
 	case "list-export":
 		l, skipped := app.ExportList(m.State)
-		b, _ := json.MarshalIndent(l, "", "  ")
+		code := app.ListCode(l)
 		dir := exportDir()
 		os.MkdirAll(dir, 0o755)
-		p := filepath.Join(dir, "ppgmods-mod-list-"+time.Now().Format("2006-01-02-150405")+".json")
-		if err := os.WriteFile(p, b, 0o644); err != nil {
+		p := filepath.Join(dir, "ppgmods-modpack-"+time.Now().Format("2006-01-02-150405")+modpack.Ext)
+		if err := os.WriteFile(p, []byte(code+"\n"), 0o644); err != nil {
 			return err
 		}
-		j.Data = map[string]string{"file": p, "count": strconv.Itoa(len(l.Mods)), "skipped": strconv.Itoa(skipped)}
-		s.logf("saved the mod list (%d item(s)) to %s", len(l.Mods), p)
+		j.Data = map[string]string{"file": p, "code": code, "count": strconv.Itoa(len(l.Mods)), "skipped": strconv.Itoa(skipped)}
+		s.logf("saved the modpack (%d item(s)) to %s; its code: %s", len(l.Mods), p, code)
 		if skipped > 0 {
 			s.logf("%d item(s) found on this PC without a source can't be downloaded again, so they aren't in the list", skipped)
 		}
