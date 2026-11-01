@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/Trlydev/SWG/internal/app"
@@ -17,6 +18,10 @@ var (
 	skymodsCheckOn bool = true // offer/run the Skymods browser check when Cloudflare asks
 )
 
+// autoUpdateOn: installed (subscribed) mods are kept up to date in the
+// background, through the same checks as any install.
+var autoUpdateOn = func() *atomic.Bool { var b atomic.Bool; b.Store(true); return &b }()
+
 // settings are the GUI preferences saved between runs. Safety overrides are
 // deliberately not persisted: they apply to one install at a time.
 type settings struct {
@@ -26,6 +31,7 @@ type settings struct {
 	NoBgThumbs     bool    `json:"no_bg_thumbs"`     // don't fetch missing Workshop thumbnails in the background
 	NoSkymodsCheck bool    `json:"no_skymods_check"` // never run the Skymods browser check
 	Theme          string  `json:"theme,omitempty"`  // "dark" (default), "light" or "system"
+	NoAutoUpdate   bool    `json:"no_auto_update"`   // don't keep subscribed mods up to date by themselves
 }
 
 // themeSetting normalises a saved theme: dark unless light or system.
@@ -67,6 +73,7 @@ func (st *settings) apply(o *app.Options) {
 	bgThumbsOff = st.NoBgThumbs
 	skymodsCheckOn = !st.NoSkymodsCheck
 	cfclear.SetAuto(skymodsCheckOn)
+	autoUpdateOn.Store(!st.NoAutoUpdate)
 	themeMode = themeSetting(st.Theme)
 	o.Game = st.Game
 	o.Offline = st.Offline
@@ -77,5 +84,5 @@ func (st *settings) apply(o *app.Options) {
 
 func settingsFrom(o app.Options) settings {
 	return settings{Game: o.Game, CooldownHours: o.Policy.Cooldown.Hours(), Offline: o.Offline,
-		NoBgThumbs: bgThumbsOff, NoSkymodsCheck: !skymodsCheckOn, Theme: themeMode}
+		NoBgThumbs: bgThumbsOff, NoSkymodsCheck: !skymodsCheckOn, Theme: themeMode, NoAutoUpdate: !autoUpdateOn.Load()}
 }

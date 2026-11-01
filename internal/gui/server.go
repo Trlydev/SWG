@@ -69,6 +69,11 @@ type server struct {
 
 	jobMu sync.Mutex
 	job   *job
+	// queue holds installs asked for while another task ran; they start
+	// together when it ends.
+	queue []string
+	// autoNote says what the last automatic update did.
+	autoNote string
 
 	relMu   sync.Mutex
 	rel     *selfupdate.Release
@@ -105,6 +110,7 @@ type job struct {
 	Browser    *app.NeedsBrowser `json:"browser,omitempty"`
 	Risk       bool              `json:"risk,omitempty"`       // the retry accepts CRITICAL findings: needs the typed phrase
 	Background bool              `json:"background,omitempty"` // started by ppgmods itself (folder watching), not shown as "last task"
+	Queued     int               `json:"queued,omitempty"`     // in an answer to an install: it waits in the queue, behind this many
 	opts       map[string]bool
 	logStart   int
 }
@@ -317,6 +323,7 @@ func Run(opt app.Options, g Options) error {
 		}
 	}()
 	go s.watchFolders()
+	go s.autoUpdate()
 	go func() {
 		for {
 			s.checkRelease(true)
@@ -978,6 +985,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	s.jobMu.Lock()
 	j := s.job
+	queued, autoNote := len(s.queue), s.autoNote
 	s.jobMu.Unlock()
 	s.offerMu.Lock()
 	offer := s.nxmOffer
@@ -1008,6 +1016,8 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		"profiles":              profiles,
 		"profile":               profile,
 		"job":                   j,
+		"queued":                queued,
+		"auto_update":           autoNote,
 		"settings":              stateSettings,
 		"skymods":               s.skymodsView(),
 		"reppg":                 reppgStatus(paths.Game),
@@ -1111,6 +1121,10 @@ func (s *server) handleAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	j, err := s.start(req)
+	if errors.Is(err, errBusy) && queueable(req) {
+		writeJSON(w, job{Queued: s.enqueue(req.Refs)})
+		return
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusConflict)
 		writeJSON(w, map[string]string{"error": err.Error()})
@@ -1137,6 +1151,9 @@ func (s *server) start(req actionReq) (*job, error) {
 	s.jobMu.Unlock()
 
 	go func() {
+		// Runs last, after the state lock is released: installs queued
+		// meanwhile start now.
+		defer s.startQueued()
 		// One writer at a time across processes: a command-line ppgmods run
 		// takes the same lock, so a save here cannot overwrite its change
 		// (or the other way round).
@@ -1277,6 +1294,9 @@ func (s *server) do(j *job, req actionReq) error {
 		a.Opt.Yes = req.Apply
 		sum := a.Update(m)
 		j.Summary = &sum
+		if req.background {
+			s.noteAutoUpdate(sum)
+		}
 		return nil
 	case "nxm":
 		// Only from the window, after the person confirmed the offer.

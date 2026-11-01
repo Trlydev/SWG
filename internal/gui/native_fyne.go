@@ -40,6 +40,8 @@ type stateView struct {
 	Profiles     []string        `json:"profiles"`
 	Profile      string          `json:"profile"`
 	Job          *job            `json:"job"`
+	Queued       int             `json:"queued"`      // installs waiting for the running task
+	AutoUpdate   string          `json:"auto_update"` // what the last automatic update did
 	Settings     settings        `json:"settings"`
 	Skymods      skymodsState    `json:"skymods"`
 	REPPG        reppgView       `json:"reppg"`
@@ -364,7 +366,7 @@ func (u *ui) refreshState() {
 	u.mu.Lock()
 	u.st = &st
 	if st.Job != nil && st.Job.Running && !st.Job.Background && u.lastJobID == 0 {
-		u.lastJobID = st.Job.ID
+		u.lastJobID, u.jobLabel = st.Job.ID, "" // e.g. queued installs, started by the server
 	}
 	follow := u.lastJobID == 0
 	u.mu.Unlock()
@@ -395,6 +397,10 @@ func (u *ui) refreshState() {
 		u.set.update(&st)
 		u.renderDesktop(&st)
 		u.renderSkymods(st.Skymods)
+		if (st.Job == nil || !st.Job.Running) && st.Queued == 0 {
+			u.browse.resetQueued()
+		}
+		u.installed.setAuto(&st)
 		u.showNXMOffer(st.NXMOffer)
 		if follow {
 			u.setJob(st.Job, "")
@@ -432,6 +438,10 @@ func (u *ui) run(req map[string]any, label string) {
 			u.toast(err.Error())
 			return
 		}
+		if j.ID == 0 && j.Queued > 0 {
+			u.toast(fmt.Sprintf("Added to the queue (%d waiting): it installs when the current task ends", j.Queued))
+			return
+		}
 		u.mu.Lock()
 		u.lastJobID, u.jobLabel = j.ID, label
 		u.mu.Unlock()
@@ -464,6 +474,12 @@ func (u *ui) setJob(j *job, label string) {
 	if j.Running {
 		if label == "" {
 			label = j.Name
+		}
+		if label == "install" {
+			label = "Installing"
+		}
+		if j.Background && j.Name == "update" {
+			label = "Updating subscribed mods"
 		}
 		u.status.SetText(label + "…")
 		u.setRunning(true)

@@ -328,6 +328,7 @@ let jobRunning = false;
 async function run(req, label) {
   try {
     const j = await api("/api/action", { body: req });
+    if (!j.id && j.queued) { toast("Added to the queue (" + j.queued + " waiting): it installs when the current task ends"); return; }
     lastJobId = j.id;
     setJob(j, label);
   } catch (e) {
@@ -1065,6 +1066,7 @@ $("#settingsForm").onsubmit = async (e) => {
       offline: $("#setOffline").checked,
       no_bg_thumbs: !$("#setBgThumbs").checked,
       no_skymods_check: !$("#setSkymodsCheck").checked,
+      no_auto_update: !!(state.settings && state.settings.no_auto_update), // set in the window
       theme: $("#setTheme").value,
     } });
     toast("Settings saved");

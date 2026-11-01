@@ -526,9 +526,30 @@ type installedPane struct {
 	openMods  *widget.Button
 	openContr *widget.Button
 	lastApply bool
+	check     *widget.Button
+	apply     *widget.Button
+	autoNote  *widget.Label
 	profBar   *fyne.Container
 	profSel   *widget.Select
 	profNames []string
+}
+
+// setAuto shows how updates happen: by themselves (Settings), with what
+// the last automatic run did, or by the buttons when that is turned off.
+func (p *installedPane) setAuto(st *stateView) {
+	if st.Settings.NoAutoUpdate {
+		p.check.Show()
+		p.apply.SetText("Apply safe updates")
+		p.autoNote.SetText("Automatic updates are off (Settings): check and apply them here.")
+		return
+	}
+	p.check.Hide()
+	p.apply.SetText("Update now")
+	note := "Your mods and contraptions update by themselves while ppgmods is open, through the same safety checks as an install."
+	if st.AutoUpdate != "" {
+		note += " " + st.AutoUpdate + "."
+	}
+	p.autoNote.SetText(note)
 }
 
 func newInstalled(u *ui) *installedPane {
@@ -550,6 +571,9 @@ func newInstalled(u *ui) *installedPane {
 		u.run(map[string]any{"action": "update", "apply": true}, "Applying safe updates")
 	})
 	apply.Importance = widget.HighImportance
+	p.check, p.apply = check, apply
+	p.autoNote = muted("")
+	p.autoNote.Wrapping = fyne.TextWrapWord
 	verify := u.busyButton("Verify files", func() { u.run(map[string]any{"action": "verify"}, "Verifying files") })
 	find := u.busyButton("Find already-installed", func() {
 		u.run(map[string]any{"action": "find-installed"}, "Looking for mods installed without this app")
@@ -578,7 +602,7 @@ func newInstalled(u *ui) *installedPane {
 	p.verify.Hide()
 	p.profileBar()
 	p.root = view(container.New(&vlist{gap: 12}, h1("Installed"), p.kind.root,
-		flowBox(8, check, apply, verify, find, export, importList, p.openMods, p.openContr), p.profBar, p.compiler, p.missing, p.verify, p.list))
+		flowBox(8, check, apply, verify, find, export, importList, p.openMods, p.openContr), p.autoNote, p.profBar, p.compiler, p.missing, p.verify, p.list))
 	return p
 }
 
@@ -1112,6 +1136,7 @@ type settingsView struct {
 	bgThumbs  *widget.Check
 	theme     *widget.Select
 	skyAuto   *widget.Check
+	autoUpd   *widget.Check
 	skyBox    *fyne.Container
 	skyInfo   string
 	skyCheck  *widget.Button
@@ -1170,6 +1195,7 @@ func newSettings(u *ui) *settingsView {
 	v.bgThumbs = widget.NewCheck("Load missing Workshop thumbnails in the background", func(bool) { mark() })
 	v.theme = widget.NewSelect(themeLabels, func(string) { mark() })
 	v.skyAuto = widget.NewCheck("Pass the Skymods browser check automatically", func(bool) { mark() })
+	v.autoUpd = widget.NewCheck("Keep my mods and contraptions up to date automatically", func(bool) { mark() })
 	pick := widget.NewButton("Choose…", func() {
 		dialog.ShowFolderOpen(func(l fyne.ListableURI, err error) {
 			if l != nil {
@@ -1183,7 +1209,7 @@ func newSettings(u *ui) *settingsView {
 			h = 0
 		}
 		st := settings{Game: strings.TrimSpace(v.game.Text), CooldownHours: h, Offline: v.offline.Checked, NoBgThumbs: !v.bgThumbs.Checked,
-			NoSkymodsCheck: !v.skyAuto.Checked, Theme: themeValue(v.theme.Selected)}
+			NoSkymodsCheck: !v.skyAuto.Checked, Theme: themeValue(v.theme.Selected), NoAutoUpdate: !v.autoUpd.Checked}
 		restart := themeSetting(st.Theme) != windowTheme
 		go func() {
 			if err := u.s.call("POST", "/api/settings", st, nil); err != nil {
@@ -1200,12 +1226,14 @@ func newSettings(u *ui) *settingsView {
 		}()
 	})
 	save.Importance = widget.HighImportance
+	autoHint := muted("Checks every 6 hours while ppgmods is open. Each update is scanned like a new install; one that fails is held back and the old version stays.")
 	thumbsHint := muted("Valve deleted the preview images of the removed mods. ppgmods can fetch small mods (under 3 MB) one at a time to show their own thumbnail; this also pre-scans them so installing is instant.")
 	skyHint := muted("smods.ru sometimes asks browsers to prove they are real. ppgmods then reads Skymods through a background browser with its own profile. If smods.ru wants a person to tick a box, a banner tells you.")
 	form := container.New(&vlist{gap: 14},
 		field("People Playground folder", container.NewBorder(nil, nil, nil, pick, v.game), v.gameHint),
 		field("Cooldown for new uploads (hours)", v.cooldown, nil),
 		field("Appearance", narrow(220, v.theme), nil),
+		container.New(&vlist{gap: 0}, v.autoUpd, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), autoHint)),
 		v.offline,
 		container.New(&vlist{gap: 0}, v.bgThumbs, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), thumbsHint)),
 		container.New(&vlist{gap: 0}, v.skyAuto, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), skyHint)),
@@ -1242,6 +1270,7 @@ func (v *settingsView) update(st *stateView) {
 		v.offline.SetChecked(st.Settings.Offline)
 		v.bgThumbs.SetChecked(!st.Settings.NoBgThumbs)
 		v.skyAuto.SetChecked(!st.Settings.NoSkymodsCheck)
+		v.autoUpd.SetChecked(!st.Settings.NoAutoUpdate)
 		v.theme.SetSelected(themeLabel(st.Settings.Theme))
 		v.dirty = false
 	}

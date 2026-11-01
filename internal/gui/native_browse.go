@@ -23,6 +23,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -82,7 +83,7 @@ type browseView struct {
 	lastQuery string
 	earlier   []fyne.CanvasObject // cards of the pages before this one
 	cards     map[string]*browseCard
-	selected  map[string]string
+	selected  map[string]*app.SearchResult // the cart: picked, not yet subscribed
 	busy      bool
 }
 
@@ -113,7 +114,7 @@ func labels(opts []struct{ label, value string }) []string {
 }
 
 func newBrowse(u *ui) *browseView {
-	b := &browseView{u: u, cards: map[string]*browseCard{}, selected: map[string]string{}, page: 1}
+	b := &browseView{u: u, cards: map[string]*browseCard{}, selected: map[string]*app.SearchResult{}, page: 1}
 	p := u.app.Preferences()
 	sel := 0
 	if p.StringWithFallback("browse.kind", "mod") == "contraption" {
@@ -147,30 +148,9 @@ func newBrowse(u *ui) *browseView {
 	})
 	b.more.Hide()
 	b.selCount = widget.NewLabel("")
-	instSel := widget.NewButton("Install selected", func() {
-		b.mu.Lock()
-		var refs []string
-		for r := range b.selected {
-			refs = append(refs, r)
-		}
-		b.selected = map[string]string{}
-		b.mu.Unlock()
-		for _, c := range b.cards {
-			c.pick.SetChecked(false)
-		}
-		b.updateSelection()
-		u.run(map[string]any{"action": "install", "refs": refs}, fmt.Sprintf("Installing %d mods", len(refs)))
-	})
+	instSel := widget.NewButtonWithIcon("Review and subscribe", theme.ConfirmIcon(), b.showCart)
 	instSel.Importance = widget.HighImportance
-	clear := widget.NewButton("Clear", func() {
-		b.mu.Lock()
-		b.selected = map[string]string{}
-		b.mu.Unlock()
-		for _, c := range b.cards {
-			c.pick.SetChecked(false)
-		}
-		b.updateSelection()
-	})
+	clear := widget.NewButton("Clear", b.clearCart)
 	b.selCount.TextStyle = fyne.TextStyle{Bold: true}
 	selBg := canvas.NewRectangle(pal().surface)
 	selBg.CornerRadius = 10
@@ -674,15 +654,16 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 	if !installed {
 		c.installed.Hide()
 	}
-	c.install = widget.NewButton("Install", func() { u.install(m.Ref, m.Name, nil, "", "") })
+	c.install = widget.NewButton("Subscribe", nil)
+	c.install.OnTapped = func() {
+		c.install.SetText("Queued")
+		c.install.Disable()
+		u.install(m.Ref, m.Name, nil, "", "")
+	}
 	c.install.Importance = widget.HighImportance
 	b.mu.Lock()
-	busy := b.busy
-	picked := b.selected[m.Ref] != ""
+	picked := b.selected[m.Ref] != nil
 	b.mu.Unlock()
-	if busy {
-		c.install.Disable()
-	}
 	if installed || m.AfterCutoff {
 		c.install.Hide()
 	}
@@ -695,7 +676,7 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 	c.pick = widget.NewCheck("", func(on bool) {
 		b.mu.Lock()
 		if on {
-			b.selected[m.Ref] = m.Name
+			b.selected[m.Ref] = m
 		} else {
 			delete(b.selected, m.Ref)
 		}
@@ -756,17 +737,136 @@ func (b *browseView) markInstalled() {
 	b.updateSelection()
 }
 
+// setBusy: Subscribe stays usable while a task runs (the install waits in
+// the queue).
 func (b *browseView) setBusy(on bool) {
 	b.mu.Lock()
 	b.busy = on
 	b.mu.Unlock()
-	for _, c := range b.cards {
-		if on {
-			c.install.Disable()
-		} else {
+}
+
+// resetQueued gives "Queued" cards their Subscribe button back once nothing
+// is running or waiting (an install that was refused or failed).
+func (b *browseView) resetQueued() {
+	keys := b.u.installedKeys()
+	for ref, c := range b.cards {
+		if !keys[ref] && c.install.Disabled() && c.install.Text == "Queued" {
+			c.install.SetText("Subscribe")
 			c.install.Enable()
 		}
 	}
+}
+
+func (b *browseView) clearCart() {
+	b.mu.Lock()
+	b.selected = map[string]*app.SearchResult{}
+	b.mu.Unlock()
+	for _, c := range b.cards {
+		c.pick.SetChecked(false)
+	}
+	b.updateSelection()
+}
+
+// cartGroups splits the cart into mods and contraptions, each by name.
+func cartGroups(sel map[string]*app.SearchResult) (mods, contraptions []*app.SearchResult) {
+	for _, m := range sel {
+		if m.Kind == "contraption" {
+			contraptions = append(contraptions, m)
+		} else {
+			mods = append(mods, m)
+		}
+	}
+	by := func(l []*app.SearchResult) {
+		sort.Slice(l, func(i, j int) bool {
+			if a, b := strings.ToLower(l[i].Name), strings.ToLower(l[j].Name); a != b {
+				return a < b
+			}
+			return l[i].Ref < l[j].Ref
+		})
+	}
+	by(mods)
+	by(contraptions)
+	return mods, contraptions
+}
+
+// showCart lists what was picked, mods and contraptions apart, each with a
+// button to take it out; Subscribe installs them all, one after another.
+func (b *browseView) showCart() {
+	u := b.u
+	list := container.New(&vlist{gap: 10})
+	var d dialog.Dialog
+	var subscribe *widget.Button
+	var render func()
+	render = func() {
+		b.mu.Lock()
+		mods, cons := cartGroups(b.selected)
+		b.mu.Unlock()
+		list.RemoveAll()
+		group := func(title string, items []*app.SearchResult) {
+			if len(items) == 0 {
+				return
+			}
+			list.Add(h2(fmt.Sprintf("%s (%d)", title, len(items))))
+			for _, m := range items {
+				m := m
+				name := widget.NewLabelWithStyle(m.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+				name.Wrapping = fyne.TextWrapWord
+				meta := muted(cardMeta(m))
+				meta.Wrapping = fyne.TextWrapWord
+				rm := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+					b.mu.Lock()
+					delete(b.selected, m.Ref)
+					b.mu.Unlock()
+					if c := b.cards[m.Ref]; c != nil {
+						c.pick.SetChecked(false)
+					}
+					b.updateSelection()
+					render()
+				})
+				rm.Importance = widget.LowImportance
+				thumb := u.thumbs.box(m.Ref, m.Name, m.Image, 72, 45, m, true)
+				list.Add(container.NewBorder(nil, nil, thumb, container.NewCenter(rm),
+					container.New(&vlist{gap: -8}, name, meta, flowBox(6, sourceBadges(m)...))))
+			}
+		}
+		group("Mods", mods)
+		group("Contraptions", cons)
+		n := len(mods) + len(cons)
+		if n == 0 {
+			list.Add(muted("Nothing picked. Tick the box on a card to add it."))
+			subscribe.Disable()
+		}
+		subscribe.SetText(fmt.Sprintf("Subscribe to %d", n))
+		list.Refresh()
+	}
+	closeBtn := widget.NewButton("Close", func() { d.Hide() })
+	subscribe = widget.NewButtonWithIcon("", theme.DownloadIcon(), func() {
+		b.mu.Lock()
+		mods, cons := cartGroups(b.selected)
+		b.mu.Unlock()
+		var refs []string
+		for _, m := range append(mods, cons...) {
+			refs = append(refs, m.Ref)
+			if c := b.cards[m.Ref]; c != nil {
+				c.install.SetText("Queued")
+				c.install.Disable()
+			}
+		}
+		d.Hide()
+		b.clearCart()
+		if len(refs) > 0 {
+			u.run(map[string]any{"action": "install", "refs": refs}, fmt.Sprintf("Installing %d items", len(refs)))
+		}
+	})
+	subscribe.Importance = widget.HighImportance
+	render()
+	note := muted("Each one is scanned before it is installed; anything that fails the checks is skipped and the log says why.")
+	note.Wrapping = fyne.TextWrapWord
+	scroll := container.NewVScroll(list)
+	scroll.SetMinSize(fyne.NewSize(560, minF(list.MinSize().Height, 420)))
+	d = dialog.NewCustomWithoutButtons("Your picks", container.NewBorder(nil,
+		container.NewVBox(note, container.NewHBox(layout.NewSpacer(), closeBtn, subscribe)), nil, nil, scroll), u.win)
+	d.Show()
 }
 
 func (b *browseView) updateSelection() {
@@ -777,7 +877,7 @@ func (b *browseView) updateSelection() {
 		b.selBar.Hide()
 		return
 	}
-	b.selCount.SetText(fmt.Sprintf("%d selected", n))
+	b.selCount.SetText(fmt.Sprintf("%d picked", n))
 	b.selBar.Show()
 }
 
