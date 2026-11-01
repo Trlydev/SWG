@@ -114,20 +114,27 @@ func TestBrowserGetOff(t *testing.T) {
 func TestCheckOpensWindowForPerson(t *testing.T) {
 	var ticked atomic.Bool // the person ticked the box: the profile keeps the clearance
 	f := useFake(t, func(o Options) (*Result, error) {
-		if o.Headed {
-			ticked.Store(true)
-		}
 		if !ticked.Load() {
 			return nil, ErrNeedsPerson
 		}
 		return passed(o)
 	})
+	// The window is a plain browser (no remote control: the check rejects a
+	// tick made in a remote-controlled one); closing it ends the step.
+	windows := 0
+	old := showWindow
+	showWindow = func(u, exe, profile string, logf func(string, ...any)) error {
+		windows++
+		ticked.Store(true)
+		return nil
+	}
+	defer func() { showWindow = old }()
 	browserGet("smods.ru", "https://x/", nil, "/usr/bin/chromium") // starts a cooldown
 	if err := check("smods.ru", "https://x/", nil, "/usr/bin/chromium"); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.calls) != 3 || f.calls[1].Headed || !f.calls[2].Headed {
-		t.Fatalf("want background, background, window; got %+v", f.calls)
+	if windows != 1 || len(f.calls) != 3 || f.calls[1].Headed || f.calls[2].Headed {
+		t.Fatalf("want background, plain window, background; got %d window(s), %+v", windows, f.calls)
 	}
 	if st := Status("smods.ru"); !st.OK {
 		t.Fatalf("status: %+v", st)
@@ -179,5 +186,18 @@ func TestProfileName(t *testing.T) {
 		if got := profileName(filepath.FromSlash(strings.ReplaceAll(exe, `\`, "/"))); got != want {
 			t.Errorf("profileName(%q) = %q, want %q", exe, got, want)
 		}
+	}
+}
+
+// If the check still shows after the window is closed, the person is told
+// to wait for the Skymods page before closing it.
+func TestCheckWindowNotPassed(t *testing.T) {
+	useFake(t, func(o Options) (*Result, error) { return nil, ErrNeedsPerson })
+	old := showWindow
+	showWindow = func(u, exe, profile string, logf func(string, ...any)) error { return nil }
+	defer func() { showWindow = old }()
+	err := check("smods.ru", "https://x/", nil, "/usr/bin/chromium")
+	if err == nil || !strings.Contains(err.Error(), "still shows its check") {
+		t.Fatalf("got %v", err)
 	}
 }

@@ -39,7 +39,7 @@ func skyStuck(sm skymodsState) bool {
 
 func skyBannerText(sm skymodsState) string {
 	if sm.Check.NeedsPerson {
-		return "Skymods needs you: smods.ru wants a person to tick its \"Verify you are human\" box. Press the button, a browser window opens, tick the box there and it closes by itself. Other sites keep working meanwhile."
+		return "Skymods needs you: smods.ru wants a person to tick its \"Verify you are human\" box. Press the button, a browser window opens: tick the box, wait until the Skymods page shows, then close the window. Other sites keep working meanwhile."
 	}
 	return "smods.ru is blocking Skymods and the background browser didn't get through (" + sm.Check.Error + "). Press the button to try again in a window. Other sites keep working."
 }
@@ -94,7 +94,7 @@ func (u *ui) runSkyCheck() {
 			u.refreshState()
 			return
 		}
-		u.toast("Checking smods.ru. If a browser window opens, tick \"Verify you are human\" in it; it closes by itself.")
+		u.toast("Checking smods.ru. If a browser window opens, tick \"Verify you are human\", wait until the Skymods page shows, then close the window.")
 		time.Sleep(1500 * time.Millisecond)
 		u.refreshState()
 	}()
@@ -134,7 +134,7 @@ func (v *settingsView) renderSkymods(sm skymodsState) {
 	}
 	switch {
 	case sm.Check.Running:
-		msg += "\nA browser is passing the check right now. If a window opens, tick \"Verify you are human\" in it."
+		msg += "\nA browser is passing the check right now. If a window opens, tick \"Verify you are human\", wait for the Skymods page, then close the window."
 	case sm.Check.NeedsPerson:
 		msg += "\nIt wants a person to tick its \"Verify you are human\" box: press Pass the check now."
 	case sm.Check.Error != "":

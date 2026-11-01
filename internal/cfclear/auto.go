@@ -224,13 +224,42 @@ func check(site, u string, logf func(string, ...any), exe string) error {
 	}()
 	res, err := open(u, Options{Logf: logf, Timeout: time.Minute, Browser: exe})
 	if errors.Is(err, ErrNeedsPerson) {
-		res, err = open(u, Options{Logf: logf, Headed: true, Timeout: 5 * time.Minute, Browser: exe})
+		// The person ticks the box in a plain window (see plainWindow), then
+		// the background browser reads the page again with what it set.
+		res, err = personWindow(u, exe, logf)
 	}
 	record(site, res, err)
 	if err == nil {
 		goRejectedAt.Store(0)
 	}
 	return err
+}
+
+// personWindow shows the check in a plain window on ppgmods' profile and,
+// once the person has closed it, reads the page in the background to see
+// whether the check passed.
+func personWindow(u, exe string, logf func(string, ...any)) (*Result, error) {
+	if exe == "" {
+		var err error
+		if exe, err = FindBrowser(); err != nil {
+			return nil, err
+		}
+	}
+	profile, err := ProfileDir(exe)
+	if err != nil {
+		return nil, err
+	}
+	browserMu.Lock()
+	err = showWindow(u, exe, profile, logf)
+	browserMu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	res, err := open(u, Options{Logf: logf, Timeout: time.Minute, Browser: exe})
+	if errors.Is(err, ErrNeedsPerson) {
+		return nil, errors.New(`smods.ru still shows its check: tick "Verify you are human", wait until the Skymods page itself shows, then close the window (Pass the check now opens it again)`)
+	}
+	return res, err
 }
 
 // Forget drops everything kept for site's check: the stored clearance, the

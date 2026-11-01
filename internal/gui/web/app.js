@@ -1090,7 +1090,7 @@ function renderSkymods(sm) {
   banner.hidden = !(stuck && !skyDismissed);
   if (!banner.hidden) {
     $("#skyText").textContent = st.needs_person
-      ? "smods.ru wants a person to tick its \"Verify you are human\" box before Skymods works. Press the button: a browser window opens, tick the box there, and it closes by itself. Other sites keep working meanwhile."
+      ? "smods.ru wants a person to tick its \"Verify you are human\" box before Skymods works. Press the button: a browser window opens; tick the box, wait until the Skymods page shows, then close the window. Other sites keep working meanwhile."
       : "smods.ru is blocking Skymods for now and the background browser didn't get through (" + st.error + "). Other sites keep working.";
     $("#skyCheckBtn").disabled = st.running;
     $("#skyCheckBtn").textContent = st.running ? "Check running…" : "Pass the check now";
@@ -1103,7 +1103,7 @@ function renderSkymods(sm) {
         ? "smods.ru is showing its browser check to ppgmods right now. Its pages are read through a background browser with ppgmods' own profile (never yours)."
         : "smods.ru is not asking for a browser check."),
   ];
-  if (st.running) lines.push(el("p", { class: "small" }, "A browser is passing the check right now. If a window opens, tick \"Verify you are human\" in it."));
+  if (st.running) lines.push(el("p", { class: "small" }, "A browser is passing the check right now. If a window opens, tick \"Verify you are human\", wait for the Skymods page, then close the window."));
   if (st.error) lines.push(el("p", { class: "small", style: "color:#ff8484" }, "Last check failed: " + st.error));
   else if (st.at && st.ok) lines.push(el("p", { class: "small muted" }, "Last check passed " + new Date(st.at).toLocaleTimeString() + "."));
   lines.push(el("div", { class: "toolbar" },
