@@ -69,6 +69,17 @@ func TestDecodeRefuses(t *testing.T) {
 	}
 }
 
+// A WorldBox code (wbmm, the sister app) says where it belongs.
+func TestWorldBoxCode(t *testing.T) {
+	text := "WBM1.4vatVAjPL8pJccqvYOL4M1Pm8pMCTt_8lNSiPKf8Csapa7vP87D5F5Rk5qYCBgA"
+	if !Find(text) {
+		t.Fatal("not recognised")
+	}
+	if _, err := Decode(text); err != ErrWorldBox {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestDuplicatesAndControl(t *testing.T) {
 	p := Pack{Name: "a\x00b", Entries: []Entry{{Ref: "gb:5", Name: "x\ny"}, {Ref: "gb:5", Name: "again"}}}
 	got, err := Decode(p.Encode())

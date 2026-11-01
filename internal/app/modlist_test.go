@@ -77,3 +77,16 @@ func TestListCodeRoundTrip(t *testing.T) {
 		t.Error("a damaged code was accepted")
 	}
 }
+
+// The .ppgm file reads back to the same list, whatever the words below.
+func TestPackFileText(t *testing.T) {
+	l := &ModList{Profile: "war", Mods: []ModListItem{{Ref: "gb:1", Name: "A\nB", Kind: manager.KindMod}}}
+	txt := PackFileText(l, ListCode(l))
+	if !strings.Contains(txt, "- AB, gb:1\n") {
+		t.Errorf("text:\n%s", txt)
+	}
+	got, err := ParseList([]byte(txt))
+	if err != nil || len(got.Mods) != 1 || got.Mods[0].Ref != "gb:1" {
+		t.Fatalf("%+v %v", got, err)
+	}
+}

@@ -119,8 +119,18 @@ func split(ref string) (src int, id string, ok bool) {
 	return 0, "", false
 }
 
-// Find reports whether text holds a modpack code.
-func Find(text string) bool { return strings.Contains(text, Prefix) }
+// worldBoxPrefix starts the codes of WorldBox Mod Manager (wbmm), ppgmods'
+// sister app for WorldBox; its files are .wbm.
+const worldBoxPrefix = "WBM1."
+
+// ErrWorldBox: the code is a WorldBox modpack, for wbmm.
+var ErrWorldBox = errors.New("this is a WorldBox modpack (WBM1. code): open it with WorldBox Mod Manager, https://github.com/Trlydev/WBMM")
+
+// Find reports whether text holds a modpack code (ours, or a WorldBox one,
+// which Decode explains).
+func Find(text string) bool {
+	return strings.Contains(text, Prefix) || strings.Contains(text, worldBoxPrefix)
+}
 
 var errDamaged = errors.New("the modpack code is damaged or cut short")
 
@@ -128,6 +138,9 @@ var errDamaged = errors.New("the modpack code is damaged or cut short")
 // code (spaces, line breaks, a chat message) is ignored.
 func Decode(text string) (Pack, error) {
 	i := strings.Index(text, Prefix)
+	if i < 0 && strings.Contains(text, worldBoxPrefix) {
+		return Pack{}, ErrWorldBox
+	}
 	if i < 0 {
 		return Pack{}, errors.New("this isn't a ppgmods modpack (no PPG1. code in it)")
 	}

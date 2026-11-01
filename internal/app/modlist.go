@@ -71,6 +71,35 @@ func ListCode(l *ModList) string {
 	return p.Encode()
 }
 
+// PackFileText is a .ppgm file: the code, then the list in words for anyone
+// who opens the file (only the code is read back).
+func PackFileText(l *ModList, code string) string {
+	var b strings.Builder
+	b.WriteString(code + "\n\n")
+	name := l.Profile
+	if name == "" {
+		name = "Mods"
+	}
+	fmt.Fprintf(&b, "%s: a People Playground modpack (open it with PPG Mod Manager: https://github.com/Trlydev/SWG)\n", name)
+	for _, it := range l.Mods {
+		kind := ""
+		if it.Kind == manager.KindContraption {
+			kind = " (contraption)"
+		}
+		state := ""
+		if it.Off {
+			state = " (off)"
+		}
+		fmt.Fprintf(&b, "- %s%s, %s%s\n", strings.Map(func(r rune) rune {
+			if r < 0x20 {
+				return -1
+			}
+			return r
+		}, it.Name), kind, it.Ref, state)
+	}
+	return b.String()
+}
+
 // ParseList reads a mod list: a modpack code (pasted, or a .ppgm file) or a
 // mod list file; anything else is refused.
 func ParseList(b []byte) (*ModList, error) {

@@ -419,7 +419,7 @@ func run(cmd string, args []string, a *app.App, g gui.Options) error {
 			out = args[0]
 		}
 		code := app.ListCode(l)
-		b := []byte(code + "\n")
+		b := []byte(app.PackFileText(l, code))
 		if strings.EqualFold(filepath.Ext(out), ".json") { // the older list file
 			b, _ = json.MarshalIndent(l, "", "  ")
 		}

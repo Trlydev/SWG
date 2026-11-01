@@ -1356,7 +1356,7 @@ func (s *server) do(j *job, req actionReq) error {
 		dir := exportDir()
 		os.MkdirAll(dir, 0o755)
 		p := filepath.Join(dir, "ppgmods-modpack-"+time.Now().Format("2006-01-02-150405")+modpack.Ext)
-		if err := os.WriteFile(p, []byte(code+"\n"), 0o644); err != nil {
+		if err := os.WriteFile(p, []byte(app.PackFileText(l, code)), 0o644); err != nil {
 			return err
 		}
 		j.Data = map[string]string{"file": p, "code": code, "count": strconv.Itoa(len(l.Mods)), "skipped": strconv.Itoa(skipped)}
