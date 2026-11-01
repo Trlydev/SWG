@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-30T11:26:18.328379791Z",
+ "generated": "2026-11-01T22:06:18.313369588Z",
  "entries": [
   {
    "slug": "60m-mega-bloc-v5-2385213638",
@@ -11,6 +11,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/78831df9cdd5f08b8a2a12ede33bb73f.jpg",
    "workshop_id": "2385213638",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/60m-mega-bloc-v5-2385213638-1.0-57452488d792.zip",
    "sha256": "57452488d7923d337e82e460da3314025fd865ba99040907b4f944a5e680894f",
@@ -22,7 +23,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -36,6 +37,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/2932d0f54d68b8bd10ee754440cebb9f.jpg",
    "workshop_id": "3502713531",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/a-50-3502713531-1.0-0fddbae47f57.zip",
    "sha256": "0fddbae47f5798c39948aac82df30f203d1519370652b3055a3b47e98b694b86",
@@ -47,7 +49,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -61,6 +63,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/b03e3f1171e173bea8a7273e61c3bd4e.jpg",
    "workshop_id": "3295908401",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/aby-s-realistic-f35-modern-fighter-jet-v4-3295908401-1.0-afb394031541.zip",
    "sha256": "afb39403154168f821711a46a0eaf436d91fd1a16937af13cb01810bc903beed",
@@ -72,7 +75,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -86,6 +89,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/44e551ea490196418c02f7d2c8f65e29.jpg",
    "workshop_id": "2759438689",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/acid-sea-fixed-2759438689-1.0-0f81188569b8.zip",
    "sha256": "0f81188569b808047a569b3bd8d72c288e34e98e53620dc62ddb50ac5c1ee08a",
@@ -100,7 +104,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -117,6 +121,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d03de7a90d9ef1b82ffb5e5058e6a876.jpg",
    "workshop_id": "2815591838",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/advanced-zombie-injector-v1-2-2815591838-1.2-1f8d5432cc9c.zip",
    "sha256": "1f8d5432cc9c089552d02ab4a567f0a9de8509eb3061d89123601bc08c264007",
@@ -128,7 +133,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -142,6 +147,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/13ba1984906c7499463f1566bfbf629e.jpg",
    "workshop_id": "2502740785",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/aed-automatic-external-defib-2502740785-1.0-0a72507a7b0f.zip",
    "sha256": "0a72507a7b0f26924e1f21d7db8cab7f22464416882f13dfc75c929e1592abc1",
@@ -153,7 +159,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -167,6 +173,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/70101bbbed58cbe92d7ba2dd03cd6a6b.jpg",
    "workshop_id": "2327621346",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/aimbot-gun-2327621346-1.0-62974e88fe2a.zip",
    "sha256": "62974e88fe2a15998c324957cf11961d06f26dc37b498462ac9d78cb6a90cb81",
@@ -178,7 +185,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -192,6 +199,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/3faf76079a70537604d1fee70a56762c.jpg",
    "workshop_id": "2379195521",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/alien-vs-predator-mod-2379195521-1.0-a6503324e024.zip",
    "sha256": "a6503324e024ba88d28a1c15d084e9fbefb52bc4bd8ca2f542f8f2fd27abc7d3",
@@ -208,7 +216,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -225,6 +233,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/91bd5b0d71b341c504fd0a81a0dc5598.jpg",
    "workshop_id": "2381177128",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/android-injectors-2381177128-1.4-e6a8d1e48583.zip",
    "sha256": "e6a8d1e4858395a9b7445dba72b431ddfd214371271769501b1ffbbe3a390aa0",
@@ -236,7 +245,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -250,6 +259,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/33c70e42784e26b5292ee60fae555889.jpg",
    "workshop_id": "3556529650",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/apartments-3556529650-1.0-9d06d99543d3.zip",
    "sha256": "9d06d99543d34c30443687a4f91b4a7b36e368120d6d38b2678351465499365a",
@@ -261,7 +271,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -275,6 +285,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/70eb81048f1b2160afdeacd761361e6f.jpg",
    "workshop_id": "2208700490",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/assasins-mod-2208700490-0.1-9d38fdd620fd.zip",
    "sha256": "9d38fdd620fd3084152c8fc2c878df441425676f2cdbfd3a97a90dd6dc6f7aba",
@@ -289,7 +300,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -306,6 +317,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/966b2ea22e150916dbf10c3853a5dbdb.jpg",
    "workshop_id": "3468774521",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/atomics-fuel-cell-3468774521-1.0-5aced11ac036.zip",
    "sha256": "5aced11ac036ed170713dc9d15ca302420cde3bd8aad69a2cdb784cee9bf51d5",
@@ -317,7 +329,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -331,6 +343,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/3fddb3fe4a827972be1fbac3f3b046ea.jpg",
    "workshop_id": "3468827047",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/atomics-rbmk-1000-3468827047-1.0-4b275a4c257e.zip",
    "sha256": "4b275a4c257e87372c629a8d98a83831b74ad38357a7a31002422a1fc55690dc",
@@ -342,7 +355,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -356,6 +369,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/8e1fe461fea66d500cba5fd867ac4e82.jpg",
    "workshop_id": "2866743610",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/attachable-2866743610-1.0-fbda99f4647a.zip",
    "sha256": "fbda99f4647a87c5bdf1415f3cb25ceb9f91f3ba13dd0e93f7b5a88437d2dec6",
@@ -370,7 +384,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -387,6 +401,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d93014412589e711e33ad9f1551952cf.jpg",
    "workshop_id": "3484335364",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/bar-3484335364-1.0-e214a3cf9ced.zip",
    "sha256": "e214a3cf9ced57ba3447bc78ff5e108888a6191e20b0093a8deda5e6226aa498",
@@ -398,7 +413,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -412,6 +427,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/cda407127b21638c1cb6a4379b7ae1ed.jpg",
    "workshop_id": "2893048175",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/barbeq-s-black-mesa-research-facility-2893048175-1.0-983e448f3447.zip",
    "sha256": "983e448f34477ede57c2fc4fdbac95a16850abc3423fd1733e95d583a5a08f1c",
@@ -423,7 +439,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -437,6 +453,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/ae1e06ffe199df78cdc1fd9c9f14b2d3.jpg",
    "workshop_id": "3432556790",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/better-bandage-mod-3432556790-1.0-f4eb228681df.zip",
    "sha256": "f4eb228681df1920c575618e27a5fef7510971fbfa495d88bfdeec14bd63dbb6",
@@ -451,7 +468,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 34,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -468,6 +485,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/b94e8a27b4e5c50ef70f330d0093e003.jpg",
    "workshop_id": "3323896785",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/better-black-hole-3323896785-1.0-01ddee0921db.zip",
    "sha256": "01ddee0921dbb1479a4ad24346e94beb141adeaca8f135bc4644319c26a7c1cf",
@@ -479,7 +497,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -493,6 +511,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/9048bbfa9c5ecc4085a910f6c60c573f.jpg",
    "workshop_id": "3609516471",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/betterlighting-beta-3609516471-0.1.0-34b60ba3b7e6.zip",
    "sha256": "34b60ba3b7e681c717cd9b73695c4b9725db251d8c69987557bccf2b9cf5f037",
@@ -504,7 +523,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true
   },
@@ -518,6 +537,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7d14cb6c712115dc69f0f5c7b341e0d2.jpg",
    "workshop_id": "2379658123",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/black-hole-syringe-2379658123-1.0-ef4680383c27.zip",
    "sha256": "ef4680383c2719b871a716ea58df0a969e94580309966e03443ecbbb8edb3994",
@@ -529,7 +549,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -543,6 +563,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/46cdb08a7b07ed06025713746fc60c8d.jpg",
    "workshop_id": "3373994598",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/blitzpunk-3373994598-1.0-e415acf37ee5.zip",
    "sha256": "e415acf37ee5c97f4975a3e8eef24894fdc1b6759ff57ab7eed21fdf78e9d1d8",
@@ -559,7 +580,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -576,6 +597,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/041dc2d047d0933ffc2bba3204777556.jpg",
    "workshop_id": "2498890172",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/blocksify-s-crazy-syringes-mod-2498890172-1.0-10859df8cbeb.zip",
    "sha256": "10859df8cbeb0b899a331322a66aca42880ecfea28e4ad10de372dc38ce86961",
@@ -590,7 +612,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -607,6 +629,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/9167ef0ae995a52741575e11ae95199f.jpg",
    "workshop_id": "2471624645",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/blocksify-s-mafia-mod-2471624645-1.0-f433d7dbc610.zip",
    "sha256": "f433d7dbc610956ebb217f953fc1d53c53c91c36a66ca1c970f6f1c2221dc190",
@@ -624,7 +647,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -641,6 +664,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/a49e52bd93f7495c3235efeca9410163.jpg",
    "workshop_id": "2499609454",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/blocksify-s-mafia-mod-lite-2499609454-1.0-6efecc664988.zip",
    "sha256": "6efecc664988f429e2ca26c1eaa6945409ae48845e140122161feba9d51881a9",
@@ -655,7 +679,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -672,6 +696,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/51bc317b86c63777fc9583d031032880.jpg",
    "workshop_id": "2392393621",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/blood-eye-retexture-2392393621-0.1-b72a63118be2.zip",
    "sha256": "b72a63118be282e6986fd92838dbe58b4bde720316f12da5ef9c9c952a658c6c",
@@ -686,7 +711,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -703,6 +728,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/430e4873937990f93d665d35692c99a5.jpg",
    "workshop_id": "2674775028",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/bones-break-on-shot-2674775028-1.02-54825f058a89.zip",
    "sha256": "54825f058a89203a1990cb1b6e70dd74f68ec2b804b250f9f2ba1f6f2f3aac2e",
@@ -714,7 +740,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -728,6 +754,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/fc595b3d003f51849bb915388bb9e3c6.jpg",
    "workshop_id": "2915526843",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/break-action-pistol-3-2915526843-1.0-3bc26c641448.zip",
    "sha256": "3bc26c6414489aedd2a7c5bfdfe11e97f6b2938c182371da34507a5840797572",
@@ -739,7 +766,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -753,6 +780,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/b2bc290453043a75411c6d7e3798d5cf.jpg",
    "workshop_id": "2091325214",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/break-action-v3-2091325214-1.0-f0e1fbf7f525.zip",
    "sha256": "f0e1fbf7f525d4973a60bab6bb867170eed664a3931380d59f0927437ac28345",
@@ -764,7 +792,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -778,6 +806,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/746da2b11206228f5437eb2d6c5fb72c.jpg",
    "workshop_id": "3632113618",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/bullet-casing-sfx-mod-3632113618-1.5-d53f20a82eca.zip",
    "sha256": "d53f20a82eca2aadbe8877605cdc75da2f3d6059b608b6ae6eebc7d304617365",
@@ -789,7 +818,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -803,6 +832,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/14006ba634e99e29e1995096f0ea3a0f.jpg",
    "workshop_id": "2611179824",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/chumplebean-s-wild-west-mod-2611179824-1.0-ae52b971a9af.zip",
    "sha256": "ae52b971a9afd87054c62d0d2c763c8c8c3315f18a89670a2146f0094ccca867",
@@ -817,7 +847,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -834,6 +864,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/08a0e9d16f143ecd7f48836471487e2e.jpg",
    "workshop_id": "2137926802",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/combat-props-pack-2137926802-1.0-e34ffcc58750.zip",
    "sha256": "e34ffcc587505b96d39622b8ec28c410cf4f9f2ded11741ba99eb6f5c86b4642",
@@ -848,7 +879,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -865,6 +896,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/dddafa0c967dbbc8fafbe8956e37579f.jpg",
    "workshop_id": "2434956253",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/combat-spec-ops-map-2434956253-1.0-2d0fb64b1f0b.zip",
    "sha256": "2d0fb64b1f0b47b46c4ebdcbd5c8fb2a6bc6a99e87cd2e93d414930efec3e484",
@@ -879,7 +911,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -896,6 +928,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/83c6e619654dd954c62171fbfe7a9716.jpg",
    "workshop_id": "2993932356",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/combat-special-operations-fixed-2993932356-1.0-9af1a0e08cac.zip",
    "sha256": "9af1a0e08cac9f2361f7cdb71ede46ee43c0a91965df5036d400fa5f9cf3f004",
@@ -911,7 +944,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -928,6 +961,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/eacf3224e443092e1b545814400ee86a.jpg",
    "workshop_id": "2776630725",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/controlled-sea-fixed-for-1-24-2776630725-1.0-87edfa2acbec.zip",
    "sha256": "87edfa2acbec5672591e78b27747a5799d953215371206100f057142371b2993",
@@ -942,7 +976,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -959,6 +993,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/acf61e87a5425f8842d6f6128100952c.jpg",
    "workshop_id": "2424624623",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/d1-2424624623-1.0-01181e35da68.zip",
    "sha256": "01181e35da6886eb0dff4413438f25540f114e3aab386e42e1bd8e5047858aaa",
@@ -970,7 +1005,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -984,6 +1019,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/10ccde2d4c8237efc69f2af27a38658f.jpg",
    "workshop_id": "2788364899",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/detailed-mobile-task-forces-2788364899-1-cca5f84697c7.zip",
    "sha256": "cca5f84697c71673675ec9492c6bbaf302738bff73994c5fb668978712710459",
@@ -1000,7 +1036,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -1017,6 +1053,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/692671c6080fef59a12114e841140cfd.jpg",
    "workshop_id": "2903906406",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/double-barrel-shotgun-2903906406-1.0-cbcefc03c383.zip",
    "sha256": "cbcefc03c3838cd3247b7603e267ccfa08774e4555f9898dc7785c6780575a57",
@@ -1028,7 +1065,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1042,6 +1079,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c8cd784fd2ae9521ff7559f39edf2b73.jpg",
    "workshop_id": "2091325982",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/double-barrel-v4-2091325982-1.0-473228a85e1a.zip",
    "sha256": "473228a85e1aaf85019a6188471f88255bd747a47bb8b25269ee897b79aa04a9",
@@ -1053,7 +1091,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1067,6 +1105,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/6f9d622133524da442db21c833d0e4c4.png",
    "workshop_id": "3458269282",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/dynamic-animation-clearing-3458269282-1.1-d9698ff173e5.zip",
    "sha256": "d9698ff173e516254a3ea9ad97e3ca433f86835a8a88c4d2e394c9f4fd3967ff",
@@ -1078,7 +1117,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1092,6 +1131,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/acfb940cdce17c2193f43e0e28f2243f.jpg",
    "workshop_id": "2818733464",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/elevating-chamber-breechloader-2818733464-1.0-11a686a205eb.zip",
    "sha256": "11a686a205eb1fefa92e6c211dff9542e557d6da7092986333025bc46e8a08dc",
@@ -1103,7 +1143,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1117,6 +1157,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/b1457728e912d8099d59d35078008479.jpg",
    "workshop_id": "3530638905",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/extend-wire-length-3530638905-2.0-cb435024646d.zip",
    "sha256": "cb435024646d1e7a4bcc998761b826fb9ba044bb81701ffd64b278fa2a990c2b",
@@ -1128,7 +1169,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1142,6 +1183,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7d38c85a5e2c99658fb76c88d12a849f.jpg",
    "workshop_id": "2448120172",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/flipping-heck-2448120172-1.7-faeada7d9955.zip",
    "sha256": "faeada7d9955c0756b31100f9c33426c5a2c03a72aa0593ba5b28e707e633093",
@@ -1153,7 +1195,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1167,6 +1209,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d82d8a26710f25cd43f88094e3021f92.jpg",
    "workshop_id": "2871879626",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/full-glados-2871879626-1.0-ae509b029aec.zip",
    "sha256": "ae509b029aec9cff0f77aa30d0b6b2effb3e7dd5dbabbf094d87ec94b43b22dc",
@@ -1178,7 +1221,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1192,6 +1235,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/2d2c1dfd8e297209606294dfcd0a9d2d.jpg",
    "workshop_id": "2494447929",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/futuristic-weapons-mod-2494447929-0.3-8b7d6215d003.zip",
    "sha256": "8b7d6215d003e4e178addb3f87f5ebc126b77460da68438e39b019374f3ae106",
@@ -1203,7 +1247,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1217,6 +1261,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d06162305c2c601e8c775a5b6818a644.jpg",
    "workshop_id": "2970024658",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/fwm-forest-war-map-2970024658-1.0-da9f054e8b4e.zip",
    "sha256": "da9f054e8b4e050059816e5f676461fe6db5b1cb5d07c76eaf1c67ae74a1e7c1",
@@ -1231,7 +1276,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -1248,6 +1293,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/437632b9563e5c09391e052cea053776.jpg",
    "workshop_id": "2870935953",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/glados-core-2870935953-1.0-7c5a4a2dc4da.zip",
    "sha256": "7c5a4a2dc4da05d56af54f2fecb49d9bc24f2da84196cf36737115e0456fe530",
@@ -1259,7 +1305,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1273,6 +1319,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/9eb77838cb1838385559ed93dafc921a.jpg",
    "workshop_id": "2545282100",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/gold-items-mod-2545282100-1.3-ed40b38865d8.zip",
    "sha256": "ed40b38865d87366dab3964d3f2e3d430b016bf323ff4f6d0dd1e23401af3ad3",
@@ -1288,7 +1335,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -1305,6 +1352,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/2519f2bf2cab916c312987203ea26bd6.jpg",
    "workshop_id": "3023377752",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/grips-objects-no-collide-3023377752-1.0-9e489883a258.zip",
    "sha256": "9e489883a258e1616b6edec3a275fdbef92177cecc4294a014547abf8f40d57b",
@@ -1320,7 +1368,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -1337,6 +1385,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c987761902f3a2f6034b4184a63df3c5.jpg",
    "workshop_id": "2761084175",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/guillotine-2761084175-1.0-19ef12b7bcec.zip",
    "sha256": "19ef12b7bcec134248ee749d9fa2bafff4a5278bf91c3fc06502a57c8ed10c11",
@@ -1348,7 +1397,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1362,6 +1411,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/700bf10c9512728ff95a0964bc713b6f.jpg",
    "workshop_id": "2591067503",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/half-life-alyx-mod-2591067503-1.0-6048c71cc1fa.zip",
    "sha256": "6048c71cc1fa93292b72bf50c18abbbc0bded4b269ed8319b089c581f27de09f",
@@ -1376,7 +1426,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -1393,6 +1443,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/089a2e70fd1baccbae6c5ea231ec8ae9.jpg",
    "workshop_id": "3565572383",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal01-3565572383-1.0-fa51578a14a7.zip",
    "sha256": "fa51578a14a7126eaf27373182d9e32d3f6db851273b6c65aa2b3b86abef431a",
@@ -1404,7 +1455,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1418,6 +1469,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/0389deb2305ad796ec25a5dc4ebfa988.jpg",
    "workshop_id": "3636873100",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal02-3636873100-1.0-91900e13d613.zip",
    "sha256": "91900e13d6132d40ba778edca23b4af49f0decfc6011a712e1d43ce6870c0f06",
@@ -1429,7 +1481,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1443,6 +1495,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/e66fff47db87c45d356a2d846aaed6f6.jpg",
    "workshop_id": "3636874665",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal03-3636874665-1.0-6af79a0349f8.zip",
    "sha256": "6af79a0349f836632e0456efdebc5b05d7e3968309777ed5164f3db3d61f3763",
@@ -1454,7 +1507,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1468,6 +1521,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/84d24ce4d5b0af0c7bdd481a14b0ed7d.jpg",
    "workshop_id": "3636875027",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal04-3636875027-1.0-e63bd7d27587.zip",
    "sha256": "e63bd7d27587ee7a0dd217218242533b2da29151d350f8c21fc5801609224a16",
@@ -1479,7 +1533,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1493,6 +1547,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/ed60de92376a4f5b756335fd99ca1504.jpg",
    "workshop_id": "3636875377",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal05-3636875377-1.0-08b315e490f9.zip",
    "sha256": "08b315e490f9de5abb5239e91b48d482c7f189c7477049fcfb8bbff1f0e7b7da",
@@ -1504,7 +1559,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1518,6 +1573,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/59629f2d6fd1f79200a10eed54fee9cc.jpg",
    "workshop_id": "3635674725",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal09-3635674725-1.0-35c427147736.zip",
    "sha256": "35c4271477364684748239ad2b39d14044341dd230274ce6958fcccde6f9fbc1",
@@ -1529,7 +1585,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1543,6 +1599,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/6008c2d9551f5755d383c2ba04d702b9.jpg",
    "workshop_id": "3636876457",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal10-3636876457-1.0-f964322b8ef3.zip",
    "sha256": "f964322b8ef3e3668f38ce156406a1e1fd31ee52865e7735c598f47882f161cb",
@@ -1554,7 +1611,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1568,6 +1625,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/2188bf3f3bab4ec65f9481e427d3474f.jpg",
    "workshop_id": "3637491733",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal11-3637491733-1.0-c91286248874.zip",
    "sha256": "c91286248874faae9b3e6806fb394198a0b693fe00c3bd18f6a60474f2ff5b63",
@@ -1579,7 +1637,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1593,6 +1651,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/accad51e3b056e317d3cfdd75209f650.jpg",
    "workshop_id": "3637635258",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal12-3637635258-1.0-4f8281731273.zip",
    "sha256": "4f828173127376436f3c8bc4b69cc1924586b7991347121122032fd544390142",
@@ -1604,7 +1663,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1618,6 +1677,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/fcbb654b79e494060240e4d9fd319854.jpg",
    "workshop_id": "3638240681",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazal13-3638240681-1.0-f81fa681176e.zip",
    "sha256": "f81fa681176e5767dc7b88b51461cffef26f13ebaa2d930bea4ae6a7868123e6",
@@ -1629,7 +1689,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1643,6 +1703,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/29c16d03da606ae2593284e7c6a5fc7a.jpg",
    "workshop_id": "3480573775",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazard01-3480573775-1.0-113d2b10fdf5.zip",
    "sha256": "113d2b10fdf513be3d938772ad074c82a6a82552363c8d3787e2f7907698dc48",
@@ -1654,7 +1715,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1668,6 +1729,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d7395f4d2a109a1af5fe2b07251b84f8.jpg",
    "workshop_id": "3480573965",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazard02-3480573965-1.0-f18d89a32875.zip",
    "sha256": "f18d89a32875b357f50b895e1af35be7ab7102ca8f9f56656fd7ecf08c895881",
@@ -1679,7 +1741,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1693,6 +1755,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/a0e43118a95e60e6543791b893f8bd18.jpg",
    "workshop_id": "3480574103",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazard03-3480574103-1.0-a0e153baf0b0.zip",
    "sha256": "a0e153baf0b0b4e9321265255eba94b7cc0f7b3a07ec417373a948caedddb247",
@@ -1704,7 +1767,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1718,6 +1781,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7fd497a4f33e5b5031418d61dbeae790.jpg",
    "workshop_id": "3480574244",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazard04-3480574244-1.0-97b56f26cfee.zip",
    "sha256": "97b56f26cfeeb79bb98eeba768bc3c13677c8eb51e1717065f7eb17d8e50d4e1",
@@ -1729,7 +1793,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1743,6 +1807,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/fe81d933c1447f657aa3cac307f25e60.jpg",
    "workshop_id": "3558124484",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazard06-3558124484-1.0-acd7a92411b3.zip",
    "sha256": "acd7a92411b389dcf6b1f8c50da4c95cd9f41856876682ca14d5955e5395a119",
@@ -1754,7 +1819,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1768,6 +1833,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/9b87e61a5d8dff36bcf529cae61be19f.jpg",
    "workshop_id": "2217857980",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat-mod-remastered-2217857980-1.3.1-fb3975159bfd.zip",
    "sha256": "fb3975159bfd548701e7ef5141bb397215eeb7c75a87b7ddbb286ba6232c97b6",
@@ -1782,7 +1848,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -1799,6 +1865,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c3859a653d50e56901b9c8fb800cdeff.jpg",
    "workshop_id": "3480572780",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat01-3480572780-1.0-c18d18d140cf.zip",
    "sha256": "c18d18d140cf8754eec28411a73d2a77e9de9f38c8dc517e65a5663df435d3dd",
@@ -1810,7 +1877,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1824,6 +1891,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/4876b8d6b6cd0e5db090b487bffc4a98.jpg",
    "workshop_id": "3480572946",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat02-3480572946-1.0-ed82a474becc.zip",
    "sha256": "ed82a474becc4b69718f4eb72819042dd00ef8f6ba8f12baa7430079c4bd40c3",
@@ -1835,7 +1903,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1849,6 +1917,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/cd1e70c6f141a6f1f25b164e244915b6.jpg",
    "workshop_id": "3480573168",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat03-3480573168-1.0-cd0245e572f7.zip",
    "sha256": "cd0245e572f761240b738275dc763ff48337c364689afb59522edc529e42dbaa",
@@ -1860,7 +1929,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1874,6 +1943,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/41c4f8af82b1e2b49558e297422f0b31.jpg",
    "workshop_id": "3480573473",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat04-3480573473-1.0-7166d9618a1d.zip",
    "sha256": "7166d9618a1d105b009d1ced59cb49f644b8650f3c163e0a8f85b7c0beb56a68",
@@ -1885,7 +1955,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1899,6 +1969,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c87f2144d866993e5fae0d12a063f7d2.jpg",
    "workshop_id": "3545513735",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat08-3545513735-1.0-c9fd25573078.zip",
    "sha256": "c9fd255730785623aca115637d5153acbd82f136fee0aa9bb8e6908e2669bc09",
@@ -1910,7 +1981,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1924,6 +1995,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/dbc6aa43fd33f1449a130ae224fe3ec1.jpg",
    "workshop_id": "3551916742",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat09-3551916742-1.0-273a4c0e56ba.zip",
    "sha256": "273a4c0e56bacc82e730e86a613c332ce90a796b251161357cc29f393da4ebc5",
@@ -1935,7 +2007,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1949,6 +2021,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/820fca05a7062f44694a561dcf792b4f.jpg",
    "workshop_id": "3551916936",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat10-3551916936-1.0-c744eecddea9.zip",
    "sha256": "c744eecddea9a3d9e6224919de7c8af18b0c4819e5285f21dbc9731cbee5e1b9",
@@ -1960,7 +2033,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1974,6 +2047,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/5ef60eab8f1f9c8c6ece5ffa418dd736.jpg",
    "workshop_id": "3551917059",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazmat11-3551917059-1.0-a40e1f9ec16f.zip",
    "sha256": "a40e1f9ec16f8d68c705fdcb7b26f80136b6c43e0f6ec4e0a05354b45a0b6642",
@@ -1985,7 +2059,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -1999,6 +2073,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/ea4dd1fd859eb29d3b06782f8dc253b0.png",
    "workshop_id": "3645604659",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/haznat06-3645604659-1.0-31f47fbf87d9.zip",
    "sha256": "31f47fbf87d92f60c5bb20c395800c7959ee673624e585f9b29ee1e62b994f45",
@@ -2010,7 +2085,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2024,6 +2099,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d45d52dd7d9bed2373bbfce536ce5099.jpg",
    "workshop_id": "3643343782",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/haznat07-3643343782-1.0-40213036bdd1.zip",
    "sha256": "40213036bdd15f5a05f08a6dba26dab2a8906e3479cebd3ea958fcf8e8a1fd9e",
@@ -2035,7 +2111,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2049,6 +2125,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/72c718eddc38ff11d771108db2927e6e.jpg",
    "workshop_id": "3645303713",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hazsec02-3645303713-1.0-7ba2b70d885b.zip",
    "sha256": "7ba2b70d885b96b11e80f0f34f6123d9c8b1b4051e2af3ccf8eb414b3bfce3df",
@@ -2060,7 +2137,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2074,6 +2151,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/9fc1d9182b3f50381f42bb8364da7647.jpg",
    "workshop_id": "2279170186",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hitman-mod-2279170186-1.5-d52a73579daf.zip",
    "sha256": "d52a73579dafe899663f1b4fa0ef0a32413fc3d6dcea438e2f8b6a3f6d7bdb03",
@@ -2088,7 +2166,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2105,6 +2183,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/df49c48f6a3bc75b11792932d7df332f.jpg",
    "workshop_id": "2343365714",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hunting-rifle-mod-2343365714-1.0-f123f246b7bc.zip",
    "sha256": "f123f246b7bc2377890f5c4cd2f06fc47e3f4d3e1565486e53ce0d0848cee4da",
@@ -2119,7 +2198,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2136,6 +2215,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/66c429a31f502c36cf8830348f888415.jpg",
    "workshop_id": "3465897431",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/hyperr-s-dramatic-ragdoll-enhancements-3465897431-1.0-63bc9aacc872.zip",
    "sha256": "63bc9aacc87223973a98e6bf74c6e9030becab2176df2a35f770b9de7c956ce5",
@@ -2147,7 +2227,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2161,6 +2241,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d826f61493227ff7f01f7de677f0e789.jpg",
    "workshop_id": "2863389507",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/improved-pickup-advanced-pickup-anything-2863389507-1.0-31584da8ac97.zip",
    "sha256": "31584da8ac97d2c7e9d630ddf955c1af2dc236ffdaf70c7140164b977755ce80",
@@ -2176,7 +2257,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2193,6 +2274,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/f4695bbe307ebae56dc3ddbde3050e6d.jpg",
    "workshop_id": "2612273009",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/item-plus-2612273009-6.0-88a09a2a6fe6.zip",
    "sha256": "88a09a2a6fe61258e088c94a0388e1dd6753240a3b1b6d5a6fd0bc22391a5611",
@@ -2204,7 +2286,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2218,6 +2300,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/58c67bfdd23c7d7f57332bd5adccbe47.jpg",
    "workshop_id": "2870118211",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/jmc-s-scp-173-mod-2870118211-1.4.1-9a2b82270e29.zip",
    "sha256": "9a2b82270e29ec57dd8d537318ab3ff6ace45df2093c832a0e846137cc902d73",
@@ -2234,7 +2317,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2251,6 +2334,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7128d35119c132a1cccd4a9e4cb4d96b.jpg",
    "workshop_id": "2146154723",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/katana-mod-2146154723-1.0-69218e73a88f.zip",
    "sha256": "69218e73a88f249c6b688401688676ed05a81934d28d9df14beb00d9470f26bd",
@@ -2265,7 +2349,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2282,6 +2366,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/f17ef163b82f162a31631e68fc7ba7f9.jpg",
    "workshop_id": "2186902116",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/kboomy-sring-2186902116-1.0-261e6dbf8390.zip",
    "sha256": "261e6dbf83902dd91f209ebac646ac3f4b8fa795f2b61d3b685b555a3f074777",
@@ -2293,7 +2378,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2307,6 +2392,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/db644147fbf9ab2456d66c9c44a2baa1.jpg",
    "workshop_id": "2525434017",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/laser-ak47-2525434017-1.0-1ef6840a50db.zip",
    "sha256": "1ef6840a50db238933e3f803dbf14f062436f0d53a56bb54b54760eb3f872426",
@@ -2318,7 +2404,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2332,6 +2418,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/4d417a9b717c6b05d0601c296bc50dfa.jpg",
    "workshop_id": "2457776308",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/lawless-high-profile-operations-2457776308-1.0-3453fe7044df.zip",
    "sha256": "3453fe7044df80947246be4dd35307b122940eb00f7866b2107f99659a80cb52",
@@ -2346,7 +2433,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2363,6 +2450,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/a7ca4eef598babbb6779847e340a0de1.jpg",
    "workshop_id": "2792631288",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/lever-action-repeater-v2-2792631288-1.0-8928ef58e206.zip",
    "sha256": "8928ef58e206ba60e2536f722b3973fe536283a71bcf775691d8c4b33664620c",
@@ -2374,7 +2462,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2388,6 +2476,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/eb9fff04c3eb18ea9a298a7952dfed64.jpg",
    "workshop_id": "2385353775",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/lifelike-human-2385353775-1.0-ffd59d37e597.zip",
    "sha256": "ffd59d37e59798e9fff2af70dc26c4f1375a39e693d9c4b80d6495d69f2405a6",
@@ -2402,7 +2491,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2419,6 +2508,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/8c0ba92293afeffe3442b398cc588cef.jpg",
    "workshop_id": "2391517150",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/lightning-spear-2391517150-1.0-9282497c960c.zip",
    "sha256": "9282497c960cdcd5ef2f2a208da146218848c6abfe9f4b454f581f3f6202f2c3",
@@ -2430,7 +2520,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2444,6 +2534,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/0b2e2b76e7adee592d76fcf42919cf65.jpg",
    "workshop_id": "2550340103",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/liquid-related-machinery-2550340103-0.6-8ebdd28f2890.zip",
    "sha256": "8ebdd28f2890cb7731aa42a23083bd90d12a58fc2ad4ef8d5add787c2ceda6b8",
@@ -2455,7 +2546,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2465,6 +2556,7 @@
    "author": "Gander18",
    "kind": "mod",
    "version": "5.0",
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/0b0e11f13d56a34c75429eee836d39ee.jpg",
    "workshop_id": "3736146267",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/lite-pixel-blood-v5-5.0-c566b3a39174.zip",
    "sha256": "c566b3a39174cbebe772f693871b2d64a9eb9d986074da42b46c81d484240c9f",
@@ -2484,7 +2576,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "issue": 3,
    "reviewed": true,
@@ -2508,6 +2600,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/6d3e696ac7b2bf9fb273e494c58f4e03.jpg",
    "workshop_id": "2386667798",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/little-nightmares-1-2-mod-2386667798-1.0-b3ea2b2ca16b.zip",
    "sha256": "b3ea2b2ca16ba4e09c7a5fd333e8ef4af9a57e7b084659e2e198673961a81932",
@@ -2525,7 +2618,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2542,6 +2635,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/b58bfe2e1d1b2ef6516f3c348be3b7f5.jpg",
    "workshop_id": "3110160244",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/map-debris-3110160244-1.0-95ef04189087.zip",
    "sha256": "95ef041890875adf1939920984858d50b6721360fe9c6919ffbf7536b2028f5a",
@@ -2553,7 +2647,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2567,6 +2661,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/b081713c570e0f77e7ca331b97315388.jpg",
    "workshop_id": "3354870765",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/map-portal-3354870765-1.0-3685b5e47d5f.zip",
    "sha256": "3685b5e47d5f17267e3a82c952edf330c683ec694ea9481dc5bd42af17a90639",
@@ -2581,7 +2676,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2594,6 +2689,7 @@
    "author": "MC studios",
    "kind": "mod",
    "version": "2026-09-27",
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d878ff9084d8a84ccac1971ad4d4f616.jpg",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/measurements-mod-2026-09-27-0c97c5f2ab55.zip",
    "sha256": "0c97c5f2ab5551bcf773d2f3f3ee2051cb64170524a1d435823d631ee46a08c0",
    "size": 481504,
@@ -2607,7 +2703,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 53,
+   "downloads": 68,
    "owner": "Trlydev",
    "issue": 2,
    "reviewed": true,
@@ -2625,6 +2721,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d878ff9084d8a84ccac1971ad4d4f616.jpg",
    "workshop_id": "3348638857",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/measurements-mod-3348638857-1.0-73bea61e6568.zip",
    "sha256": "73bea61e6568964bdc973dd038b2f0df48fc89b4ad1356f6546ccc2b27de2fa4",
@@ -2639,7 +2736,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 34,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2656,6 +2753,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/25339a99d6c510516a8b9393827f5384.jpg",
    "workshop_id": "2390021263",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/military-2390021263-1.0-1b6214e612d3.zip",
    "sha256": "1b6214e612d30823e7c320def246eec1328753104f7d7fa972fcfe378aeed7b0",
@@ -2673,7 +2771,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2690,6 +2788,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/e82a3a9aeb338db391356eec33ca46f7.jpg",
    "workshop_id": "2400567827",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/military-mod-update-usmc-2400567827-1.0-2f456c245cb3.zip",
    "sha256": "2f456c245cb3a2f0c414af14da64a86a5b56bb5819e3bed9c1b3ae1c77e622d6",
@@ -2708,7 +2807,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2725,6 +2824,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/e93fc60fa8969206afdc53db44861c01.jpg",
    "workshop_id": "2907078759",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/modern-apartment-2907078759-1.0-2706f565ad62.zip",
    "sha256": "2706f565ad62410eea691cde07156835b94144647ee6eeabf67a6a6520001a20",
@@ -2736,7 +2836,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2750,6 +2850,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/253c6a916c7b895fd123a284de815780.png",
    "workshop_id": "2383112201",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/more-explosives-2383112201-1.6-46de90e56ddd.zip",
    "sha256": "46de90e56ddd50d596c3d5e3a49a75b6835dc43b92f4305e400141038b7d4f0d",
@@ -2761,7 +2862,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2775,6 +2876,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/027143cdf089fc9cc19b0af454738df3.jpg",
    "workshop_id": "2386182481",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/mortal-kombat-pack-2386182481-1.15-82372db52efa.zip",
    "sha256": "82372db52efa3c4f7de6a2c07cc1bfa93e86c3e10a3b515a67a54629c69baa54",
@@ -2786,7 +2888,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2800,6 +2902,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7deeb1fcada4cb01611c06e604eed971.jpg",
    "workshop_id": "2369099463",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/mulligan-2369099463-2.06-b1b8be0fec80.zip",
    "sha256": "b1b8be0fec800efe66d511694d50f8b0e51a478b4ab94443475af5e137e0f221",
@@ -2811,7 +2914,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2825,6 +2928,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/cf4d4fcfc464c8972aeec9b618dee7fa.jpg",
    "workshop_id": "3490290981",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/new-hope-county-jail-mod-3490290981-1.0-0755c68fe43a.zip",
    "sha256": "0755c68fe43ad4e6c5cbafdb6f18d7e831efff06fc53eeb5d59f4af6ea82a967",
@@ -2840,7 +2944,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2857,6 +2961,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c2203d43d641fc7b2658c23b7df5b1d9.jpg",
    "workshop_id": "2484034390",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/nuclear-playground-2484034390-1.2-8c802fcd94e8.zip",
    "sha256": "8c802fcd94e841707f1bb59d82473a1a4da1746acbe0657a8ef00594a3f77909",
@@ -2868,7 +2973,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 34,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2882,6 +2987,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/570bddbf5735307b1a01b209f51b5044.jpg",
    "workshop_id": "2381717092",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/payday-2-people-playground-edition-2381717092-1.0-56e7de06d84e.zip",
    "sha256": "56e7de06d84e4762a92d25b59ce0fef685fc7b86702028f9f8bf4e635c13298a",
@@ -2896,7 +3002,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2913,6 +3019,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/616d6fe1ad6dc596ece10e34229211a3.jpg",
    "workshop_id": "2314372940",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/per-pixel-destruction-2314372940-alpha-7-587b6c8868d6.zip",
    "sha256": "587b6c8868d652fe8d613a1e10331e995ae616c474e019c5c7db8373e03f47bb",
@@ -2924,7 +3031,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2938,6 +3045,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/853a8b13fc4552cfbb486cd5afba56ef.jpg",
    "workshop_id": "3433737965",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/photo-camera-3433737965-1.0-e8ef53af3fd1.zip",
    "sha256": "e8ef53af3fd11d68247c3f544f3959fdffe6efaed4916b9995860263e4d26d6f",
@@ -2949,7 +3057,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -2963,6 +3071,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/a7e5eda6760b8ffa9bf1eb9eb41f2519.jpg",
    "workshop_id": "2242337197",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/ppg-spy-mod-2242337197-1.0.5-570448ae78cc.zip",
    "sha256": "570448ae78cc30cb72c28d7cfc87a0582739886e705f61ea3f6ef240dbacd933",
@@ -2977,7 +3086,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -2994,6 +3103,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/5897a252b3b09ecea8d5cec2885c5513.jpg",
    "workshop_id": "2668334393",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/puppetmaster-2668334393-2.1.2-2e1e1fe5a645.zip",
    "sha256": "2e1e1fe5a645609c606eaf6045d7e0d4aca258246f74d38b2c0ced6cb33bf55d",
@@ -3005,7 +3115,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3019,6 +3129,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/2a51863eb3256dbbfa53e9300b4a9f3b.jpg",
    "workshop_id": "2500516293",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/quality-of-life-items-2500516293-1.8-e668051346ed.zip",
    "sha256": "e668051346ed2a5704e99ebe8cd9340fff3dd7a295c866ebedbc6f92481855b0",
@@ -3030,7 +3141,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3044,6 +3155,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/83c735528ab7024ec65e5ab0ff138e34.jpg",
    "workshop_id": "2236268298",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/quality-of-life-items-deprecated-2236268298-1.7-3f8888d70e6e.zip",
    "sha256": "3f8888d70e6e1a7e9b1b3ed8065b65821b568b6f1517d85cbb2012e7ef25fff9",
@@ -3058,7 +3170,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3075,6 +3187,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7013fc228ded9c9692122826104ebc7e.jpg",
    "workshop_id": "2516131949",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/quick-right-click-options-2516131949-2.0.1-3f15cd9ad05a.zip",
    "sha256": "3f15cd9ad05ad08a26a621849f10af576305a1bf67040f3ca6736508c1498518",
@@ -3086,7 +3199,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 34,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3100,6 +3213,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/aa232b0c06be9e78b20ac22805106785.jpg",
    "workshop_id": "3537175566",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/ragdoll-reborn-3537175566-1.0-4827c2c5497c.zip",
    "sha256": "4827c2c5497c29e84b8b95c190e289b994b9e2e14d58efe7217454b97cef0d5a",
@@ -3111,7 +3225,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3125,6 +3239,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/5e906eed35df7e98985ed58ecf29d04a.jpg",
    "workshop_id": "3469330346",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/rbmk-fuel-cell-3469330346-1.0-25b987b9ab10.zip",
    "sha256": "25b987b9ab107c178c5458f4a2c24ab7a5be694420dd0b153d6d3dc19e1f3360",
@@ -3136,7 +3251,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3150,6 +3265,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/b8acb404407684854ee0d114d48b5647.jpg",
    "workshop_id": "3018200944",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/reactive-humans-3018200944-1.0-6a82ef51f93a.zip",
    "sha256": "6a82ef51f93a54f530c82bd0b81cb69bfbccbfe33f1d259e2a42c456406d3c71",
@@ -3161,7 +3277,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3175,6 +3291,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/04d474ae55e568532c499231f85e110f.jpg",
    "workshop_id": "3317187176",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/renault-ft-17-by-disenk-3317187176-1.0-4c31ea28d6d5.zip",
    "sha256": "4c31ea28d6d55a8617ecfeb24fb37a9493a9634bea2891b6c533a7838269530d",
@@ -3186,7 +3303,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3200,6 +3317,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c112b4483e74aec95433bd6fa18cbcc4.jpg",
    "workshop_id": "2465155613",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/rolling-block-pistol-2465155613-1.0-003bef98fa24.zip",
    "sha256": "003bef98fa246fcae86906c08571704f57c76d77c51dc8cde5a68863de87a5e7",
@@ -3211,7 +3329,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3225,6 +3343,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/62e504c7b3baa075fc223b37b51e6ccf.jpg",
    "workshop_id": "2985101478",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/rolling-block-shotgun-2985101478-1.0-8ec39ec5fe77.zip",
    "sha256": "8ec39ec5fe77a4f31eb99279a9a6e03b338b6b9c1b311dc525393af6425aaa04",
@@ -3236,7 +3355,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3250,6 +3369,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/1769dd52ee03691e5c16c0d8b76f3ecc.jpg",
    "workshop_id": "2556938979",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/saitima-2556938979-1.0-e37517d54c8b.zip",
    "sha256": "e37517d54c8b39409b8f68be348cdd1ca3bf06c1a00e577480f4313a0d511c64",
@@ -3261,7 +3381,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3275,6 +3395,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/ddb5103608de6e2fcacbd2a2f3e8b0b7.jpg",
    "workshop_id": "3471741070",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/science-hazard-minus-v-3-1-3471741070-3.1-65b299b7b1a4.zip",
    "sha256": "65b299b7b1a409503d4b81357b6242e7b3092d82c166323e1815e415ca00c14e",
@@ -3286,7 +3407,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 26,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3300,6 +3421,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7e3d1c00b478545e880ba393ddf2260c.jpg",
    "workshop_id": "2626113140",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/scp-610-mod-2626113140-1.0-6e53b2b7d058.zip",
    "sha256": "6e53b2b7d058148b8ccd800daa0268fac7d86719d52bf70d3251c2c1ad87253b",
@@ -3314,7 +3436,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3331,6 +3453,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d4a172bd626bc9e33fddaf9d45d1b669.jpg",
    "workshop_id": "2789034314",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/scp-armory-2789034314-1-a86eac564f8b.zip",
    "sha256": "a86eac564f8b09ac3c7c69de9d11f26f737cd0cbcd63c3138e0e28e72183d529",
@@ -3347,7 +3470,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3364,6 +3487,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/1006cae0ea441e8a35da04974988f997.jpg",
    "workshop_id": "2259702339",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/scp-secret-laboratory-2259702339-1.0.5-1ae3cb2a5bf8.zip",
    "sha256": "1ae3cb2a5bf89e61ec535260fd72861080cfa173ea9474252b5e233d27d489e1",
@@ -3379,7 +3503,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3396,6 +3520,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/5bd1bc60d2bcc8a75242e9c70980f1c1.jpg",
    "workshop_id": "2367972029",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/simple-syringes-mod-2367972029-2.2-9868b8044f83.zip",
    "sha256": "9868b8044f830b8baf3cb6225f6ff4feebe250cc6650bfbc46864db9d012a72d",
@@ -3407,7 +3532,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3421,6 +3546,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d58821aabac7bf00f81c90fe620c4eb8.jpg",
    "workshop_id": "3018201443",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/simpleportals-3018201443-1.0-f5af827860f8.zip",
    "sha256": "f5af827860f838c6ec706476a1b5bc23a75a91fd2c13296441335e1d4ea22fd7",
@@ -3432,7 +3558,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3446,6 +3572,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/a6fa57df172718f81b6476a2cd34f531.jpg",
    "workshop_id": "2351362869",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/siren-head-mod-2351362869-0.1-9e3e2ff6907a.zip",
    "sha256": "9e3e2ff6907a238176ed11da0a2e61ba7b854433ec35753c9e3e45a89ad1d4d6",
@@ -3460,7 +3587,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3477,6 +3604,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/3f535469dc45f6848bd31db5b04bb7cf.jpg",
    "workshop_id": "2401212507",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/skyscraper-with-realistic-destruction-v6-2401212507-1.0-1b7869afa49a.zip",
    "sha256": "1b7869afa49a4470cfeb98b0b153e29a3729ab3a724353898bf6e297035c6d94",
@@ -3488,7 +3616,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3502,6 +3630,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/f0c8c75ecbb4664d3452796127d6b0b6.jpg",
    "workshop_id": "2836734599",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/snek-medical-icu-intensive-care-unit-2836734599-1.0-0cb4f709cecf.zip",
    "sha256": "0cb4f709cecfecc1f0bd70ad7549f91ec8dfc0404309ca93a8c563c6911c52c9",
@@ -3513,7 +3642,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3527,6 +3656,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/07f9d2a668d38790aa8a342efa686475.jpg",
    "workshop_id": "2843770452",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/snek-medical-nurse-2843770452-1.0-c84192ad8a59.zip",
    "sha256": "c84192ad8a59b908b8c5335be3bb6ef9e9e581c010d3c1d37492743c79357ab6",
@@ -3538,7 +3668,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3552,6 +3682,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/efde8a9a7759961c29719ad737b7165d.jpg",
    "workshop_id": "2571433008",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/snek-medical-trauma-center-v2-2571433008-1.0-5e7e80a07383.zip",
    "sha256": "5e7e80a07383fce5e3cd6138355fc978bfd96a410f81a892ccfb49176fdd2a65",
@@ -3563,7 +3694,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3577,6 +3708,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/a0f12988fcbeb81a02b6b1931c71a6b0.jpg",
    "workshop_id": "3483270884",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/sovereign-3483270884-1.0-1f812dcc61d4.zip",
    "sha256": "1f812dcc61d46ef2ec019236b877055f01936ab0672c28caa40f85b5af0cf71e",
@@ -3588,7 +3720,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3602,6 +3734,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/7e30f1af72006a9e466f8b2ffa79cbf2.png",
    "workshop_id": "2355829306",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/spiderman-collection-2-2355829306-2.0-4d7411e7604a.zip",
    "sha256": "4d7411e7604aa018417f73d0c9b29406586404902928a744d07ed1f4d2995117",
@@ -3617,7 +3750,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3634,6 +3767,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/96b1ceaf51d2ef250957dc691d6df8b2.jpg",
    "workshop_id": "3644554635",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/steel-bridge-realistic-3644554635-1.0-1d1be02e7fb3.zip",
    "sha256": "1d1be02e7fb341481d074e0b69319cd34ab89844e60b911109f609acce80c7da",
@@ -3645,7 +3779,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3659,6 +3793,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c7391a532ba716e5db3e24f60cd73bb3.jpg",
    "workshop_id": "2803459361",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/symbiote-playground-2803459361-1-77cd26360141.zip",
    "sha256": "77cd26360141cbead8c5c9e540a1077f36ac5a0275bf8a83c68e3e6ad1ce9d6e",
@@ -3673,7 +3808,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3690,6 +3825,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/160b54bfb6be983af5fdea92671ce1f3.png",
    "workshop_id": "2840993425",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/synths-2840993425-1.0-f35a868e82d5.zip",
    "sha256": "f35a868e82d557180bbc54c497fe8c71889c7dd309b5d2c3b17d38f5b6400506",
@@ -3701,7 +3837,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3715,6 +3851,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/309dde9644add1abadde491ec165f678.jpg",
    "workshop_id": "2361892819",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/taser-2361892819-1.2-c4e2dccda753.zip",
    "sha256": "c4e2dccda753ccee5d49efc63312648de3ed9d3452040e64e562d012b8538331",
@@ -3730,7 +3867,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 33,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3747,6 +3884,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/9b979a6176c14ea1a7810a631cd093a0.jpg",
    "workshop_id": "3643565881",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/the-twin-tower-3643565881-1.0-66b95eef70bc.zip",
    "sha256": "66b95eef70bc472acc360399412eb0e24a9610f7072451a7762485a08061fd9a",
@@ -3758,7 +3896,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3772,6 +3910,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/6c5eca5e1f15ba084b0e013af713d592.jpg",
    "workshop_id": "2389733225",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/the-ultimate-melee-mod-2389733225-1.0-preview-4-a33cb612cdb3.zip",
    "sha256": "a33cb612cdb3a98f7452fa4199a124c80159c219dda08c2ec135d2c798823287",
@@ -3786,7 +3925,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3803,6 +3942,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/55ba84c30ff699831db9ebe2652d8993.jpg",
    "workshop_id": "3644551828",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/tomjur-s-apartments-3644551828-1.0-60742f18864c.zip",
    "sha256": "60742f18864cd8440e28995ad8c639da261aed2f1a82713356f7ec3d45d6f6ce",
@@ -3814,7 +3954,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3828,6 +3968,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/84a65a1f1cbd63b28151da1914807dd8.jpg",
    "workshop_id": "3406237303",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/ultimate-knockout-fix-3406237303-1.0-aea23aa68919.zip",
    "sha256": "aea23aa68919fc970156b91b02e44721b373e16c4a24019f34c2b6622c380b4e",
@@ -3842,7 +3983,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3859,6 +4000,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/cd237aa6c425120de61e4c6efa7b6126.jpg",
    "workshop_id": "2357867750",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/ultimate-super-hero-mod-2-2357867750-1.0-8f3c94af014c.zip",
    "sha256": "8f3c94af014c4cf5741b1140fbd36b5e7d237e208ecc056f2b2ae4258e7b0933",
@@ -3870,7 +4012,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3884,6 +4026,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/c191a5373e0a0ec3a974affe0b519d58.jpg",
    "workshop_id": "2221749809",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/vietnam-soldiers-mod-2221749809-1.0.5-bda78ab1b128.zip",
    "sha256": "bda78ab1b128e0134ad1273d999617119ad5efe15461e1ad2553c60f620c7d4d",
@@ -3898,7 +4041,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -3915,6 +4058,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/fd6a573a9110e619fd72fbd1ef345d35.jpg",
    "workshop_id": "3473859318",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/volcaniccaverns-3473859318-1.0-16103a7ab4f6.zip",
    "sha256": "16103a7ab4f6bbe9a1f0fa098946e8f8fc6cf2a3ff76851bf3945d60fc60fbd9",
@@ -3926,7 +4070,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3940,6 +4084,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/3b490af5ecffc95b34d22b7880bd37b3.jpg",
    "workshop_id": "3563392673",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/warmaps-skirmish-3563392673-1.0-2c67d885276e.zip",
    "sha256": "2c67d885276ece1e3d0e3c6b2ea38bd2bd126dfb663631f7e0c76f738560bca9",
@@ -3951,7 +4096,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3965,6 +4110,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/f8815ff71d2af97a84f9d3f328b39ead.jpg",
    "workshop_id": "2793815479",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/water-physics-2793815479-1.1-1d6cc45b50c9.zip",
    "sha256": "1d6cc45b50c9d592521ed425cafe22b6eb4080e447c6ceefdd3fdbebabb3e030",
@@ -3976,7 +4122,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -3990,6 +4136,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/23473cc1e5a36f921df918428bbd5b9e.jpg",
    "workshop_id": "3639667886",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/weapon-auto-firing-toggle-3639667886-1.0-bf434150b5a2.zip",
    "sha256": "bf434150b5a225c0a492292c2a2f63968e0ad3ea9921aae54a24782cfafd93c6",
@@ -4001,7 +4148,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true
   },
@@ -4015,6 +4162,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/e97a1df294b1ccdcd0185c8b83522166.jpg",
    "workshop_id": "2994693365",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/weapon-sfx-realism-mod-2994693365-1.4-9b2f29e29c48.zip",
    "sha256": "9b2f29e29c48a04048fb61b6606006d7d658d2c3a66e0bd654c763beb9fb431e",
@@ -4026,7 +4174,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 31,
    "owner": "Trlydev",
    "approved": true
   },
@@ -4040,6 +4188,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/3d8a10e83d37ca06d197e7f8cced74e6.jpg",
    "workshop_id": "2708133294",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/wild-medieval-2708133294-1.2-2d71a836f784.zip",
    "sha256": "2d71a836f78426348d49302e8c14bcb79d7e000c066f96690a60951b52332339",
@@ -4058,7 +4207,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -4075,6 +4224,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/fb92652175ac775d8125652331a0d21e.png",
    "workshop_id": "2373066279",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/youtubers-mod-2373066279-1.0-fadcd7a0951f.zip",
    "sha256": "fadcd7a0951f1186acfe1afe3570f22683ab06f6720c14ad945643cb3acac77f",
@@ -4089,7 +4239,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
@@ -4106,6 +4256,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/428f681e6f72a25a993f7f0d5ed8bf42.jpg",
    "workshop_id": "3645774632",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/zombie-car-3645774632-1.0-ee0837da25a3.zip",
    "sha256": "ee0837da25a332bae02e253fd843d685d6d4fa04698152e55e5629b63f4e073b",
@@ -4117,7 +4268,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 30,
    "owner": "Trlydev",
    "approved": true
   },
@@ -4131,6 +4282,7 @@
    "tags": [
     "archive"
    ],
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/86a9b686398a079ad1a71ba7a11d387c.jpg",
    "workshop_id": "2846165686",
    "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/zombie-pack-2846165686-1.0-c45002b6de96.zip",
    "sha256": "c45002b6de96214c9d9bb4cff32fd723c1243fa8d68a3ddbe72974de1a1afef5",
@@ -4145,7 +4297,7 @@
    "maintainers": [
     "Trlydev"
    ],
-   "downloads": 25,
+   "downloads": 32,
    "owner": "Trlydev",
    "approved": true,
    "rules": [
