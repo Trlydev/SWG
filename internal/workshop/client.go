@@ -17,11 +17,11 @@ import (
 // PublicKey verifies the index's signature (index.sig or index.sig2). While
 // it is empty (no signing key set up yet), the index is trusted as served
 // by GitHub over HTTPS; once set, an index without a valid signature is
-// refused. ExtraPublicKeys are also trusted (a previous key, while keys
-// change).
+// refused. ExtraPublicKeys are also trusted (the spare key, for a
+// key change).
 var (
 	PublicKey       = signingPublicKey
-	ExtraPublicKeys = []string{previousPublicKey}
+	ExtraPublicKeys = []string{spareKey}
 )
 
 var (
@@ -127,18 +127,23 @@ func download() (*Index, error) {
 	return ix, nil
 }
 
-// parse checks that one of the signatures verifies with a trusted key.
-func parse(b []byte, sigs ...string) (*Index, error) {
-	if PublicKey != "" {
-		ok := false
-		for _, k := range append([]string{PublicKey}, ExtraPublicKeys...) {
-			for _, sig := range sigs {
-				ok = ok || (k != "" && sig != "" && Verify(b, sig, k))
+// Trusted reports whether one of the signatures verifies with a key
+// ppgmods trusts.
+func Trusted(b []byte, sigs ...string) bool {
+	for _, k := range append([]string{PublicKey}, ExtraPublicKeys...) {
+		for _, sig := range sigs {
+			if k != "" && sig != "" && Verify(b, sig, k) {
+				return true
 			}
 		}
-		if !ok {
-			return nil, ErrBadSignature
-		}
+	}
+	return false
+}
+
+// parse checks that one of the signatures verifies with a trusted key.
+func parse(b []byte, sigs ...string) (*Index, error) {
+	if PublicKey != "" && !Trusted(b, sigs...) {
+		return nil, ErrBadSignature
 	}
 	var ix Index
 	if err := json.Unmarshal(b, &ix); err != nil {

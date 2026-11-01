@@ -454,18 +454,56 @@ func (ix *Index) Marshal() []byte {
 // Sign signs index bytes with an Ed25519 private key: a PEM key file
 // (`openssl genpkey -algorithm ed25519`) or base64 (`workshop keygen`).
 func Sign(index []byte, priv string) (string, error) {
-	var k ed25519.PrivateKey
-	if blk, _ := pem.Decode([]byte(priv)); blk != nil {
-		if pk, err := x509.ParsePKCS8PrivateKey(blk.Bytes); err == nil {
-			k, _ = pk.(ed25519.PrivateKey)
-		}
-	} else if b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(priv)); err == nil && len(b) == ed25519.PrivateKeySize {
-		k = ed25519.PrivateKey(b)
-	}
-	if k == nil {
-		return "", errors.New("bad signing key")
+	k, err := parsePrivateKey(priv)
+	if err != nil {
+		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(ed25519.Sign(k, index)), nil
+}
+
+// parsePrivateKey reads an Ed25519 private key however it was pasted into
+// the secret: the PEM file (also squashed onto one line or without its
+// marker lines), the base64 of its DER, or the base64 of the raw 64-byte key
+// or 32-byte seed.
+func parsePrivateKey(v string) (ed25519.PrivateKey, error) {
+	if strings.TrimSpace(v) == "" {
+		return nil, errors.New("not set")
+	}
+	var der []byte
+	if blk, _ := pem.Decode([]byte(v)); blk != nil {
+		der = blk.Bytes
+	} else {
+		body := v
+		for _, m := range []string{"-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"} {
+			body = strings.ReplaceAll(body, m, "")
+		}
+		if strings.Contains(body, "PUBLIC KEY") {
+			return nil, errors.New("this is a public key; the secret needs the private key file")
+		}
+		b, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(body), ""))
+		if err != nil {
+			return nil, errors.New("bad signing key: not a key file's content")
+		}
+		switch len(b) {
+		case ed25519.PrivateKeySize:
+			return ed25519.PrivateKey(b), nil
+		case ed25519.SeedSize:
+			return ed25519.NewKeyFromSeed(b), nil
+		}
+		der = b
+	}
+	if _, err := x509.ParsePKIXPublicKey(der); err == nil {
+		return nil, errors.New("this is a public key; the secret needs the private key file")
+	}
+	pk, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return nil, errors.New("bad signing key: not a private key")
+	}
+	k, ok := pk.(ed25519.PrivateKey)
+	if !ok {
+		return nil, errors.New("bad signing key: not an Ed25519 key")
+	}
+	return k, nil
 }
 
 // Verify checks an index signature against an Ed25519 public key: base64 of

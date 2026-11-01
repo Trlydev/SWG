@@ -106,3 +106,46 @@ func TestSigningKeyFormats(t *testing.T) {
 		t.Error("a changed index was accepted")
 	}
 }
+
+// The signing secret is read however it was pasted: the PEM file, squashed
+// onto one line or without its marker lines, base64 DER, the raw key or its
+// seed. A public key is refused with a clear message.
+func TestSigningKeyPasted(t *testing.T) {
+	pub, priv, _ := ed25519.GenerateKey(nil)
+	der, _ := x509.MarshalPKCS8PrivateKey(priv)
+	pemText := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	body := base64.StdEncoding.EncodeToString(der)
+	pubDER, _ := x509.MarshalPKIXPublicKey(pub)
+	pubB64 := base64.StdEncoding.EncodeToString(pubDER)
+	index := []byte("{}\n")
+	for name, v := range map[string]string{
+		"pem":      pemText,
+		"one line": strings.ReplaceAll(pemText, "\n", " "),
+		"body":     body,
+		"raw":      base64.StdEncoding.EncodeToString(priv),
+		"seed":     base64.StdEncoding.EncodeToString(priv.Seed()),
+		"spaces":   "  " + body + "\n",
+	} {
+		sig, err := Sign(index, v)
+		if err != nil || !Verify(index, sig, pubB64) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	pubPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}))
+	for _, v := range []string{pubPEM, pubB64} {
+		if _, err := Sign(index, v); err == nil || !strings.Contains(err.Error(), "public key") {
+			t.Errorf("public key accepted or unclear: %v", err)
+		}
+	}
+	if _, err := Sign(index, "not a key"); err == nil {
+		t.Error("garbage accepted")
+	}
+}
+
+// The index on the data branch stays readable: the main key is the one
+// every release trusts.
+func TestMainKeyIsTheOriginal(t *testing.T) {
+	if PublicKey != "GVSJqtKqZ1ifxuUiuo2tXzsKUVRjYyRQOsilg5NLc6s=" {
+		t.Fatal("the main key must stay the one older copies trust")
+	}
+}
