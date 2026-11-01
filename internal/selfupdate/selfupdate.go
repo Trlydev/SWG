@@ -148,7 +148,7 @@ func download(url string, w io.Writer) error {
 	return err
 }
 
-func expectedSum(sumsURL, sigURL, asset string) (string, error) {
+func expectedSum(sumsURL, sigURL, asset, version string) (string, error) {
 	var b strings.Builder
 	if err := download(sumsURL, &b); err != nil {
 		return "", err
@@ -164,6 +164,9 @@ func expectedSum(sumsURL, sigURL, asset string) (string, error) {
 		return "", err
 	}
 	if err := verifySums([]byte(b.String()), sig.String()); err != nil {
+		return "", err
+	}
+	if err := sumsVersion(b.String(), version); err != nil {
 		return "", err
 	}
 	sc := bufio.NewScanner(strings.NewReader(b.String()))
@@ -190,7 +193,7 @@ func Apply(r *Release, logf func(string, ...any)) error {
 	if exe, err = filepath.EvalSymlinks(exe); err != nil {
 		return err
 	}
-	want, err := expectedSum(r.sumsURL, r.sigURL, r.asset)
+	want, err := expectedSum(r.sumsURL, r.sigURL, r.asset, r.Version)
 	if err != nil {
 		return err
 	}
@@ -248,6 +251,16 @@ func verifySums(sums []byte, sigB64 string) error {
 	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(sigB64))
 	if err != nil || !ed25519.Verify(publicKey, sums, sig) {
 		return errors.New("the release's signature doesn't match the release key: not updating")
+	}
+	return nil
+}
+
+// sumsVersion checks the version line signed with the checksums
+// ("# ppgmods v0.4.8"), so an older signed release can't be republished as
+// a newer one (a rollback to a version with known bugs).
+func sumsVersion(sums, version string) error {
+	if !strings.Contains("\n"+sums, "\n# ppgmods "+version+"\n") {
+		return fmt.Errorf("the signed checksums aren't for %s: not updating", version)
 	}
 	return nil
 }

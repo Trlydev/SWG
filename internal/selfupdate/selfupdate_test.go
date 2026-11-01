@@ -44,3 +44,20 @@ func TestVerifySums(t *testing.T) {
 		t.Error("someone else's signature accepted")
 	}
 }
+
+// The signed checksums name their version: a signed file from another
+// release (a rollback) is refused.
+func TestSumsVersion(t *testing.T) {
+	sums := "abc  ppgmods-linux-amd64\n# ppgmods v0.4.8\n"
+	if err := sumsVersion(sums, "v0.4.8"); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []string{"v0.4.9", "v0.4", "v0.4.8.1"} {
+		if sumsVersion(sums, v) == nil {
+			t.Errorf("%s accepted", v)
+		}
+	}
+	if sumsVersion("abc  x\n", "v0.4.8") == nil {
+		t.Error("checksums without a version line accepted")
+	}
+}

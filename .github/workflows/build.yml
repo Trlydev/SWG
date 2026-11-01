@@ -22,6 +22,10 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: false
 
+# What GLFW (Fyne's window library) compiles against, nothing more.
+env:
+  WINDOW_HEADERS: libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libxkbcommon-dev libwayland-dev
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -32,16 +36,47 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
+          cache: false
+      # A build cache of its own, so the window toolkit's C code (GLFW,
+      # OpenGL) isn't compiled again on every push.
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: test-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: test-${{ hashFiles('go.sum') }}-
       - name: Window toolkit headers (the native window uses OpenGL)
-        run: sudo apt-get update -q && sudo apt-get install -y -q libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
-      - run: go vet ./...
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends $WINDOW_HEADERS
+      - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./... && GOOS=windows CGO_ENABLED=0 go vet ./internal/desktop ./internal/selfupdate ./internal/manager
       - run: go test ./...
 
-  version:
+  # One Linux job builds every binary, beside the tests: Windows amd64 with
+  # MinGW (a Windows runner took minutes just to start), the arm64 builds
+  # without cgo (they show the browser window instead). Its build cache
+  # keeps Fyne's C code compiled between pushes.
+  build:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: release-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            release-${{ hashFiles('go.sum') }}-
+            release-linux-
       - name: Pick version
         id: ver
         env:
@@ -53,9 +88,8 @@ jobs:
             # The 0.4 series begins with the security update (code hidden
             # inside files, reading the code inside DLLs) and RE_PPG
             # installs. The patch number is one more than the newest v0.4.*
-            # tag, so the first push becomes v0.4.0 and later pushes count up. Counting from
-            # tags (not the run number) keeps pull-request builds, which
-            # also advance that number, from skewing the version.
+            # tag. Counting from tags (not the run number) keeps
+            # pull-request builds from skewing the version.
             last=$(git ls-remote --tags "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 'refs/tags/v0.4.*' \
               | grep -oE 'v0\.4\.[0-9]+' | cut -d. -f3 | sort -n | tail -1)
             v="v0.4.$(( ${last:--1} + 1 ))"
@@ -64,115 +98,56 @@ jobs:
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "Building $v"
-
-  # The native window (Fyne) needs cgo, so each OS builds its own binary:
-  # Windows amd64 on Windows, Linux amd64 on Linux. The arm64 builds are
-  # built without cgo and show the browser window instead.
-  build-linux:
-    needs: [test, version]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version-file: go.mod
-          cache: false
-      # Its own build cache: release builds use -trimpath, so the test job's
-      # cache never matches them and the window toolkit's C code was
-      # compiled from scratch every time.
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: release-linux-${{ hashFiles('go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            release-linux-${{ hashFiles('go.sum') }}-
-            release-linux-
-      - name: Window toolkit headers
-        run: sudo apt-get update -q && sudo apt-get install -y -q libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
-      - name: Windows icon and version info (arm64)
+      - name: Toolchains (window headers, MinGW for Windows)
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends $WINDOW_HEADERS gcc-mingw-w64-x86-64
+      - name: Windows icon and version info
         env:
-          VERSION: ${{ needs.version.outputs.version }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           go install github.com/tc-hib/go-winres@v0.3.3 # module checksum verified by sum.golang.org
           num=$(echo "${VERSION#v}" | sed -E 's/^([0-9]+)\.([0-9]+)\.([0-9]+).*/\1.\2.\3/')
           case "$num" in *[!0-9.]*|"") num=0.0.0 ;; esac
-          go-winres simply --arch arm64 --out cmd/ppgmods/rsrc \
-            --icon internal/desktop/icons/icon-256.png --manifest gui \
-            --product-name "PPG Mod Manager" --file-description "PPG Mod Manager" \
-            --original-filename ppgmods.exe --product-version "$num.0" --file-version "$num.0"
+          for arch in amd64 arm64; do
+            ~/go/bin/go-winres simply --arch $arch --out cmd/ppgmods/rsrc \
+              --icon internal/desktop/icons/icon-256.png --manifest gui \
+              --product-name "PPG Mod Manager" --file-description "PPG Mod Manager" \
+              --original-filename ppgmods.exe --product-version "$num.0" --file-version "$num.0"
+          done
+          ls cmd/ppgmods/*.syso
       - name: Build binaries
         env:
-          VERSION: ${{ needs.version.outputs.version }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           mkdir dist
           flags="-s -w -X main.version=${VERSION}"
-          # The three builds run side by side; each must succeed.
+          # The four builds run side by side; each must succeed. Windows
+          # builds are GUI programs: no console window on double-click.
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$flags" -o dist/ppgmods-linux-amd64 ./cmd/ppgmods & a=$!
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$flags" -o dist/ppgmods-linux-arm64 ./cmd/ppgmods & b=$!
-          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "$flags -H windowsgui" -o dist/ppgmods-windows-arm64.exe ./cmd/ppgmods & c=$!
-          wait $a && wait $b && wait $c
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -trimpath -ldflags "$flags -H windowsgui" -o dist/ppgmods-windows-amd64.exe ./cmd/ppgmods & b=$!
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$flags" -o dist/ppgmods-linux-arm64 ./cmd/ppgmods & c=$!
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "$flags -H windowsgui" -o dist/ppgmods-windows-arm64.exe ./cmd/ppgmods & d=$!
+          wait $a && wait $b && wait $c && wait $d
+          # The version line is signed with the checksums: ppgmods refuses a
+          # signed file that names another version (no rollbacks).
+          cd dist && sha256sum * > SHA256SUMS.txt && echo "# ppgmods ${VERSION}" >> SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: part-linux
+          name: unsigned
           path: dist/*
 
-  build-windows:
-    needs: [test, version]
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        with:
-          go-version-file: go.mod
-      - name: Windows icon and version info
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          go install github.com/tc-hib/go-winres@v0.3.3 # module checksum verified by sum.golang.org
-          num=$(echo "${VERSION#v}" | sed -E 's/^([0-9]+)\.([0-9]+)\.([0-9]+).*/\1.\2.\3/')
-          case "$num" in *[!0-9.]*|"") num=0.0.0 ;; esac
-          go-winres simply --arch amd64 --out cmd/ppgmods/rsrc \
-            --icon internal/desktop/icons/icon-256.png --manifest gui \
-            --product-name "PPG Mod Manager" --file-description "PPG Mod Manager" \
-            --original-filename ppgmods.exe --product-version "$num.0" --file-version "$num.0"
-      - name: Build binary
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          mkdir dist
-          # Windows builds are GUI programs: no console window on double-click.
-          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -trimpath \
-            -ldflags "-s -w -H windowsgui -X main.version=${VERSION}" \
-            -o dist/ppgmods-windows-amd64.exe ./cmd/ppgmods
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: part-windows
-          path: dist/*
-
-  build:
-    needs: [version, build-linux, build-windows]
+  # Releases are signed: ppgmods' self-update only trusts a SHA256SUMS.txt
+  # signed with the release key. The secret is used in this small job alone
+  # (no build cache, nothing compiled but the signer), and only on pushes.
+  sign:
+    needs: [test, build]
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ needs.version.outputs.version }}
+      version: ${{ needs.build.outputs.version }}
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: part-*
-          merge-multiple: true
+          name: unsigned
           path: dist
-      - name: Checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
-      # Releases are signed: ppgmods' self-update only trusts a SHA256SUMS.txt
-      # signed with the release key (the secret is used by this step alone).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: github.event_name == 'push'
         with:
@@ -190,11 +165,11 @@ jobs:
         run: cd src && go run ./cmd/signrelease ../dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ppgmods-${{ needs.version.outputs.version }}
+          name: ppgmods-${{ needs.build.outputs.version }}
           path: dist/*
 
   release:
-    needs: build
+    needs: sign
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
@@ -202,13 +177,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ppgmods-${{ needs.build.outputs.version }}
+          name: ppgmods-${{ needs.sign.outputs.version }}
           path: dist
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          tag_name: ${{ needs.build.outputs.version }}
+          tag_name: ${{ needs.sign.outputs.version }}
           target_commitish: ${{ github.sha }}
-          name: ppgmods ${{ needs.build.outputs.version }}
+          name: ppgmods ${{ needs.sign.outputs.version }}
           generate_release_notes: true
           make_latest: true
           body: |

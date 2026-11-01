@@ -699,7 +699,7 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 	pickBg := canvas.NewRectangle(pbg)
 	pickBg.CornerRadius = 6
 	pickBg.StrokeColor, pickBg.StrokeWidth = p.accent, 1.5 // easy to spot on any thumbnail
-	pickBox := container.NewStack(pickBg, c.pick)
+	pickBox := container.New(centeredCheck{}, pickBg, c.pick)
 	if !c.pick.Visible() {
 		pickBox.Hide()
 	}
@@ -1188,4 +1188,32 @@ func sizeBytes(s string) float64 {
 	var n float64
 	fmt.Sscan(m[1], &n)
 	return n * map[string]float64{"B": 1, "KB": 1 << 10, "MB": 1 << 20, "GB": 1 << 30}[strings.ToUpper(m[2])]
+}
+
+// centeredCheck lays out a square background (objects[0]) with a Check
+// (objects[1]) whose box sits in its middle. A Check draws its box at its
+// left edge and keeps room on the right for a label, so centring the
+// widget itself left the box off to the left.
+type centeredCheck struct{}
+
+func (centeredCheck) side() float32 {
+	return theme.Size(theme.SizeNameInlineIcon) + theme.Size(theme.SizeNameInnerPadding)
+}
+
+func (l centeredCheck) MinSize([]fyne.CanvasObject) fyne.Size {
+	return fyne.NewSquareSize(l.side())
+}
+
+func (l centeredCheck) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	if len(objs) < 2 {
+		return
+	}
+	objs[0].Resize(size)
+	objs[0].Move(fyne.NewPos(0, 0))
+	chk := objs[1]
+	cs := chk.MinSize()
+	chk.Resize(cs)
+	icon := theme.Size(theme.SizeNameInlineIcon)
+	boxX := theme.Size(theme.SizeNameInnerPadding)/2 + theme.Size(theme.SizeNameInputBorder) // where Check draws its box
+	chk.Move(fyne.NewPos((size.Width-icon)/2-boxX, (size.Height-cs.Height)/2))
 }
