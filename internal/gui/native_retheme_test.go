@@ -31,7 +31,7 @@ func TestRethemeSwitchesAtOnce(t *testing.T) {
 	if isDark() != true {
 		t.Fatal("not dark at start")
 	}
-	u.retheme("light")
+	u.rebuildIn("light")
 	if isDark() || pal() != &lightPal {
 		t.Fatal("still dark after switching to light")
 	}
