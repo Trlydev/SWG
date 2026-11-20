@@ -54,9 +54,15 @@ type App struct {
 
 func (a *App) logf(format string, args ...any) {
 	if a.Logf != nil {
+		// Copies download side by side, so lines can come from several
+		// goroutines; a Logf needn't be safe for that by itself.
+		logMu.Lock()
+		defer logMu.Unlock()
 		a.Logf(format, args...)
 	}
 }
+
+var logMu sync.Mutex
 
 // with returns a copy of a with modified options.
 func (a *App) with(f func(*Options)) *App {
@@ -1755,6 +1761,16 @@ func (a *App) tally(s *Summary, ref, word string, err error) {
 // InstallMany installs several references, continuing past failures.
 func (a *App) InstallMany(m *manager.Manager, refs []string) Summary {
 	var s Summary
+	var ids []string
+	for _, ref := range refs {
+		if strings.Contains(ref, "top-mods.com") {
+			continue // resolving it is a page fetch of its own
+		}
+		if n := NormalizeRef(ref); strings.HasPrefix(n, "sky:") && a.Opt.Mirror == "" {
+			ids = append(ids, strings.TrimPrefix(n, "sky:"))
+		}
+	}
+	PrewarmMirrors(ids)
 	for _, ref := range refs {
 		a.tally(&s, ref, "REFUSED", a.Install(m, ref))
 	}

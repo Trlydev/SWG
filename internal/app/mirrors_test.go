@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,15 @@ import (
 	"github.com/Trlydev/SWG/internal/preserve"
 	"github.com/Trlydev/SWG/internal/sources"
 )
+
+// freshCopyInfo forgets what earlier tests learned about mirror copies
+// (kept in memory by ID), so each test starts as a new run would.
+func freshCopyInfo(t *testing.T) {
+	t.Setenv("PPGMODS_HOME", t.TempDir())
+	modInfoMu.Lock()
+	modInfo, modInfoLoaded = map[string]copyInfo{}, false
+	modInfoMu.Unlock()
+}
 
 func writeModZip(t *testing.T, path, script string) {
 	t.Helper()
@@ -34,7 +44,7 @@ func writeModZip(t *testing.T, path, script string) {
 // The newest mirror copy is infected; ppgmods must fall back to the older
 // clean copy instead of refusing or installing the infected one.
 func TestFetchWorkshopSkipsInfectedNewestCopy(t *testing.T) {
-	t.Setenv("PPGMODS_HOME", t.TempDir())
+	freshCopyInfo(t)
 	const ws = "1234567890"
 	dir, err := CacheDir("sky:" + ws)
 	if err != nil {
@@ -79,7 +89,7 @@ func TestFetchWorkshopSkipsInfectedNewestCopy(t *testing.T) {
 }
 
 func TestFetchWorkshopAllCopiesAfterCutoff(t *testing.T) {
-	t.Setenv("PPGMODS_HOME", t.TempDir())
+	freshCopyInfo(t)
 	const ws = "1234567891"
 	after := manager.WormCutoff.Add(24 * time.Hour)
 	mirrorMemo[ws] = mirrorMemoEntry{at: time.Now(), list: []Mirror{
@@ -155,7 +165,7 @@ func writeVersionedZip(t *testing.T, path, version, ugc string) {
 // older ModVersion than the Skymods copy; a copy whose mod.json names a
 // different Workshop item is ignored.
 func TestFetchWorkshopPicksHighestModVersion(t *testing.T) {
-	t.Setenv("PPGMODS_HOME", t.TempDir())
+	freshCopyInfo(t)
 	const ws = "3801154351"
 	dir, _ := CacheDir("sky:" + ws)
 	writeVersionedZip(t, filepath.Join(dir, "trueworkshop-153-tw.zip"), "3.2", ws)
@@ -182,7 +192,7 @@ func TestFetchWorkshopPicksHighestModVersion(t *testing.T) {
 // Copies with no mod.json (not a mod) or no author anywhere are never
 // installed or offered, even when their version looks highest.
 func TestFetchWorkshopSkipsCopiesWithoutModJSONOrAuthor(t *testing.T) {
-	t.Setenv("PPGMODS_HOME", t.TempDir())
+	freshCopyInfo(t)
 	const ws = "3801154352"
 	dir, _ := CacheDir("sky:" + ws)
 	zipFiles(t, filepath.Join(dir, "topmods-1-nojson.zip"), map[string]string{"Mod/s.cs": "class A {}"})
@@ -291,7 +301,7 @@ func TestArchiveRecordChecksCopies(t *testing.T) {
 // 01 STUDIO's own mod comes from 01 STUDIO's site alone: the mirrors
 // (Skymods, top-mods) are not fetched unless that copy can't be had.
 func TestFetchWorkshopPrefers01Studio(t *testing.T) {
-	t.Setenv("PPGMODS_HOME", t.TempDir())
+	freshCopyInfo(t)
 	cdn := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) }))
 	defer cdn.Close()
 	defer sources.UseTestServer(rewrite{strings.TrimPrefix(cdn.URL, "https://"), cdn.Client().Transport}, cdn.URL)()
@@ -343,5 +353,90 @@ func TestFetchWorkshopPrefers01Studio(t *testing.T) {
 	}
 	if sources.S01DownloadURL("../x") != "" || sources.S01DownloadURL("") != "" {
 		t.Error("a download URL for something that isn't a Workshop ID")
+	}
+}
+
+// A mod's copies download side by side (they used to download one after
+// another, each modsbase copy waiting out its countdown first), and the
+// copy picked is the same as before: the highest mod.json version.
+func TestFetchWorkshopDownloadsCopiesTogether(t *testing.T) {
+	freshCopyInfo(t)
+	const ws = "3801154352"
+	src := t.TempDir()
+	versions := map[string]string{"topmods:901": "1.0", "skymods:902": "3.0", "topmods:903": "2.0"}
+	for id, v := range versions {
+		writeVersionedZip(t, filepath.Join(src, strings.ReplaceAll(id, ":", "-")+".zip"), v, ws)
+	}
+	old := copyDownload
+	defer func() { copyDownload = old }()
+	var mu sync.Mutex
+	running, most := 0, 0
+	copyDownload = func(a *App, mr Mirror, ws string) (string, error) {
+		mu.Lock()
+		running++
+		most = max(most, running)
+		mu.Unlock()
+		time.Sleep(300 * time.Millisecond) // a countdown
+		mu.Lock()
+		running--
+		mu.Unlock()
+		return filepath.Join(src, strings.ReplaceAll(mr.ID, ":", "-")+".zip"), nil
+	}
+	day := func(d int) time.Time { return time.Date(2026, 9, d, 0, 0, 0, 0, time.UTC) }
+	mirrorMemo[ws] = mirrorMemoEntry{at: time.Now(), list: []Mirror{
+		{ID: "topmods:901", Source: "top-mods", Author: "a", VersionTime: day(20), tm: &sources.TMItem{}},
+		{ID: "skymods:902", Source: "Skymods", Author: "a", VersionTime: day(19), sky: &sources.SkyItem{}},
+		{ID: "topmods:903", Source: "top-mods", Author: "a", VersionTime: day(18), tm: &sources.TMItem{}},
+	}}
+	defer delete(mirrorMemo, ws)
+	st, _ := manager.LoadState()
+	m := &manager.Manager{State: st, ModsDir: t.TempDir()}
+	start := time.Now()
+	c, err := (&App{Opt: DefaultOptions()}).fetchWorkshop(m, ws)
+	took := time.Since(start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Mirror != "skymods:902" || c.Version != "3.0" {
+		t.Errorf("picked %s %s, want skymods:902 3.0", c.Mirror, c.Version)
+	}
+	if most != 3 || took > 800*time.Millisecond {
+		t.Errorf("copies didn't download together: %d at once, %s", most, took)
+	}
+}
+
+// Lookups of the same item at the same time (PrewarmMirrors ahead of the
+// installs) run once; the others use its answer.
+func TestWorkshopMirrorsOnceAtATime(t *testing.T) {
+	const ws = "3801154353"
+	old := lookupMirrors
+	defer func() { lookupMirrors = old }()
+	var mu sync.Mutex
+	calls := 0
+	lookupMirrors = func(id, _ string) ([]Mirror, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		time.Sleep(200 * time.Millisecond)
+		list := []Mirror{{ID: "skymods:1", Source: "Skymods"}}
+		mirrorMu.Lock()
+		mirrorMemo[id] = mirrorMemoEntry{list, time.Now()}
+		mirrorMu.Unlock()
+		return list, nil
+	}
+	defer delete(mirrorMemo, ws)
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if l, err := WorkshopMirrors(ws, ""); err != nil || len(l) != 1 {
+				t.Errorf("%v %v", l, err)
+			}
+		}()
+	}
+	wg.Wait()
+	if calls != 1 {
+		t.Errorf("looked up %d times", calls)
 	}
 }

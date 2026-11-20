@@ -206,12 +206,65 @@ func rememberTitle(ws, title, tmURL string) {
 // revision first. titleHint helps find it on top-mods.
 func WorkshopMirrors(ws, titleHint string) ([]Mirror, error) {
 	useIndexCache()
-	mirrorMu.Lock()
-	if e, ok := mirrorMemo[ws]; ok && time.Since(e.at) < 15*time.Minute {
+	for {
+		mirrorMu.Lock()
+		if e, ok := mirrorMemo[ws]; ok && time.Since(e.at) < 15*time.Minute {
+			mirrorMu.Unlock()
+			return e.list, nil
+		}
+		wait, busy := mirrorInflight[ws]
+		if !busy {
+			done := make(chan struct{})
+			mirrorInflight[ws] = done
+			mirrorMu.Unlock()
+			defer func() {
+				mirrorMu.Lock()
+				delete(mirrorInflight, ws)
+				mirrorMu.Unlock()
+				close(done)
+			}()
+			return lookupMirrors(ws, titleHint)
+		}
 		mirrorMu.Unlock()
-		return e.list, nil
+		<-wait // the same lookup is running (PrewarmMirrors): use its answer
+		mirrorMu.Lock()
+		_, ok := mirrorMemo[ws]
+		mirrorMu.Unlock()
+		if !ok {
+			return lookupMirrors(ws, titleHint) // it failed: try for ourselves
+		}
 	}
-	mirrorMu.Unlock()
+}
+
+// lookupMirrors does the lookup itself (a test hook).
+var lookupMirrors = workshopMirrors
+
+// mirrorInflight marks the mirror lookups running now (guarded by mirrorMu).
+var mirrorInflight = map[string]chan struct{}{}
+
+// PrewarmMirrors looks up the mirrors of several Workshop items in the
+// background, a few at a time, so installing them one by one (a modpack,
+// the Subscribe cart) doesn't wait on each lookup in turn.
+func PrewarmMirrors(ids []string) {
+	if len(ids) < 2 {
+		return
+	}
+	go func() {
+		sem := make(chan struct{}, 3)
+		var wg sync.WaitGroup
+		for _, id := range ids {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(id string) {
+				defer func() { <-sem; wg.Done() }()
+				WorkshopMirrors(id, "")
+			}(id)
+		}
+		wg.Wait()
+	}()
+}
+
+func workshopMirrors(ws, titleHint string) ([]Mirror, error) {
 
 	var list []Mirror
 	var errs []string
@@ -673,6 +726,7 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 			}
 		}
 	}
+	pre := a.prefetchCopies(usable, ws)
 	for _, mr := range usable {
 		if len(copies) > 0 && copies[0].mr.s01 != nil {
 			break // got 01 STUDIO's own copy: no need to fetch the mirrors
@@ -704,7 +758,14 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 		a.logf("%s: %s%s (Workshop %s), %s, %s", mr.Source, mr.Title, By(mr.Author), ws, mr.Version, mr.Size)
 		var path string
 		var err error
-		if nexusDirect {
+		if ch, ok := pre[mr.ID]; ok {
+			r := <-ch // downloaded alongside the other copies
+			path, err = r.path, r.err
+			if errors.Is(err, sources.ErrGone) && archived {
+				a.logf("  %v; using the pre-worm archive's copy", err)
+				path, err = a.fromArchive(rec, ws)
+			}
+		} else if nexusDirect {
 			path, _, err = a.downloadNexus(mr.nx.ID, nil) // linked premium account
 		} else if mr.ow != nil {
 			path, err = downloadOW(mr.ow)
@@ -873,6 +934,67 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 		a.logf("  %s copy (version %s) flagged by the scanner (%s)", cc.mr.Source, orUnknown(cc.version), cc.max)
 	}
 	return copies[0].c, nil // every copy is flagged: let the install policy report the newest
+}
+
+// copyDownload downloads one copy into the cache (a test hook).
+var copyDownload = func(a *App, mr Mirror, ws string) (string, error) {
+	if mr.ow != nil {
+		return downloadOW(mr.ow)
+	}
+	return a.downloadMirror(mr, ws)
+}
+
+type fetched struct {
+	path string
+	err  error
+}
+
+// prefetchCopies starts downloading the copies fetchWorkshop will want, all
+// at once: they used to download one after another, each modsbase copy
+// first waiting out its page's countdown (5-10 s), so a mod with four
+// copies took the sum of them. Each host still serves one download at a
+// time (hostLock). The copies picked are the ones the loop would try first
+// (at most four, skipping copies known to be gone or invalid and Nexus
+// copies that need the browser); a copy downloaded but not used stays in
+// the cache. When 01 STUDIO's own copy comes first only it is fetched, as
+// the loop stops there if it can be had.
+func (a *App) prefetchCopies(usable []Mirror, ws string) map[string]chan fetched {
+	pre := map[string]chan fetched{}
+	if a.Opt.Mirror != "" {
+		return pre
+	}
+	for _, mr := range usable {
+		if len(pre) == 4 || len(pre) == 1 && usable[0].s01 != nil {
+			break
+		}
+		if mr.nx != nil || pre[mr.ID] != nil {
+			continue // Nexus: the browser, or a premium download the loop makes
+		}
+		rec := archiveRecord(mr)
+		archived := rec != nil && rec.Stored != "" && rec.SHA256 != ""
+		if ci := copyState(mr.ID); ci.gone && !archived || ci.invalid != "" {
+			continue
+		}
+		ch := make(chan fetched, 1)
+		pre[mr.ID] = ch
+		go func(mr Mirror) {
+			var r fetched
+			r.path, r.err = copyDownload(a, mr, ws)
+			ch <- r
+		}(mr)
+	}
+	return pre
+}
+
+// hostLocks lets each download host serve one of ppgmods' downloads at a
+// time, also when copies download side by side.
+var hostLocks sync.Map
+
+func hostLock(host string) func() {
+	m, _ := hostLocks.LoadOrStore(host, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
 }
 
 // easierBrowser picks the browser download that is easiest for the person:
@@ -1051,14 +1173,18 @@ func (a *App) downloadMirror(mr Mirror, ws string) (string, error) {
 		part := path + ".part"
 		switch {
 		case strings.HasPrefix(link, "https://modsfire.com/"):
-			a.logf("  downloading from modsfire.com...")
+			unlock := hostLock("modsfire.com")
+			a.logf("  %s: downloading from modsfire.com...", mr.Source)
 			_, err = sources.ModsfireDownload(link, mr.Page, part, 1<<30)
+			unlock()
 		case strings.HasPrefix(link, "https://modsbase.com/"):
-			a.logf("  requesting download link from modsbase.com...")
+			unlock := hostLock("modsbase.com")
+			a.logf("  %s: requesting download link from modsbase.com...", mr.Source)
 			var direct string
 			if direct, err = sources.ModsbaseResolve(link); err == nil {
 				_, err = sources.ModsbaseDownload(direct, link, part, 1<<30)
 			}
+			unlock()
 		default:
 			err = fmt.Errorf("unsupported download host: %s", link)
 		}
