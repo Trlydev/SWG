@@ -22,6 +22,15 @@ const skymodsURL = "https://catalogue.smods.ru/"
 // background browsers at it.
 const attemptCooldown = 10 * time.Minute
 
+// readPersonAfter is how long a page read someone is waiting on (a search,
+// an install) gives a check before it counts as wanting a person. A check
+// that passes by itself does so in a few seconds; one that wants a person
+// shows exactly the same page for as long as it is left (seen: 45 s with
+// nothing changing), so waiting longer only makes the person wait. The
+// background retry (Check) keeps Run's longer default for a slow pass,
+// and the clearance it earns makes the next reads quick.
+const readPersonAfter = 8 * time.Second
+
 // How Skymods pages are read when Cloudflare checks ppgmods' own requests.
 // smods.ru refuses the clearance cookie from anything but the browser that
 // earned it (seen: a fresh cookie, with the same User-Agent and IP, still
@@ -249,11 +258,12 @@ func browserGet(site, u string, logf func(string, ...any), exe string) ([]byte, 
 		// Don't queue behind a window the person may take minutes over.
 		return nil, errors.New("the browser check is open right now; try again once it has passed")
 	}
-	res, err := open(u, Options{Logf: logf, Timeout: time.Minute, Browser: exe})
+	opt := Options{Logf: logf, Timeout: time.Minute, Browser: exe, PersonAfter: readPersonAfter}
+	res, err := open(u, opt)
 	if err != nil && !errors.Is(err, ErrNeedsPerson) && !errors.Is(err, ErrNoBrowser) {
 		// The browser itself failed (it didn't start, the page didn't load):
 		// one retry before the cooldown.
-		res, err = open(u, Options{Logf: logf, Timeout: time.Minute, Browser: exe})
+		res, err = open(u, opt)
 	}
 	record(site, res, err)
 	if err != nil {

@@ -272,3 +272,21 @@ func TestNeedsPersonRememberedAcrossRuns(t *testing.T) {
 		t.Errorf("after Forget and a restart: %+v", st)
 	}
 }
+
+// A read someone waits on gives the check readPersonAfter; the background
+// retry gives it Run's longer default.
+func TestReadWaitsLessThanBackgroundCheck(t *testing.T) {
+	f := useFake(t, passed)
+	if _, err := browserGet("smods.ru", "https://x/", nil, "/usr/bin/google-chrome"); err != nil {
+		t.Fatal(err)
+	}
+	if err := check("smods.ru", "https://x/", nil, "/usr/bin/google-chrome"); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.calls) != 2 || f.calls[0].PersonAfter != readPersonAfter || f.calls[1].PersonAfter != 0 {
+		t.Errorf("waits: %+v", f.calls)
+	}
+	if readPersonAfter > 10*time.Second {
+		t.Errorf("a waited-on read gives the check %s", readPersonAfter)
+	}
+}

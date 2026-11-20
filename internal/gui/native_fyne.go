@@ -81,6 +81,7 @@ type ui struct {
 	installBanner *fyne.Container
 	installText   *widget.Label
 	protonBanner  *fyne.Container
+	body          *fyne.Container // the page with the notices above it
 	installDesk   *widget.Check
 
 	gameChipText *canvas.Text
@@ -110,6 +111,8 @@ type ui struct {
 	nxmShownAt   time.Time
 	packShownAt  time.Time
 	thumbs       *thumbLoader
+	page         int               // the page shown (show)
+	sysVariant   fyne.ThemeVariant // the system's light/dark when last built
 }
 
 func runNative(s *server) error {
@@ -134,6 +137,7 @@ func runNative(s *server) error {
 			"Quit anyway", true, func() { u.win.Close() })
 	})
 	u.build()
+	u.followSystem()
 	go func() {
 		for {
 			select {
@@ -202,7 +206,7 @@ func (u *ui) build() {
 	inst.Importance = widget.HighImportance
 	later := widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
 		u.app.Preferences().SetBool("install-dismissed", true)
-		u.installBanner.Hide()
+		u.setNotice(u.installBanner, false)
 	})
 	later.Importance = widget.LowImportance
 	u.installBanner = notice(container.NewBorder(nil, nil, widget.NewIcon(theme.ComputerIcon()), container.NewHBox(u.installDesk, inst, later), u.installText), p.surface2)
@@ -292,9 +296,9 @@ func (u *ui) build() {
 	// takes no room)
 	u.detailHolder = container.New(&widthLayout{430})
 	u.detailHolder.Hide()
-	body := container.NewBorder(container.NewVBox(u.protonBanner, u.updateBanner, u.installBanner), nil, nil,
+	u.body = container.NewBorder(container.NewVBox(u.protonBanner, u.updateBanner, u.installBanner), nil, nil,
 		u.detailHolder, u.viewStack)
-	u.win.SetContent(container.NewBorder(nil, footer, sideFixed, nil, body))
+	u.win.SetContent(container.NewBorder(nil, footer, sideFixed, nil, u.body))
 	u.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
 		if k.Name == fyne.KeyEscape && u.details != nil {
 			u.details.close()
@@ -314,8 +318,46 @@ func (u *ui) retheme(mode string) {
 	}()
 }
 
-// rebuildIn builds the window again in mode's colours.
-func (u *ui) rebuildIn(mode string) {
+// followSystem rebuilds the window when the system switches between light
+// and dark while Appearance is "Match system": Fyne's own widgets follow
+// by themselves, but much of the window takes its colours when built and
+// was left in the old ones.
+func (u *ui) followSystem() {
+	u.sysVariant = u.app.Settings().ThemeVariant()
+	ch := make(chan fyne.Settings, 1)
+	u.app.Settings().AddChangeListener(ch)
+	go func() {
+		for st := range ch {
+			v := st.ThemeVariant()
+			fyne.Do(func() {
+				if u.systemChanged(v) {
+					go u.refreshState()
+				}
+			})
+		}
+	}()
+}
+
+// systemChanged notes the system's light/dark variant and rebuilds the
+// window, on the open page, if it changed under "Match system".
+func (u *ui) systemChanged(v fyne.ThemeVariant) bool {
+	if v == u.sysVariant {
+		return false
+	}
+	u.sysVariant = v
+	if windowTheme != "system" {
+		return false
+	}
+	u.rebuildOn(windowTheme, u.page)
+	return true
+}
+
+// rebuildIn builds the window again in mode's colours, on Settings (where
+// Appearance is changed).
+func (u *ui) rebuildIn(mode string) { u.rebuildOn(mode, pageSettings) }
+
+// rebuildOn builds the window again in mode's colours, showing page.
+func (u *ui) rebuildOn(mode string, page int) {
 	windowTheme = mode
 	u.app.Settings().SetTheme(newTheme())
 	if u.details != nil {
@@ -326,7 +368,7 @@ func (u *ui) rebuildIn(mode string) {
 	u.installedSig, u.nexusSig = "", ""
 	u.thumbs.forget()
 	u.build()
-	u.show(pageSettings)
+	u.show(page)
 }
 
 // The pages, in sidebar order.
@@ -341,6 +383,7 @@ const (
 
 // show switches the sidebar section.
 func (u *ui) show(i int) {
+	u.page = i
 	for j, v := range u.views {
 		if j == i {
 			v.Show()
@@ -368,6 +411,24 @@ func (u *ui) play() {
 		}
 		u.toast("Starting People Playground through Steam")
 	}()
+}
+
+// setNotice shows or hides a notice line and lays the page out again: the
+// row of notices above the page doesn't grow or shrink by itself, so a
+// notice shown later (once the state or the release check is in) was drawn
+// over the page header, without its background.
+func (u *ui) setNotice(n *fyne.Container, on bool) {
+	if n.Visible() == on {
+		return
+	}
+	if on {
+		n.Show()
+	} else {
+		n.Hide()
+	}
+	if u.body != nil {
+		u.body.Refresh()
+	}
 }
 
 // notice is a slim one-line strip above the page.
@@ -475,11 +536,7 @@ func (u *ui) refreshState() {
 		u.packs.update(&st)
 		u.set.update(&st)
 		u.renderDesktop(&st)
-		if st.WinHTTP != nil && !st.WinHTTP.OK {
-			u.protonBanner.Show()
-		} else {
-			u.protonBanner.Hide()
-		}
+		u.setNotice(u.protonBanner, st.WinHTTP != nil && !st.WinHTTP.OK)
 		u.renderSkymods(st.Skymods)
 		if (st.Job == nil || !st.Job.Running) && st.Queued == 0 {
 			u.browse.resetQueued()
@@ -828,14 +885,14 @@ func (u *ui) renderDesktop(st *stateView) {
 		where = "the Start menu"
 	}
 	if d.Installed || u.app.Preferences().Bool("install-dismissed") {
-		u.installBanner.Hide()
+		u.setNotice(u.installBanner, false)
 	} else {
 		if d.CopyExists {
 			u.installText.SetText("PPG Mod Manager is installed on this PC, but you are running another copy. Install this copy over it, or switch to the installed one.")
 		} else {
 			u.installText.SetText("Install ppgmods on this PC (" + where + "): it updates itself, and you can delete this download.")
 		}
-		u.installBanner.Show()
+		u.setNotice(u.installBanner, true)
 	}
 	u.set.renderDesktop(st, where)
 }
@@ -866,7 +923,7 @@ func (u *ui) checkRelease(force bool) {
 		case r.Latest != nil && r.Latest.Newer:
 			u.set.about.SetText(r.Latest.Version + " is available.")
 			u.updateText.SetText(fmt.Sprintf("ppgmods %s is available (you have %s).", r.Latest.Version, r.Current))
-			u.updateBanner.Show()
+			u.setNotice(u.updateBanner, true)
 		case r.Latest != nil:
 			u.set.about.SetText("You have the latest version (" + r.Latest.Version + ").")
 		}
