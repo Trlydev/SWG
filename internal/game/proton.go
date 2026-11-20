@@ -267,14 +267,39 @@ func PreferNativeWinHTTP(gameDir string, running func() bool) error {
 	if err != nil || !changed {
 		return err
 	}
-	if err := os.WriteFile(p+".ppgmods-backup", b, 0o644); err != nil {
+	if err := writeNew(p+".ppgmods-backup", b); err != nil {
 		return fmt.Errorf("backing up the Proton prefix's registry: %w", err)
 	}
 	tmp := p + ".ppgmods-tmp"
-	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+	if err := writeNew(tmp, []byte(out)); err != nil {
 		return err
 	}
-	return os.Rename(tmp, p)
+	if err := os.Rename(tmp, p); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// writeNew writes a fresh file at p: whatever was there (a stale copy, or a
+// link that would redirect the write elsewhere) is removed first, and the
+// file is created only if nothing took its place.
+func writeNew(p string, b []byte) error {
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(b)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(p)
+	}
+	return err
 }
 
 // addOverride sets "dll"="native,builtin" in a user.reg's DllOverrides key,

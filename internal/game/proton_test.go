@@ -149,8 +149,15 @@ func TestDetectWinHTTP(t *testing.T) {
 	if err := PreferNativeWinHTTP(g, func() bool { return true }); err != ErrGameRunning {
 		t.Errorf("game running: %v", err)
 	}
+	// A link planted at the backup's name doesn't redirect the write.
+	outside := filepath.Join(t.TempDir(), "elsewhere")
+	os.WriteFile(outside, []byte("keep"), 0o644)
+	os.Symlink(outside, filepath.Join(w.Prefix, "user.reg.ppgmods-backup"))
 	if err := PreferNativeWinHTTP(g, func() bool { return false }); err != nil {
 		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(outside); string(b) != "keep" {
+		t.Error("the backup was written through a link")
 	}
 	if w := DetectWinHTTP(g); !w.ByPrefix || !w.OK() {
 		t.Errorf("after the fix: %+v", w)

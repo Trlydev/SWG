@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/netip"
 	"os"
 	"syscall"
 	"time"
@@ -66,10 +67,57 @@ func proxyConfigured() bool {
 
 // PublicIP reports whether ip is a routable internet address.
 func PublicIP(ip net.IP) bool {
-	return !(ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() ||
-		ip.Equal(net.IPv4bcast) || ip.To4() != nil && ip.To4()[0] == 100 && ip.To4()[1]&0xc0 == 64) // 100.64.0.0/10 (CGNAT)
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() || ip.Equal(net.IPv4bcast) {
+		return false
+	}
+	a, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	a = a.Unmap()
+	for _, p := range nonPublic {
+		if p.Contains(a) {
+			return false
+		}
+	}
+	// IPv6 addresses that carry an IPv4 one (NAT64, 6to4) reach that
+	// IPv4 address: 64:ff9b::7f00:1 is 127.0.0.1 through a NAT64 gateway.
+	if a.Is6() {
+		b := a.As16()
+		var v4 net.IP
+		switch {
+		case wellKnownNAT64.Contains(a) || localNAT64.Contains(a):
+			v4 = net.IP(b[12:16])
+		case sixToFour.Contains(a):
+			v4 = net.IP(b[2:6])
+		}
+		if v4 != nil && !PublicIP(v4) {
+			return false
+		}
+	}
+	return true
 }
+
+var (
+	// Ranges the net package's checks leave out that never belong to a
+	// download server.
+	nonPublic = []netip.Prefix{
+		netip.MustParsePrefix("0.0.0.0/8"),       // "this network" (Linux connects 0.x to this PC)
+		netip.MustParsePrefix("100.64.0.0/10"),   // carrier-grade NAT
+		netip.MustParsePrefix("192.0.0.0/24"),    // IETF protocol assignments
+		netip.MustParsePrefix("192.0.2.0/24"),    // documentation
+		netip.MustParsePrefix("198.18.0.0/15"),   // benchmarking
+		netip.MustParsePrefix("198.51.100.0/24"), // documentation
+		netip.MustParsePrefix("203.0.113.0/24"),  // documentation
+		netip.MustParsePrefix("240.0.0.0/4"),     // reserved
+		netip.MustParsePrefix("100::/64"),        // discard
+		netip.MustParsePrefix("2001:db8::/32"),   // documentation
+	}
+	wellKnownNAT64 = netip.MustParsePrefix("64:ff9b::/96")
+	localNAT64     = netip.MustParsePrefix("64:ff9b:1::/48")
+	sixToFour      = netip.MustParsePrefix("2002::/16")
+)
 
 // setHeaders adds the identifying User-Agent and the standard headers every
 // browser sends.
