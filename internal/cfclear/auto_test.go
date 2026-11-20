@@ -221,3 +221,24 @@ func TestProfileName(t *testing.T) {
 		}
 	}
 }
+
+// Reads that arrive together while smods.ru wants a person start the
+// browser once, not once each (seen: a new browser every 25 seconds).
+func TestConcurrentReadsShareAFailure(t *testing.T) {
+	f := useFake(t, func(Options) (*Result, error) {
+		time.Sleep(50 * time.Millisecond)
+		return nil, ErrNeedsPerson
+	})
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			browserGet("smods.ru", "https://x/", nil, "/usr/bin/chromium")
+		}()
+	}
+	wg.Wait()
+	if len(f.calls) != 1 {
+		t.Fatalf("the browser ran %d times, want 1", len(f.calls))
+	}
+}

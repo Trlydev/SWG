@@ -100,6 +100,9 @@ func ParseSigned(b []byte) (*Manifest, error) {
 // Installed is the version of the RE_PPG base files in the game folder ("" if
 // none or unverifiable). RE_PPG may have updated its runtime in-game since.
 func Installed(gameDir string) string {
+	if v := activeRelease(gameDir); v != "" {
+		return v
+	}
 	b, err := os.ReadFile(filepath.Join(gameDir, "RE_PPG", "bootstrap", "seed", "update.json"))
 	if err != nil {
 		return ""
@@ -109,6 +112,77 @@ func Installed(gameDir string) string {
 		return ""
 	}
 	return m.Version
+}
+
+// activeRelease is the release RE_PPG's own updater runs: it keeps each
+// release it installed in RE_PPG/versions/<release id> (ids like v0.2.36)
+// and records the active one in a state.json, so after it updated itself
+// the seed update.json ppgmods installed names an older version. The
+// state is read loosely (its exact layout isn't published): a value under
+// an "active"/"current"/"installed" key that names a release folder wins;
+// otherwise the newest release folder.
+func activeRelease(gameDir string) string {
+	root := filepath.Join(gameDir, "RE_PPG")
+	ents, err := os.ReadDir(filepath.Join(root, "versions"))
+	if err != nil {
+		return ""
+	}
+	have := map[string]string{} // release id -> version
+	newest := ""
+	for _, e := range ents {
+		v := strings.TrimPrefix(strings.TrimPrefix(e.Name(), "v"), "V")
+		if !e.IsDir() || !safeVersion(v) {
+			continue
+		}
+		have[strings.ToLower(e.Name())] = v
+		if newest == "" || Newer(v, newest) {
+			newest = v
+		}
+	}
+	for _, p := range []string{filepath.Join(root, "state.json"), filepath.Join(root, "versions", "state.json"), filepath.Join(root, "updater", "state.json")} {
+		b, err := os.ReadFile(p)
+		if err != nil || len(b) > 1<<20 {
+			continue
+		}
+		var st any
+		if json.Unmarshal(b, &st) != nil {
+			continue
+		}
+		if v := activeIn(st, have, 0); v != "" {
+			return v
+		}
+	}
+	return newest
+}
+
+// activeIn looks for a release id under an active/current/installed key.
+func activeIn(x any, have map[string]string, depth int) string {
+	if depth > 6 {
+		return ""
+	}
+	switch t := x.(type) {
+	case map[string]any:
+		for k, v := range t {
+			lk := strings.ToLower(k)
+			if s, ok := v.(string); ok && (strings.Contains(lk, "active") || strings.Contains(lk, "current") || strings.Contains(lk, "installed")) {
+				if ver, ok := have[strings.ToLower(s)]; ok {
+					return ver
+				}
+			}
+		}
+		for _, v := range t {
+			if r := activeIn(v, have, depth+1); r != "" {
+				return r
+			}
+		}
+	case []any:
+		for _, v := range t {
+			if r := activeIn(v, have, depth+1); r != "" {
+				return r
+			}
+		}
+	}
+	return ""
 }
 
 // Latest is the newest RE_PPG release, from its signed update.json.

@@ -1009,6 +1009,9 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 	offer, pack := s.nxmOffer, s.packOffer
 	s.offerMu.Unlock()
 	loader := game.DetectLoader(paths.Game)
+	if v := reppg.Installed(paths.Game); v != "" && loader.REPPG {
+		loader.REPPGVersion = v // RE_PPG's own record beats the last game log
+	}
 	noCompiler := 0
 	if !loader.REPPG || loader.REPPGDisabled || loader.NativeLinux {
 		for _, m := range mods {

@@ -344,3 +344,26 @@ func TestInstallVersionMismatch(t *testing.T) {
 		t.Errorf("older signed base zip: %v", err)
 	}
 }
+
+// After RE_PPG updated itself, the version shown is the release its own
+// updater runs, not the older seed ppgmods installed.
+func TestInstalledFollowsRuntimeUpdates(t *testing.T) {
+	g := t.TempDir()
+	for _, d := range []string{"v0.2.34", "v0.2.36", "staging-x", "v0.2.35"} {
+		os.MkdirAll(filepath.Join(g, "RE_PPG", "versions", d), 0o755)
+	}
+	if v := Installed(g); v != "0.2.36" {
+		t.Fatalf("no state: got %q, want the newest release folder", v)
+	}
+	os.WriteFile(filepath.Join(g, "RE_PPG", "versions", "state.json"), []byte(`{"Schema":1,"ActiveRelease":"v0.2.35","Previous":"v0.2.34"}`), 0o644)
+	if v := Installed(g); v != "0.2.35" {
+		t.Fatalf("state names the active one: got %q", v)
+	}
+	os.WriteFile(filepath.Join(g, "RE_PPG", "versions", "state.json"), []byte(`{"releases":{"current":"v9.9.9"}}`), 0o644)
+	if v := Installed(g); v != "0.2.36" {
+		t.Fatalf("a state naming no release folder: got %q", v)
+	}
+	if v := Installed(t.TempDir()); v != "" {
+		t.Fatalf("nothing installed: %q", v)
+	}
+}

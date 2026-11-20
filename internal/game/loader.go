@@ -69,13 +69,10 @@ func DetectLoader(gameDir string) Loader {
 					l.BepInExVersion = m[1]
 				}
 			}
-			if l.REPPGVersion == "" {
-				if m := reREPPGVer.FindStringSubmatch(line); m != nil {
-					l.REPPGVersion = m[1]
-				}
-			}
-			if l.BepInExVersion != "" && l.REPPGVersion != "" {
-				break
+			// The last RE_PPG version mentioned: RE_PPG names the release
+			// it started with, then the one its updater staged.
+			if m := reREPPGVer.FindStringSubmatch(line); m != nil {
+				l.REPPGVersion = m[1]
 			}
 		}
 		f.Close()

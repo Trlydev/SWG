@@ -1156,10 +1156,9 @@ func newSettings(u *ui) *settingsView {
 			}
 			fyne.Do(func() { v.dirty = false })
 			if restart {
-				u.toast("Settings saved. The new appearance shows the next time ppgmods starts.")
-			} else {
-				u.toast("Settings saved")
+				fyne.Do(func() { u.retheme(themeSetting(st.Theme)) })
 			}
+			u.toast("Settings saved")
 			u.refreshState()
 		}()
 	})

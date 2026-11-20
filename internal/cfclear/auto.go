@@ -51,6 +51,8 @@ var (
 	// browserMu serialises browsers on ppgmods' profile: a browser locks
 	// its profile while it runs.
 	browserMu sync.Mutex
+	// readMu makes page reads wait for each other (see browserGet).
+	readMu sync.Mutex
 
 	autoOn atomic.Bool
 
@@ -177,6 +179,11 @@ func browserGet(site, u string, logf func(string, ...any), exe string) ([]byte, 
 	if !autoOn.Load() {
 		return nil, errors.New("the automatic browser check is off in Settings")
 	}
+	// One read at a time: reads that arrive together (a search, the
+	// Trending strip, a details panel) wait for the one in progress and
+	// then see its failure, instead of each starting the browser in turn.
+	readMu.Lock()
+	defer readMu.Unlock()
 	if err := recentFailure(site); err != nil {
 		return nil, err
 	}

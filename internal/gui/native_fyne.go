@@ -292,6 +292,28 @@ func (u *ui) build() {
 	})
 }
 
+// retheme switches the window to another Appearance at once. Many parts
+// take their colours when they're built, so the window is built again in
+// the new colours, on the Settings page where the change was made.
+func (u *ui) retheme(mode string) {
+	windowTheme = mode
+	u.app.Settings().SetTheme(newTheme())
+	if u.details != nil {
+		u.details.close()
+		u.details = nil
+	}
+	u.navs, u.busy = nil, nil
+	u.installedSig, u.nexusSig = "", ""
+	u.thumbs.forget()
+	u.build()
+	u.show(pageSettings)
+	go func() {
+		u.refreshState()
+		u.browse.search("", 1)
+		u.checkRelease(false)
+	}()
+}
+
 // The pages, in sidebar order.
 const (
 	pageBrowse = iota
