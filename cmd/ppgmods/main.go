@@ -77,8 +77,8 @@ Safety and recovery:
 	scan <path>                scan an archive or folder without installing
   verify                     detect tampered/injected files in installed mods
                              and scan Mods folders ppgmods did not install
-  skymods-check              pass smods.ru's Cloudflare check with a browser
-                             window (clears "Skymods is showing a browser check")
+  skymods-check              try smods.ru's Cloudflare check now, in the
+                             background (the app also does this by itself)
   backup-workshop            copy the Steam Workshop cache before Steam deletes it
   restore-workshop <dir>     import every item from a backup-workshop folder
   nexus-probe <mod id>       check whether your Nexus account gets download
@@ -541,9 +541,8 @@ func cmdScan(p string, a *app.App) error {
 	return nil
 }
 
-// cmdSkymodsCheck passes smods.ru's Cloudflare check with a real browser:
-// in the background if it passes by itself, otherwise in a window where the
-// person ticks its box. ppgmods' browser profile keeps the clearance, so
+// cmdSkymodsCheck tries smods.ru's Cloudflare check now with the invisible
+// background browser. ppgmods' browser profile keeps the clearance, so
 // Skymods works again for installs and searches.
 func cmdSkymodsCheck() error {
 	if !cfclear.RunSkymodsCheck(logf) {

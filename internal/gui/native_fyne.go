@@ -80,10 +80,6 @@ type ui struct {
 	installBanner *fyne.Container
 	installText   *widget.Label
 	installDesk   *widget.Check
-	skyBanner     *fyne.Container
-	skyText       *widget.Label
-	skyBtn        *widget.Button
-	sky           skymodsWatch
 
 	gameChipText *canvas.Text
 	gameChipBg   *canvas.Rectangle
@@ -207,18 +203,6 @@ func (u *ui) build() {
 	u.installBanner = banner(container.NewBorder(nil, nil, nil, container.NewHBox(u.installDesk, inst, later), u.installText), p.surface2)
 	u.installBanner.Hide()
 
-	u.skyText = widget.NewLabel("")
-	u.skyText.Wrapping = fyne.TextWrapWord
-	u.skyBtn = widget.NewButton("Pass the check now", u.runSkyCheck)
-	u.skyBtn.Importance = widget.HighImportance
-	skyLater := widget.NewButton("Dismiss", func() {
-		u.sky.dismissed = true
-		u.skyBanner.Hide()
-	})
-	skyLater.Importance = widget.LowImportance
-	u.skyBanner = banner(container.NewBorder(nil, nil, nil, container.NewHBox(u.skyBtn, skyLater), u.skyText), p.warnBg)
-	u.skyBanner.Hide()
-
 	// top bar: brand, game chip, version chip
 	icon := canvas.NewImageFromResource(fyne.NewStaticResource("icon.png", desktop.IconPNG()))
 	icon.SetMinSize(fyne.NewSize(28, 28))
@@ -241,7 +225,7 @@ func (u *ui) build() {
 	topBg := canvas.NewRectangle(p.surface)
 	topRow := container.New(layout.NewCustomPaddedLayout(10, 10, 18, 18),
 		container.NewBorder(nil, nil, brand, container.NewCenter(container.NewHBox(gameTap, ver))))
-	top := container.NewVBox(container.NewStack(topBg, container.NewBorder(nil, hline(), nil, nil, topRow)), u.updateBanner, u.installBanner, u.skyBanner)
+	top := container.NewVBox(container.NewStack(topBg, container.NewBorder(nil, hline(), nil, nil, topRow)), u.updateBanner, u.installBanner)
 
 	// views and the sidebar
 	u.browse = newBrowse(u)

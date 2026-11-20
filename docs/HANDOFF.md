@@ -42,7 +42,13 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 
 ## What 0.4 has
 
-- **Skymods check opens the page (Zen).** The window used to open on a blank
+- **Skymods check is background-only (since 0.4.9).** No button, window,
+  banner or popup: the invisible (headless) browser passes the check when
+  it can; when smods.ru wants a person, Skymods results are just missing
+  and `cfclear.KeepSkymodsWorking` retries every 15 minutes. Settings
+  shows the status and "Forget the check". Nothing ticks the box for the
+  person (that would be bot-check evasion).
+- **(old) Skymods check opens the page (Zen).** The window used to open on a blank
   tab: Zen keeps tabs of its own, so "the first tab" wasn't the visible one.
   The browser now starts on the page; ppgmods uses the tab showing it, or
   opens one (`cfclear/firefox.go`, `pageTab`). Untested on real Zen.

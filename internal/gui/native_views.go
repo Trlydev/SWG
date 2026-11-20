@@ -1150,7 +1150,6 @@ type settingsView struct {
 	autoUpd   *widget.Check
 	skyBox    *fyne.Container
 	skyInfo   string
-	skyCheck  *widget.Button
 	skyForget *widget.Button
 	dirty     bool
 	nexus     *fyne.Container

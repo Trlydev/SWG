@@ -1080,63 +1080,17 @@ $("#settingsForm").onsubmit = async (e) => {
 // background browser on ppgmods' own profile. A check that passes by itself
 // needs nothing; one that wants a person to tick "Verify you are human"
 // shows the banner, and its button opens the check in a browser window.
-let skyCheckPoll = null;
-let skyDismissed = false;
-
 function renderSkymods(sm) {
-  if (!sm) return;
-  if (!sm.challenge) skyDismissed = false;
-  const st = sm.check || {};
-  const banner = $("#skyBanner");
-  const stuck = sm.challenge && !st.running && !!st.error;
-  banner.hidden = !(stuck && !skyDismissed);
-  if (!banner.hidden) {
-    $("#skyText").textContent = st.needs_person
-      ? "smods.ru wants a person to tick its \"Verify you are human\" box before Skymods works. Press the button: a browser window opens; tick the box, wait until the Skymods page shows, then close the window. Other sites keep working meanwhile."
-      : "smods.ru is blocking Skymods for now and the background browser didn't get through (" + st.error + "). Other sites keep working.";
-    $("#skyCheckBtn").disabled = st.running;
-    $("#skyCheckBtn").textContent = st.running ? "Check running…" : "Pass the check now";
-  }
   const box = $("#skymodsBox");
-  if (!box) return;
-  const lines = [
-    el("p", { class: "small" },
-      sm.challenge
-        ? "smods.ru is showing its browser check to ppgmods right now. Its pages are read through a background browser with ppgmods' own profile (never yours)."
-        : "smods.ru is not asking for a browser check."),
-  ];
-  if (st.running) lines.push(el("p", { class: "small" }, "A browser is passing the check right now. If a window opens, tick \"Verify you are human\", wait for the Skymods page, then close the window."));
-  if (st.error) lines.push(el("p", { class: "small", style: "color:#ff8484" }, "Last check failed: " + st.error));
-  else if (st.at && st.ok) lines.push(el("p", { class: "small muted" }, "Last check passed " + new Date(st.at).toLocaleTimeString() + "."));
-  lines.push(el("div", { class: "toolbar" },
-    el("button", { class: "btn btn-primary btn-sm", onclick: runSkyCheck, disabled: st.running === true }, st.running ? "Check running…" : "Pass the check now"),
-    el("button", { class: "btn btn-ghost btn-sm", onclick: clearSkyCheck }, "Forget the check"),
-  ));
-  box.replaceChildren(...lines);
-}
-
-async function runSkyCheck() {
-  skyDismissed = false;
-  try {
-    await api("/api/skymods", { method: "POST" });
-    if (!skyCheckPoll) pollSkyCheck();
-  } catch (e) { toast(e.message); }
-}
-
-function pollSkyCheck() {
-  const started = Date.now();
-  skyCheckPoll = setInterval(async () => {
-    let sm;
-    try { sm = await api("/api/skymods"); } catch { return; }
-    state.skymods = sm;
-    renderSkymods(sm);
-    // The check starts a moment after the button; don't stop before it shows.
-    if ((!sm.check || !sm.check.running) && Date.now() - started > 4000) {
-      clearInterval(skyCheckPoll);
-      skyCheckPoll = null;
-      if (sm.ok || (sm.check && sm.check.ok)) toast("Skymods browser check passed");
-    }
-  }, 1500);
+  if (!sm || !box) return;
+  const st = sm.check || {};
+  let msg = "Skymods works. If smods.ru starts checking browsers, ppgmods passes the check by itself in the background, out of sight.";
+  if (st.running) msg = "Passing smods.ru's check in the background right now.";
+  else if (st.error && st.needs_person) msg = "smods.ru wants a person to tick its box right now, so Skymods results are missing for the moment. ppgmods tries again by itself in the background; the other sites keep working.";
+  else if (st.error) msg = "The last background check didn't get through (" + st.error + "). ppgmods tries again by itself; the other sites keep working.";
+  else if (st.ok && st.at) msg = "Skymods works: the background check passed at " + new Date(st.at).toLocaleTimeString() + ".";
+  box.replaceChildren(el("p", { class: "small" }, msg),
+    el("div", { class: "toolbar" }, el("button", { class: "btn btn-ghost btn-sm", onclick: clearSkyCheck }, "Forget the check")));
 }
 
 async function clearSkyCheck() {
@@ -1146,9 +1100,6 @@ async function clearSkyCheck() {
     refreshState();
   } catch (e) { toast(e.message); }
 }
-
-$("#skyCheckBtn").onclick = runSkyCheck;
-$("#skyDismiss").onclick = () => { skyDismissed = true; $("#skyBanner").hidden = true; };
 
 // ---------- desktop install ----------
 function renderDesktop(d) {

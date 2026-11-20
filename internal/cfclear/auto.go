@@ -26,16 +26,17 @@ const attemptCooldown = 10 * time.Minute
 // earned it (seen: a fresh cookie, with the same User-Agent and IP, still
 // answered 403 to ppgmods' HTTP client), so the page is read by that
 // browser: it runs in the background with ppgmods' own profile for smods.ru,
-// which keeps the clearance between runs. A check that passes by itself
-// does so in seconds; one that wants a person waits for the Settings button
-// (or `ppgmods skymods-check`), which shows the check in a window.
+// which keeps the clearance between runs. Everything happens in the
+// background: a check that passes by itself does so in seconds, and one that
+// wants a person to tick its box is simply tried again later
+// (KeepSkymodsWorking); meanwhile the other sites keep working.
 
 type attempt struct {
 	At    time.Time `json:"at"`
 	OK    bool      `json:"ok"`
 	Error string    `json:"error,omitempty"`
-	// NeedsPerson: the check wants a person to tick its box; the Settings
-	// button opens it in a window.
+	// NeedsPerson: the check wanted a person to tick its box; it is tried
+	// again later by itself.
 	NeedsPerson bool `json:"needs_person,omitempty"`
 
 	Running bool `json:"running"`
@@ -195,16 +196,16 @@ func browserGet(site, u string, logf func(string, ...any), exe string) ([]byte, 
 	record(site, res, err)
 	if err != nil {
 		if errors.Is(err, ErrNeedsPerson) && logf != nil {
-			logf(`%v: open Settings and press "Pass the check now" to do it in a window`, err)
+			logf("%v: Skymods results are missing for now; ppgmods tries again by itself in the background", err)
 		}
 		return nil, err
 	}
 	return []byte(res.HTML), nil
 }
 
-// Check passes site's check for the Settings button and the CLI: in the
-// background first, then, if it wants a person, in a window where they can
-// tick the box. It ignores the cooldown.
+// Check tries site's check now, in the background (the automatic retries
+// and the CLI). It ignores the cooldown. A check that wants a person to
+// tick its box isn't shown to anyone: it is tried again later by itself.
 func Check(site, u string, logf func(string, ...any)) error {
 	return check(site, u, logf, "")
 }
@@ -224,9 +225,9 @@ func check(site, u string, logf func(string, ...any), exe string) error {
 	}()
 	res, err := open(u, Options{Logf: logf, Timeout: time.Minute, Browser: exe})
 	if errors.Is(err, ErrNeedsPerson) {
-		// The person ticks the box in a plain window (see plainWindow), then
-		// the background browser reads the page again with what it set.
-		res, err = personWindow(u, exe, logf)
+		err = errors.New("smods.ru wants a person to tick its box right now; ppgmods tries again by itself")
+		record(site, nil, ErrNeedsPerson)
+		return err
 	}
 	record(site, res, err)
 	if err == nil {
@@ -235,31 +236,28 @@ func check(site, u string, logf func(string, ...any), exe string) error {
 	return err
 }
 
-// personWindow shows the check in a plain window on ppgmods' profile and,
-// once the person has closed it, reads the page in the background to see
-// whether the check passed.
-func personWindow(u, exe string, logf func(string, ...any)) (*Result, error) {
-	if exe == "" {
-		var err error
-		if exe, err = FindBrowser(); err != nil {
-			return nil, err
+// retryEvery is how often a failed Skymods check is tried again while
+// ppgmods runs (a test hook).
+var retryEvery = 15 * time.Minute
+
+// KeepSkymodsWorking tries smods.ru's check again in the background, now
+// and then, while the last one failed: Skymods comes back by itself once
+// smods.ru lets the background browser through. It stops when quit closes.
+func KeepSkymodsWorking(quit <-chan struct{}, logf func(string, ...any)) {
+	t := time.NewTicker(retryEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+		case <-quit:
+			return
 		}
+		st := Status(SkymodsSite)
+		if !autoOn.Load() || st.OK || st.Error == "" || st.Running || CheckRunning() {
+			continue
+		}
+		RunSkymodsCheck(logf)
 	}
-	profile, err := ProfileDir(exe)
-	if err != nil {
-		return nil, err
-	}
-	browserMu.Lock()
-	err = showWindow(u, exe, profile, logf)
-	browserMu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	res, err := open(u, Options{Logf: logf, Timeout: time.Minute, Browser: exe})
-	if errors.Is(err, ErrNeedsPerson) {
-		return nil, errors.New(`smods.ru still shows its check: tick "Verify you are human", wait until the Skymods page itself shows, then close the window (Pass the check now opens it again)`)
-	}
-	return res, err
 }
 
 // Forget drops everything kept for site's check: the stored clearance, the
@@ -297,8 +295,8 @@ func Forget(site string) error {
 	return Clear(site)
 }
 
-// RunSkymodsCheck passes smods.ru's check (Settings button, CLI) and
-// refreshes the Skymods caches when it succeeds.
+// RunSkymodsCheck tries smods.ru's check in the background (the automatic
+// retries, the CLI) and refreshes the Skymods caches when it passes.
 func RunSkymodsCheck(logf func(string, ...any)) bool {
 	if logf == nil {
 		logf = func(string, ...any) {}

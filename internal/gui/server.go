@@ -342,6 +342,7 @@ func Run(opt app.Options, g Options) error {
 	}()
 	go s.watchFolders()
 	go s.autoUpdate()
+	go cfclear.KeepSkymodsWorking(s.quit, s.logf) // Skymods comes back by itself
 	go func() {
 		for {
 			s.checkRelease(true)
@@ -901,22 +902,14 @@ func (s *server) guard(next http.Handler) http.Handler {
 	})
 }
 
-// handleSkymods reports (GET), triggers (POST) or clears (DELETE) the
-// Skymods browser check. The check normally runs by itself in the
-// background when Cloudflare intercepts; POST repeats it on demand. It
-// touches no mod state, so it never queues behind installs.
+// handleSkymods reports (GET) or clears (DELETE) the Skymods browser check.
+// The check itself runs only in the background, by itself: when Cloudflare
+// intercepts a read, and again now and then while it fails
+// (cfclear.KeepSkymodsWorking). It touches no mod state.
 func (s *server) handleSkymods(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		writeJSON(w, s.skymodsView())
-		return
-	case http.MethodPost:
-		if cfclear.CheckRunning() {
-			http.Error(w, "the check is already running", http.StatusConflict)
-			return
-		}
-		go cfclear.RunSkymodsCheck(s.logf)
-		writeJSON(w, map[string]bool{"ok": true})
 		return
 	case http.MethodDelete:
 		if err := cfclear.Forget(cfclear.SkymodsSite); err != nil {
@@ -928,7 +921,7 @@ func (s *server) handleSkymods(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]bool{"ok": true})
 		return
 	}
-	http.Error(w, "GET, POST or DELETE", http.StatusMethodNotAllowed)
+	http.Error(w, "GET or DELETE", http.StatusMethodNotAllowed)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

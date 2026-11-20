@@ -11,19 +11,17 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/widget"
 )
 
-// The native window must tell the person when smods.ru wants them to tick
-// its box (it used to say so only in the log and the --web page).
-func TestNativeSkymodsBanner(t *testing.T) {
+// The check runs out of sight: Settings says how it's going, and never
+// asks the person to do anything.
+func TestNativeSkymodsStatus(t *testing.T) {
 	a := test.NewTempApp(t)
 	a.Settings().SetTheme(newTheme())
-	u := &ui{skyText: widget.NewLabel(""), skyBtn: widget.NewButton("", nil)}
-	u.skyBanner = container.NewStack(u.skyText)
+	u := &ui{}
 	u.set = &settingsView{u: u}
 	settingsBox := u.set.skySettings()
-	u.win = test.NewTempWindow(t, container.NewVBox(u.skyBanner, settingsBox))
+	u.win = test.NewTempWindow(t, container.NewVBox(settingsBox))
 	u.win.Resize(fyne.NewSize(900, 600))
 
 	var sm skymodsState
@@ -32,36 +30,16 @@ func TestNativeSkymodsBanner(t *testing.T) {
 	sm.Check.Error = "smods.ru wants a person"
 	sm.Check.NeedsPerson = true
 	u.renderSkymods(sm)
-	if !u.skyBanner.Visible() || !strings.Contains(u.skyText.Text, "Verify you are human") {
-		t.Fatalf("banner hidden or wrong (visible %v): %q", u.skyBanner.Visible(), u.skyText.Text)
+	if !strings.Contains(u.set.skyInfo, "tries again by itself") {
+		t.Errorf("Settings: %q", u.set.skyInfo)
 	}
-	if !u.sky.notified {
-		t.Error("no popup for a check that needs the person")
+	if strings.Contains(u.set.skyInfo, "Pass the check") || strings.Contains(u.set.skyInfo, "window") {
+		t.Errorf("Settings still asks the person: %q", u.set.skyInfo)
 	}
-	if !strings.Contains(u.set.skyInfo, "tick") {
-		t.Errorf("Settings doesn't say to tick the box: %q", u.set.skyInfo)
-	}
-
-	u.sky.dismissed = true
+	sm.Check.Error, sm.Check.NeedsPerson, sm.Check.OK = "", false, true
 	u.renderSkymods(sm)
-	if u.skyBanner.Visible() {
-		t.Error("banner came back after Dismiss")
-	}
-
-	// The person presses the button; the check runs, then passes.
-	u.sky.dismissed = false
-	u.sky.startedAt = time.Now()
-	sm.Check.Running = true
-	u.renderSkymods(sm)
-	if u.skyBanner.Visible() || !u.skyBtn.Disabled() {
-		t.Errorf("while running: banner visible %v, button disabled %v", u.skyBanner.Visible(), u.skyBtn.Disabled())
-	}
-	time.Sleep(time.Millisecond)
-	sm.Check.Running, sm.Check.Error, sm.Check.NeedsPerson, sm.Check.OK, sm.Check.At = false, "", false, true, time.Now()
-	sm.Challenge = false
-	u.renderSkymods(sm)
-	if u.skyBanner.Visible() || !u.sky.startedAt.IsZero() || u.sky.notified {
-		t.Errorf("after a pass: banner visible %v, startedAt %v, notified %v", u.skyBanner.Visible(), u.sky.startedAt, u.sky.notified)
+	if !strings.Contains(u.set.skyInfo, "Skymods works") {
+		t.Errorf("after a pass: %q", u.set.skyInfo)
 	}
 }
 

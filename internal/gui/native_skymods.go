@@ -24,84 +24,13 @@ type skymodsState struct {
 	} `json:"check"`
 }
 
-// skymodsWatch is what the window remembers about the check between polls.
-type skymodsWatch struct {
-	dismissed bool      // the banner was dismissed for this block
-	notified  bool      // the "needs you" popup was shown for this block
-	startedAt time.Time // when the person pressed "Pass the check now"
-}
-
-// skyStuck reports whether Skymods is blocked and waits on the person: the
-// last background read failed and nothing is running now.
-func skyStuck(sm skymodsState) bool {
-	return !sm.Check.Running && sm.Check.Error != "" && (sm.Challenge || sm.Check.NeedsPerson)
-}
-
-func skyBannerText(sm skymodsState) string {
-	if sm.Check.NeedsPerson {
-		return "Skymods needs you: smods.ru wants a person to tick its \"Verify you are human\" box. Press the button, a browser window opens: tick the box, wait until the Skymods page shows, then close the window. Other sites keep working meanwhile."
-	}
-	return "smods.ru is blocking Skymods and the background browser didn't get through (" + sm.Check.Error + "). Press the button to try again in a window. Other sites keep working."
-}
-
-// renderSkymods shows the banner (and once, a popup) when Skymods waits on
-// the person, and reports how a check they started went.
-func (u *ui) renderSkymods(sm skymodsState) {
-	w := &u.sky
-	stuck := skyStuck(sm)
-	if !stuck && !sm.Check.Running {
-		w.dismissed, w.notified = false, false
-	}
-	if stuck && !w.dismissed {
-		u.skyText.SetText(skyBannerText(sm))
-		u.skyBanner.Show()
-	} else {
-		u.skyBanner.Hide()
-	}
-	if sm.Check.Running {
-		u.skyBtn.SetText("Check running…")
-		u.skyBtn.Disable()
-	} else {
-		u.skyBtn.SetText("Pass the check now")
-		u.skyBtn.Enable()
-	}
-	if stuck && sm.Check.NeedsPerson && !w.notified && !w.dismissed && w.startedAt.IsZero() {
-		w.notified = true
-		u.toastAction("Skymods needs you to tick a \"Verify you are human\" box.", "Open it", u.runSkyCheck)
-	}
-	if !w.startedAt.IsZero() && !sm.Check.Running && sm.Check.At.After(w.startedAt) {
-		w.startedAt = time.Time{}
-		if sm.Check.OK {
-			u.toast("Skymods check passed. Search again to see Skymods results.")
-		} else {
-			u.toast("The Skymods check did not pass: " + sm.Check.Error)
-		}
-	}
-	u.set.renderSkymods(sm)
-}
-
-// runSkyCheck starts the check: in the background first, then in a window
-// where the person ticks the box.
-func (u *ui) runSkyCheck() {
-	u.sky.dismissed = false
-	u.sky.startedAt = time.Now() // before the POST: a quick pass must still count
-	u.skyBtn.SetText("Check running…")
-	u.skyBtn.Disable()
-	go func() {
-		if err := u.s.call("POST", "/api/skymods", map[string]any{}, nil); err != nil {
-			fyne.Do(func() { u.sky.startedAt = time.Time{} })
-			u.toast(err.Error())
-			u.refreshState()
-			return
-		}
-		u.toast("Checking smods.ru. If a browser window opens, tick \"Verify you are human\", wait until the Skymods page shows, then close the window.")
-		time.Sleep(1500 * time.Millisecond)
-		u.refreshState()
-	}()
-}
+// The Skymods check runs only in the background, out of sight: nothing in
+// the window asks the person to do anything. Settings just says how it's
+// going.
+func (u *ui) renderSkymods(sm skymodsState) { u.set.renderSkymods(sm) }
 
 func (u *ui) forgetSkyCheck() {
-	u.confirm("Forget the Skymods check?", text("This deletes the clearance smods.ru gave ppgmods and ppgmods' own browser profile for it. The next Skymods search may ask you to tick the box again."),
+	u.confirm("Forget the Skymods check?", text("This deletes the clearance smods.ru gave ppgmods and ppgmods' own browser profile for it. ppgmods passes the check again by itself in the background."),
 		"Forget", true, func() {
 			go func() {
 				if err := u.s.call("DELETE", "/api/skymods", nil, nil); err != nil {
@@ -116,32 +45,34 @@ func (u *ui) forgetSkyCheck() {
 
 // skySettings is the Skymods section of Settings.
 func (v *settingsView) skySettings() fyne.CanvasObject {
-	v.skyCheck = widget.NewButton("Pass the check now", v.u.runSkyCheck)
-	v.skyCheck.Importance = widget.HighImportance
 	v.skyForget = widget.NewButton("Forget the check", v.u.forgetSkyCheck)
 	v.skyForget.Importance = widget.LowImportance
 	v.skyBox = container.New(&vlist{gap: 8})
 	return panelBox(v.skyBox)
 }
 
+// skyStatus is what Settings says about the check, in a line or two.
+func skyStatus(sm skymodsState) string {
+	switch {
+	case sm.Check.Running:
+		return "Passing smods.ru's check in the background right now."
+	case sm.Check.Error != "" && sm.Check.NeedsPerson:
+		return "smods.ru wants a person to tick its box right now, so Skymods results are missing for the moment. ppgmods tries again by itself in the background; the other sites keep working."
+	case sm.Check.Error != "":
+		return "The last background check didn't get through (" + sm.Check.Error + "). ppgmods tries again by itself; the other sites keep working."
+	case sm.Check.OK:
+		return "Skymods works: the background check passed at " + sm.Check.At.Local().Format("15:04") + "."
+	case sm.Challenge:
+		return "smods.ru is checking browsers right now; ppgmods reads it through an invisible background browser with its own profile (never yours)."
+	}
+	return "Skymods works. If smods.ru starts checking browsers, ppgmods passes the check by itself in the background, out of sight."
+}
+
 func (v *settingsView) renderSkymods(sm skymodsState) {
 	if v.skyBox == nil {
 		return
 	}
-	msg := "smods.ru isn't asking ppgmods for a browser check right now."
-	if sm.Challenge {
-		msg = "smods.ru is showing its browser check to ppgmods right now. Its pages are read through a background browser with ppgmods' own profile (never yours)."
-	}
-	switch {
-	case sm.Check.Running:
-		msg += "\nA browser is passing the check right now. If a window opens, tick \"Verify you are human\", wait for the Skymods page, then close the window."
-	case sm.Check.NeedsPerson:
-		msg += "\nIt wants a person to tick its \"Verify you are human\" box: press Pass the check now."
-	case sm.Check.Error != "":
-		msg += "\nLast check failed: " + sm.Check.Error
-	case sm.Check.OK:
-		msg += "\nLast check passed at " + sm.Check.At.Local().Format("15:04") + "."
-	}
+	msg := skyStatus(sm)
 	if sm.Clearance {
 		msg += "\nA clearance from smods.ru is stored (got " + sm.ClearanceAge + ")."
 	}
@@ -150,17 +81,10 @@ func (v *settingsView) renderSkymods(sm skymodsState) {
 		v.skyInfo = msg
 		info := muted(msg)
 		info.Wrapping = fyne.TextWrapWord
-		v.skyBox.Objects = []fyne.CanvasObject{info, container.NewHBox(v.skyCheck, v.skyForget)}
+		v.skyBox.Objects = []fyne.CanvasObject{info, container.NewHBox(v.skyForget)}
 		v.skyBox.Refresh()
 		if v.root != nil {
 			v.root.Refresh() // so the panel around it grows too
 		}
-	}
-	if sm.Check.Running {
-		v.skyCheck.SetText("Check running…")
-		v.skyCheck.Disable()
-	} else {
-		v.skyCheck.SetText("Pass the check now")
-		v.skyCheck.Enable()
 	}
 }

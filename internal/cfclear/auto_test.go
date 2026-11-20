@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fakeRun replaces the browser: each call is recorded and answered by
@@ -109,39 +110,71 @@ func TestBrowserGetOff(t *testing.T) {
 	}
 }
 
-// The Settings button: background first; when the check wants a person, a
-// window. It ignores the cooldown of the background reads.
-func TestCheckOpensWindowForPerson(t *testing.T) {
-	var ticked atomic.Bool // the person ticked the box: the profile keeps the clearance
+// A check that wants a person shows nothing: it is recorded, and the
+// automatic retry passes once smods.ru lets the background browser through.
+func TestCheckNeedsPersonStaysInBackground(t *testing.T) {
+	var through atomic.Bool
 	f := useFake(t, func(o Options) (*Result, error) {
-		if !ticked.Load() {
+		if o.Headed {
+			t.Error("a window was opened")
+		}
+		if !through.Load() {
 			return nil, ErrNeedsPerson
 		}
 		return passed(o)
 	})
-	// The window is a plain browser (no remote control: the check rejects a
-	// tick made in a remote-controlled one); closing it ends the step.
-	windows := 0
-	old := showWindow
-	showWindow = func(u, exe, profile string, logf func(string, ...any)) error {
-		windows++
-		ticked.Store(true)
-		return nil
+	err := check("smods.ru", "https://x/", nil, "/usr/bin/chromium")
+	if err == nil || !strings.Contains(err.Error(), "tries again by itself") {
+		t.Fatalf("got %v", err)
 	}
-	defer func() { showWindow = old }()
-	browserGet("smods.ru", "https://x/", nil, "/usr/bin/chromium") // starts a cooldown
+	if st := Status("smods.ru"); st.OK || !st.NeedsPerson {
+		t.Fatalf("status: %+v", st)
+	}
+	through.Store(true)
 	if err := check("smods.ru", "https://x/", nil, "/usr/bin/chromium"); err != nil {
 		t.Fatal(err)
 	}
-	if windows != 1 || len(f.calls) != 3 || f.calls[1].Headed || f.calls[2].Headed {
-		t.Fatalf("want background, plain window, background; got %d window(s), %+v", windows, f.calls)
+	if len(f.calls) != 2 || !Status("smods.ru").OK {
+		t.Fatalf("calls %d, status %+v", len(f.calls), Status("smods.ru"))
 	}
-	if st := Status("smods.ru"); !st.OK {
-		t.Fatalf("status: %+v", st)
+}
+
+// KeepSkymodsWorking tries again while the last check failed, and stops
+// trying once it passed.
+func TestKeepSkymodsWorking(t *testing.T) {
+	var through atomic.Bool
+	f := useFake(t, func(o Options) (*Result, error) {
+		if !through.Load() {
+			return nil, ErrNeedsPerson
+		}
+		return passed(o)
+	})
+	old := retryEvery
+	retryEvery = 20 * time.Millisecond
+	defer func() { retryEvery = old }()
+	check(SkymodsSite, skymodsURL, nil, "") // fails: wants a person
+	quit := make(chan struct{})
+	done := make(chan struct{})
+	go func() { KeepSkymodsWorking(quit, nil); close(done) }()
+	through.Store(true)
+	deadline := time.Now().Add(5 * time.Second)
+	for !Status(SkymodsSite).OK && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
 	}
-	// Once passed, background reads work again straight away.
-	if _, err := browserGet("smods.ru", "https://x/", nil, "/usr/bin/chromium"); err != nil {
-		t.Fatal(err)
+	if !Status(SkymodsSite).OK {
+		t.Fatal("the retry never passed")
+	}
+	f.mu.Lock()
+	n := len(f.calls)
+	f.mu.Unlock()
+	time.Sleep(100 * time.Millisecond)
+	f.mu.Lock()
+	m := len(f.calls)
+	f.mu.Unlock()
+	close(quit)
+	<-done
+	if m != n {
+		t.Errorf("kept checking after a pass: %d more", m-n)
 	}
 }
 
@@ -186,18 +219,5 @@ func TestProfileName(t *testing.T) {
 		if got := profileName(filepath.FromSlash(strings.ReplaceAll(exe, `\`, "/"))); got != want {
 			t.Errorf("profileName(%q) = %q, want %q", exe, got, want)
 		}
-	}
-}
-
-// If the check still shows after the window is closed, the person is told
-// to wait for the Skymods page before closing it.
-func TestCheckWindowNotPassed(t *testing.T) {
-	useFake(t, func(o Options) (*Result, error) { return nil, ErrNeedsPerson })
-	old := showWindow
-	showWindow = func(u, exe, profile string, logf func(string, ...any)) error { return nil }
-	defer func() { showWindow = old }()
-	err := check("smods.ru", "https://x/", nil, "/usr/bin/chromium")
-	if err == nil || !strings.Contains(err.Error(), "still shows its check") {
-		t.Fatalf("got %v", err)
 	}
 }
