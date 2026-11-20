@@ -1,6 +1,7 @@
 package cfclear
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -47,6 +48,8 @@ var (
 	autoRunning int  // browsers running for site reads and checks
 	checking    bool // a Check is running
 	lastAttempt = map[string]attempt{}
+	// attemptsLoaded: lastAttempt has been read from disk (loadAttempts).
+	attemptsLoaded bool
 
 	// browserMu serialises browsers on ppgmods' profile: a browser locks
 	// its profile while it runs.
@@ -73,6 +76,7 @@ func SetAuto(on bool) { autoOn.Store(on) }
 func Status(site string) attempt {
 	autoMu.Lock()
 	defer autoMu.Unlock()
+	loadAttempts()
 	a := lastAttempt[site]
 	a.Running = autoRunning > 0 || checking
 	return a
@@ -149,14 +153,65 @@ func record(site string, res *Result, err error) {
 		Save(&Clearance{Site: site, Cookie: ck, UserAgent: res.UserAgent, At: time.Now().UTC()})
 	}
 	autoMu.Lock()
+	loadAttempts()
 	lastAttempt[site] = a
+	saveAttempts()
 	autoMu.Unlock()
+}
+
+// The last attempts are kept on disk, so a check that wanted a person isn't
+// run again (half a minute in a background browser) by every new ppgmods
+// process within attemptCooldown: each command line run used to pay it.
+func attemptsPath() string {
+	d, err := manager.ConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(d, "browser-checks.json")
+}
+
+// loadAttempts reads the attempts once; autoMu is held.
+func loadAttempts() {
+	if attemptsLoaded {
+		return
+	}
+	attemptsLoaded = true
+	p := attemptsPath()
+	if p == "" {
+		return
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return
+	}
+	var saved map[string]attempt
+	if json.Unmarshal(b, &saved) != nil {
+		return
+	}
+	for site, a := range saved {
+		if _, ok := lastAttempt[site]; !ok && !a.At.After(time.Now()) {
+			a.Running = false
+			lastAttempt[site] = a
+		}
+	}
+}
+
+// saveAttempts writes the attempts; autoMu is held.
+func saveAttempts() {
+	p := attemptsPath()
+	if p == "" {
+		return
+	}
+	if b, err := json.Marshal(lastAttempt); err == nil {
+		os.WriteFile(p, b, 0o600)
+	}
 }
 
 // recentFailure is the last attempt's error if it failed within the cooldown.
 func recentFailure(site string) error {
 	autoMu.Lock()
 	defer autoMu.Unlock()
+	loadAttempts()
 	if a, ok := lastAttempt[site]; ok && !a.OK && time.Since(a.At) < attemptCooldown {
 		if a.NeedsPerson {
 			return ErrNeedsPerson
@@ -271,7 +326,9 @@ func KeepSkymodsWorking(quit <-chan struct{}, logf func(string, ...any)) {
 // record of the last attempt and ppgmods' browser profile (its cookies).
 func Forget(site string) error {
 	autoMu.Lock()
+	loadAttempts()
 	delete(lastAttempt, site)
+	saveAttempts()
 	autoMu.Unlock()
 	goRejectedAt.Store(0)
 	// Every profile ppgmods made, also for a browser used before (another

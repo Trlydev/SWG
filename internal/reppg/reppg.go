@@ -62,7 +62,34 @@ type Manifest struct {
 	Product  string `json:"Product"`
 	Version  string `json:"Version"`
 	Sequence int    `json:"Sequence"`
-	Files    []File `json:"Files"`
+	// GameAssemblySha256 is the SHA-256 of the game's Assembly-CSharp.dll
+	// the release was made for (update.json only). RE_PPG's own installer
+	// refuses another game version unless told --ignore-game-hash.
+	GameAssemblySha256 string `json:"GameAssemblySha256,omitempty"`
+	Files              []File `json:"Files"`
+}
+
+// ErrGameVersion: the game isn't the version the RE_PPG release was made
+// for (People Playground updated, or RE_PPG did first). InstallAnyGame
+// installs anyway, like RE_PPG's installer with --ignore-game-hash.
+var ErrGameVersion = errors.New("this People Playground version isn't the one RE_PPG was made for")
+
+// GameAssembly is the game file RE_PPG's releases name by hash.
+func GameAssembly(gameDir string) string {
+	return filepath.Join(gameDir, "People Playground_Data", "Managed", "Assembly-CSharp.dll")
+}
+
+// GameMatches reports whether gameDir holds the game version m was made for.
+// known is false when m names no version or the game file can't be read.
+func GameMatches(gameDir string, m *Manifest) (ok, known bool) {
+	if m == nil || m.GameAssemblySha256 == "" {
+		return false, false
+	}
+	h, err := fileSHA(GameAssembly(gameDir))
+	if err != nil {
+		return false, false
+	}
+	return strings.EqualFold(h, m.GameAssemblySha256), true
 }
 
 // File is one file a manifest vouches for.
@@ -195,8 +222,18 @@ func Latest(ctx context.Context) (*Manifest, error) {
 }
 
 // Install installs or updates RE_PPG (and BepInEx when it is missing) in
-// gameDir and returns the version installed.
+// gameDir and returns the version installed. It refuses (ErrGameVersion)
+// when the game isn't the version the release was made for.
 func Install(ctx context.Context, gameDir string, logf func(string, ...any)) (string, error) {
+	return install(ctx, gameDir, false, logf)
+}
+
+// InstallAnyGame is Install without the game version check.
+func InstallAnyGame(ctx context.Context, gameDir string, logf func(string, ...any)) (string, error) {
+	return install(ctx, gameDir, true, logf)
+}
+
+func install(ctx context.Context, gameDir string, anyGame bool, logf func(string, ...any)) (string, error) {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
@@ -206,19 +243,32 @@ func Install(ctx context.Context, gameDir string, logf func(string, ...any)) (st
 	if game.DetectLoader(gameDir).NativeLinux {
 		return "", errors.New("People Playground runs as its native Linux version here, and RE_PPG only works in the Windows version: in Steam, People Playground, Properties, Compatibility, force Proton, let Steam install the Windows version, then install RE_PPG")
 	}
-	if missing := bepInExMissing(gameDir); missing != "" {
-		logf("downloading BepInEx 5.4.23.5 (the loader RE_PPG runs on; %s is missing)", missing)
-		if err := installBepInEx(ctx, gameDir); err != nil {
-			return "", fmt.Errorf("installing BepInEx: %w", err)
-		}
-		logf("installed BepInEx 5.4.23.5")
-	}
 	latest, err := Latest(ctx)
 	if err != nil {
 		return "", err
 	}
 	if !safeVersion(latest.Version) {
 		return "", fmt.Errorf("RE_PPG's latest release has an unexpected version %q", latest.Version)
+	}
+	// The game version, before anything is written (BepInEx included).
+	if latest.GameAssemblySha256 != "" {
+		if _, err := os.Stat(GameAssembly(gameDir)); err != nil {
+			return "", fmt.Errorf("can't find the game's People Playground_Data/Managed/Assembly-CSharp.dll: is this the People Playground folder? (%w)", err)
+		}
+		switch ok, _ := GameMatches(gameDir, latest); {
+		case ok:
+		case anyGame:
+			logf("installing RE_PPG %s although it was made for another People Playground version (you chose to)", latest.Version)
+		default:
+			return "", fmt.Errorf("%w: RE_PPG %s was made for another People Playground version (did the game update?). RE_PPG's own installer stops here too; wait for an RE_PPG update, or install anyway and it may not load", ErrGameVersion, latest.Version)
+		}
+	}
+	if missing := bepInExMissing(gameDir); missing != "" {
+		logf("downloading BepInEx 5.4.23.5 (the loader RE_PPG runs on; %s is missing)", missing)
+		if err := installBepInEx(ctx, gameDir); err != nil {
+			return "", fmt.Errorf("installing BepInEx: %w", err)
+		}
+		logf("installed BepInEx 5.4.23.5")
 	}
 	logf("downloading RE_PPG %s", latest.Version)
 	zf, err := download(ctx, releases+"/download/v"+latest.Version+"/RE_PPG-base.zip")

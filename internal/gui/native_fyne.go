@@ -46,6 +46,7 @@ type stateView struct {
 	Settings     settings        `json:"settings"`
 	Skymods      skymodsState    `json:"skymods"`
 	REPPG        reppgView       `json:"reppg"`
+	WinHTTP      *winhttpState   `json:"winhttp"`
 	Cutoff       string          `json:"cutoff"`
 	LastBackup   string          `json:"lastBackup"`
 	Desktop      struct {
@@ -79,6 +80,7 @@ type ui struct {
 	updateText    *widget.Label
 	installBanner *fyne.Container
 	installText   *widget.Label
+	protonBanner  *fyne.Container
 	installDesk   *widget.Check
 
 	gameChipText *canvas.Text
@@ -206,6 +208,14 @@ func (u *ui) build() {
 	u.installBanner = notice(container.NewBorder(nil, nil, widget.NewIcon(theme.ComputerIcon()), container.NewHBox(u.installDesk, inst, later), u.installText), p.surface2)
 	u.installBanner.Hide()
 
+	// Proton won't load BepInEx (and so RE_PPG) without the winhttp override.
+	protonText := widget.NewLabelWithStyle("Proton isn't set to load RE_PPG, so your C# mods won't run.", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	protonText.Truncation = fyne.TextTruncateEllipsis
+	protonFix := widget.NewButton("Fix it", u.fixProton)
+	protonFix.Importance = widget.HighImportance
+	u.protonBanner = notice(container.NewBorder(nil, nil, widget.NewIcon(theme.WarningIcon()), protonFix, protonText), p.warnBg)
+	u.protonBanner.Hide()
+
 	// the pages
 	u.browse = newBrowse(u)
 	u.installed = newInstalled(u)
@@ -282,7 +292,7 @@ func (u *ui) build() {
 	// takes no room)
 	u.detailHolder = container.New(&widthLayout{430})
 	u.detailHolder.Hide()
-	body := container.NewBorder(container.NewVBox(u.updateBanner, u.installBanner), nil, nil,
+	body := container.NewBorder(container.NewVBox(u.protonBanner, u.updateBanner, u.installBanner), nil, nil,
 		u.detailHolder, u.viewStack)
 	u.win.SetContent(container.NewBorder(nil, footer, sideFixed, nil, body))
 	u.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
@@ -465,6 +475,11 @@ func (u *ui) refreshState() {
 		u.packs.update(&st)
 		u.set.update(&st)
 		u.renderDesktop(&st)
+		if st.WinHTTP != nil && !st.WinHTTP.OK {
+			u.protonBanner.Show()
+		} else {
+			u.protonBanner.Hide()
+		}
 		u.renderSkymods(st.Skymods)
 		if (st.Job == nil || !st.Job.Running) && st.Queued == 0 {
 			u.browse.resetQueued()
@@ -776,6 +791,9 @@ func (u *ui) jobDone(j *job) {
 				u.run(req, "Installing (risk accepted)")
 			})
 		})
+	case j.Retry != nil && j.Retry["action"] == "reppg-install":
+		body.Add(text("RE_PPG may not load in this game version, or may fail in ways it would otherwise catch. Usually waiting a day or two for an RE_PPG update is better."))
+		u.confirm("RE_PPG doesn't match this game version", body, "Install anyway", true, func() { u.run(j.Retry, "Installing RE_PPG (other game version)") })
 	case j.Retry != nil:
 		body.Add(warnBox("Only continue if you have read the findings above and trust this mod's author. Mods run with full access to your PC."))
 		u.confirm(title, body, "Install anyway", true, func() { u.run(j.Retry, "Installing (override)") })
@@ -987,6 +1005,33 @@ func (u *ui) installREPPG(update bool) {
 		small("Close People Playground first."))
 	u.confirm(title, body, action, false, func() {
 		u.run(map[string]any{"action": "reppg-install"}, "Installing RE_PPG")
+	})
+}
+
+// fixProton explains the winhttp override and offers both ways to set it:
+// ppgmods writes it into the game's Proton prefix, or the person adds the
+// launch options line in Steam.
+func (u *ui) fixProton() {
+	st := u.state()
+	w := st.WinHTTP
+	if w == nil {
+		return
+	}
+	copyBtn := widget.NewButtonWithIcon("Copy launch options", theme.ContentCopyIcon(), func() {
+		u.win.Clipboard().SetContent(w.Fix)
+		u.toast("Copied: paste it in Steam, People Playground, Properties, Launch options")
+	})
+	body := container.NewVBox(
+		text("RE_PPG starts through BepInEx's winhttp.dll in the game folder. Windows loads it by itself, but Proton loads its own winhttp.dll instead unless told otherwise, so RE_PPG never starts and C# mods do nothing."),
+		text("ppgmods can tell Proton to prefer the game's winhttp.dll, in People Playground's Proton prefix (the same setting winecfg makes; a copy of the old registry is kept). Close People Playground first."),
+		small("Or do it in Steam yourself: People Playground, Properties, General, Launch options:"),
+		mono(w.Fix),
+		container.NewHBox(copyBtn))
+	if w.LaunchOptions != "" {
+		body.Add(small("Your launch options now: " + w.LaunchOptions + " (keep what you have and add the WINEDLLOVERRIDES part before %command%)."))
+	}
+	u.confirm("Let Proton load RE_PPG", body, "Fix it for me", false, func() {
+		u.run(map[string]any{"action": "proton-winhttp"}, "Setting Proton up for RE_PPG")
 	})
 }
 

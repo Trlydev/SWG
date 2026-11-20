@@ -33,7 +33,20 @@ Not affiliated with Studio Minus, Valve, GameBanana or Skymods.
 ## Install
 
 1. Install a loader that runs C# mods again, such as
-   [RE_PPG](https://github.com/AlibardaWasTaken/RE_PPG/releases).
+   [RE_PPG](https://github.com/AlibardaWasTaken/RE_PPG/releases). ppgmods
+   can install it for you (Settings, or `ppgmods reppg install`): the same
+   files as RE_PPG's own installer, each checked against RE_PPG's
+   signature, and only when the game is the version that RE_PPG release
+   was made for.
+
+   **Linux:** RE_PPG needs the Windows version of the game, run through
+   Proton. RE_PPG's own installer refuses Linux paths under Wine
+   ("Updater paths must not contain links"), so use ppgmods. Proton also
+   has to be told to load BepInEx's `winhttp.dll` from the game folder,
+   or RE_PPG installs fine and never starts. ppgmods says so when it
+   isn't set and can set it in the game's Proton prefix (**Fix it**, or
+   `ppgmods reppg fix-proton`), or set the Steam launch options yourself:
+   `WINEDLLOVERRIDES="winhttp=n,b" %command%`.
 2. Download the latest release from
    [Releases](https://github.com/Trlydev/SWG/releases/latest):
    - **Windows:** `ppgmods-windows-amd64.exe`. Double-click it. SmartScreen

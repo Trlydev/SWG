@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -49,6 +50,7 @@ type fakeRelease struct {
 	bep         []byte
 	signWith    *rsa.PrivateKey
 	baseVersion string // the base manifest's version, if not 1.2.3
+	gameHash    string // update.json's GameAssemblySha256
 }
 
 func sign(t *testing.T, key *rsa.PrivateKey, v any) []byte {
@@ -94,7 +96,7 @@ func (fr *fakeRelease) serve(t *testing.T) *httptest.Server {
 	w, _ := zw.Create("base-manifest.json")
 	w.Write(sign(t, signer, Manifest{Product: "RE_PPG-base", Files: files})) // like RE_PPG's: no version
 	zw.Close()
-	update := sign(t, signer, Manifest{Product: "RE_PPG", Version: "1.2.3"})
+	update := sign(t, signer, Manifest{Product: "RE_PPG", Version: "1.2.3", GameAssemblySha256: fr.gameHash})
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/latest/download/update.json":
@@ -365,5 +367,56 @@ func TestInstalledFollowsRuntimeUpdates(t *testing.T) {
 	}
 	if v := Installed(t.TempDir()); v != "" {
 		t.Fatalf("nothing installed: %q", v)
+	}
+}
+
+// RE_PPG's real update.json names the game version it was made for.
+func TestRealManifestGameHash(t *testing.T) {
+	b, _ := os.ReadFile(filepath.Join("testdata", "update-v0.2.31.json"))
+	m, err := ParseSigned(b)
+	if err != nil || len(m.GameAssemblySha256) != 64 {
+		t.Fatalf("%q %v", m.GameAssemblySha256, err)
+	}
+}
+
+// Like RE_PPG's installer: another game version is refused before anything
+// is written (BepInEx too), unless the person installs anyway.
+func TestInstallGameVersion(t *testing.T) {
+	game := []byte("Assembly-CSharp 1.28")
+	put := func(g string, b []byte) {
+		p := GameAssembly(g)
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, b, 0o644)
+	}
+	loader := func(g string) bool {
+		_, err := os.Stat(filepath.Join(g, "BepInEx", "plugins", "RE_PPG", "RE_PPG.Loader.dll"))
+		return err == nil
+	}
+
+	g := setup(t, &fakeRelease{files: baseFiles, gameHash: strings.ToUpper(hexSHA(game))})
+	put(g, game)
+	if _, err := Install(context.Background(), g, nil); err != nil || !loader(g) {
+		t.Fatalf("matching game: %v", err)
+	}
+
+	g = setup(t, &fakeRelease{files: baseFiles, gameHash: hexSHA(game)})
+	put(g, []byte("Assembly-CSharp 1.29"))
+	_, err := Install(context.Background(), g, nil)
+	if !errors.Is(err, ErrGameVersion) {
+		t.Fatalf("other game version: %v", err)
+	}
+	if _, serr := os.Stat(filepath.Join(g, "winhttp.dll")); serr == nil || loader(g) {
+		t.Error("files written although the game version was refused")
+	}
+	if ok, known := GameMatches(g, &Manifest{GameAssemblySha256: hexSHA(game)}); ok || !known {
+		t.Errorf("GameMatches: %v %v", ok, known)
+	}
+	if _, err := InstallAnyGame(context.Background(), g, nil); err != nil || !loader(g) {
+		t.Errorf("install anyway: %v", err)
+	}
+
+	g = setup(t, &fakeRelease{files: baseFiles, gameHash: hexSHA(game)})
+	if _, err := InstallAnyGame(context.Background(), g, nil); err == nil || !strings.Contains(err.Error(), "Assembly-CSharp.dll") {
+		t.Errorf("no game file: %v", err)
 	}
 }

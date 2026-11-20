@@ -242,3 +242,33 @@ func TestConcurrentReadsShareAFailure(t *testing.T) {
 		t.Fatalf("the browser ran %d times, want 1", len(f.calls))
 	}
 }
+
+// A check that wanted a person is remembered on disk: a new ppgmods process
+// within the cooldown doesn't spend half a minute on it again.
+func TestNeedsPersonRememberedAcrossRuns(t *testing.T) {
+	f := useFake(t, func(Options) (*Result, error) { return nil, ErrNeedsPerson })
+	if _, err := browserGet("smods.ru", "https://x/", nil, "/usr/bin/google-chrome"); !errors.Is(err, ErrNeedsPerson) {
+		t.Fatalf("first read: %v", err)
+	}
+	// A new process: nothing in memory.
+	autoMu.Lock()
+	lastAttempt, attemptsLoaded = map[string]attempt{}, false
+	autoMu.Unlock()
+	if _, err := browserGet("smods.ru", "https://x/", nil, "/usr/bin/google-chrome"); !errors.Is(err, ErrNeedsPerson) {
+		t.Errorf("after a restart: %v", err)
+	}
+	if len(f.calls) != 1 {
+		t.Errorf("the browser ran again after a restart: %d runs", len(f.calls))
+	}
+	if st := Status("smods.ru"); !st.NeedsPerson {
+		t.Errorf("status after a restart: %+v", st)
+	}
+	// Forget clears it on disk too.
+	Forget("smods.ru")
+	autoMu.Lock()
+	lastAttempt, attemptsLoaded = map[string]attempt{}, false
+	autoMu.Unlock()
+	if st := Status("smods.ru"); st.NeedsPerson || !st.At.IsZero() {
+		t.Errorf("after Forget and a restart: %+v", st)
+	}
+}

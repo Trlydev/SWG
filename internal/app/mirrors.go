@@ -215,7 +215,36 @@ func WorkshopMirrors(ws, titleHint string) ([]Mirror, error) {
 
 	var list []Mirror
 	var errs []string
-	if copies, err := sources.SkyCopies(ws); err == nil {
+	// The lookups below used to run one after another (the catalogues of
+	// True Workshop, Nexus Mods and top-mods take seconds each to load the
+	// first time, and a blocked Skymods up to half a minute). None depends
+	// on another's answer except through the title, so load everything at
+	// once and use the answers in the same order as before.
+	var warm sync.WaitGroup
+	for _, load := range []func(){
+		func() { sources.TWAll() },
+		func() { sources.TMIndex() },
+		func() {
+			if all, err := sources.NXAll(); err == nil {
+				sources.NXInfos(all)
+			}
+		},
+	} {
+		warm.Add(1)
+		go func() { defer warm.Done(); load() }()
+	}
+	var (
+		skyCopies []sources.SkyItem
+		skyErr    error
+		s01       *sources.S01Mod
+		s01Err    error
+		lookups   sync.WaitGroup
+	)
+	lookups.Add(2)
+	go func() { defer lookups.Done(); skyCopies, skyErr = sources.SkyCopies(ws) }()
+	go func() { defer lookups.Done(); s01, s01Err = sources.S01ByWorkshopID(ws) }()
+	lookups.Wait()
+	if copies, err := skyCopies, skyErr; err == nil {
 		for _, it := range copies {
 			list = append(list, skyMirror(it))
 			if titleHint == "" {
@@ -234,7 +263,7 @@ func WorkshopMirrors(ws, titleHint string) ([]Mirror, error) {
 	}
 	// 01 STUDIO's own site lists its mods with their Workshop IDs.
 	// Only a free file: Early Access versions are for paying subscribers.
-	if it, err := sources.S01ByWorkshopID(ws); err == nil && it != nil && it.Free() {
+	if it, err := s01, s01Err; err == nil && it != nil && it.Free() {
 		list = append(list, s01Mirror(*it))
 		if titleHint == "" {
 			titleHint = it.Title
@@ -249,6 +278,7 @@ func WorkshopMirrors(ws, titleHint string) ([]Mirror, error) {
 		tmURLs[u] = true
 	}
 	knownMu.Unlock()
+	warm.Wait()
 	// top-mods: match the name against the site's sitemap (every PPG item);
 	// fall back to the site's own search if the sitemap is unavailable.
 	if titleHint != "" {

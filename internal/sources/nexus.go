@@ -168,7 +168,14 @@ type NXInfo struct {
 	WorkshopID string    `json:"ws,omitempty"`
 	File       string    `json:"file"`
 	At         time.Time `json:"at"`
+	// Failed: Nexus's preview of this file couldn't be read at At. It is
+	// asked again after nxRetryFailed, not on every lookup (each mod's
+	// mirror lookup classifies every Nexus upload).
+	Failed bool `json:"failed,omitempty"`
 }
+
+// nxRetryFailed is how long a preview that couldn't be read is left alone.
+const nxRetryFailed = 6 * time.Hour
 
 const nxGameID = 4138
 
@@ -202,20 +209,25 @@ func NXInfos(mods []NXMod) map[int]NXInfo {
 	for _, m := range mods {
 		f, ok := files[m.ID]
 		if !ok {
-			if in, ok := nxInfos[m.ID]; ok {
+			if in, ok := nxInfos[m.ID]; ok && !in.Failed {
 				out[m.ID] = in // file list unavailable: keep what we knew
 			}
 			continue
 		}
-		if in, ok := nxInfos[m.ID]; ok && in.File == f {
+		in, ok := nxInfos[m.ID]
+		switch {
+		case ok && in.File == f && !in.Failed:
 			out[m.ID] = in
-		} else {
+		case ok && in.File == f && time.Since(in.At) < nxRetryFailed:
+			// failed recently: unknown, without asking again
+		default:
 			todo = append(todo, m.ID)
 		}
 	}
 	nxInfoMu.Unlock()
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	failed := map[int]NXInfo{}
 	sem := make(chan struct{}, 4)
 	for _, id := range todo {
 		wg.Add(1)
@@ -225,6 +237,9 @@ func NXInfos(mods []NXMod) map[int]NXInfo {
 			defer func() { <-sem }()
 			names, err := nxPreview(id, files[id])
 			if err != nil {
+				mu.Lock()
+				failed[id] = NXInfo{File: files[id], At: time.Now(), Failed: true}
+				mu.Unlock()
 				return
 			}
 			in := NXInfo{Kind: ClassifyFiles(names), File: files[id], At: time.Now()}
@@ -244,6 +259,9 @@ func NXInfos(mods []NXMod) map[int]NXInfo {
 	nxInfoMu.Lock()
 	for id, in := range out {
 		nxInfos[id] = in
+	}
+	for id, in := range failed {
+		nxInfos[id] = in // remembered, not returned
 	}
 	if p := nxInfoPath(); p != "" && len(todo) > 0 {
 		if b, err := json.Marshal(nxInfos); err == nil {

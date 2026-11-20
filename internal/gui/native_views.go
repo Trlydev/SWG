@@ -1299,7 +1299,26 @@ func (v *settingsView) renderSetup(st *stateView) {
 		row("RE_PPG", l.REPPG, reDetail),
 		muted(fmt.Sprintf("%d BepInEx plugins, %d patchers. Verify files (Installed) checks them for the worms.", len(l.Plugins), len(l.Patchers))),
 	}
+	if w := st.WinHTTP; w != nil {
+		k, label, detail := pOK, "set", "Proton loads BepInEx (Steam launch options)"
+		if w.ByPrefix && !w.ByLaunch {
+			detail = "Proton loads BepInEx (winhttp override in the game's Proton prefix)"
+		}
+		if !w.OK {
+			k, label, detail = pBad, "not set", "Proton loads its own winhttp.dll, so BepInEx and RE_PPG never start"
+		}
+		objs = append(objs, container.NewHBox(widget.NewLabelWithStyle("Proton", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			container.NewCenter(pill(label, k)), muted(detail)))
+		if !w.OK {
+			fix := widget.NewButton("Fix it", v.u.fixProton)
+			fix.Importance = widget.HighImportance
+			objs = append(objs, container.NewHBox(fix))
+		}
+	}
 	rp := st.REPPG
+	if rp.OtherGame && !l.NativeLinux {
+		objs = append(objs, warnBox("This People Playground version isn't the one RE_PPG "+orStr(rp.Latest, "")+" was made for (the game probably updated). C# mods may not load until RE_PPG releases an update for it."))
+	}
 	switch {
 	case l.NativeLinux:
 	case rp.Installed == "" && !l.REPPG:

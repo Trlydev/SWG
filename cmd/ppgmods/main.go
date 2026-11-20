@@ -57,7 +57,9 @@ Keep up to date:
   quarantine <key> [reason]  move it out of the game folder (the game can't load it)
   release <key>              put a quarantined item back
   reppg [status | install]   install or update RE_PPG (and BepInEx), the loader for
-                             C# mods; every file is checked against RE_PPG's signature
+                             C# mods; every file is checked against RE_PPG's signature.
+                             install any-game: even if RE_PPG was made for another game
+                             version. fix-proton: make Proton load it (Linux)
   revoke-approvals           delete RE_PPG's "Trust and run" approvals (it asks again)
   export-list [file]         save the installed mods as a modpack (.ppgm) and print its code
   import-list <file|code>    install a modpack's mods (each downloaded and scanned)
@@ -402,13 +404,48 @@ func run(cmd string, args []string, a *app.App, g gui.Options) error {
 				fmt.Println("latest release: unknown:", err)
 			} else {
 				fmt.Println("latest release:", l.Version)
+				if ok, known := reppg.GameMatches(gameDir, l); known && ok {
+					fmt.Println("game version: the one RE_PPG", l.Version, "was made for")
+				} else if known {
+					fmt.Println("game version: NOT the one RE_PPG", l.Version, "was made for (the game probably updated); C# mods may not load until RE_PPG updates")
+				}
+			}
+			if w := game.DetectWinHTTP(gameDir); w.Proton {
+				switch {
+				case w.ByLaunch:
+					fmt.Println("Proton: loads BepInEx (Steam launch options)")
+				case w.ByPrefix:
+					fmt.Println("Proton: loads BepInEx (winhttp override in the game's prefix)")
+				default:
+					fmt.Println("Proton: NOT set to load BepInEx, so RE_PPG never starts. Run `ppgmods reppg fix-proton`, or set Steam launch options to:")
+					fmt.Printf("  %s\n", game.LaunchFix)
+				}
 			}
 			return nil
 		case "install", "update":
-			_, err := reppg.Install(context.Background(), gameDir, logf)
+			install := reppg.Install
+			if len(args) > 1 && args[1] == "any-game" {
+				install = reppg.InstallAnyGame
+			}
+			_, err := install(context.Background(), gameDir, logf)
+			if errors.Is(err, reppg.ErrGameVersion) {
+				fmt.Fprintln(os.Stderr, "(to install it anyway: ppgmods reppg install any-game)")
+			}
+			if err == nil {
+				if w := game.DetectWinHTTP(gameDir); !w.OK() {
+					fmt.Println("Proton isn't set to load BepInEx yet, so RE_PPG won't start: run `ppgmods reppg fix-proton`, or set Steam launch options to:")
+					fmt.Printf("  %s\n", game.LaunchFix)
+				}
+			}
+			return err
+		case "fix-proton":
+			err := game.PreferNativeWinHTTP(gameDir, func() bool { return game.PrefixInUse(game.ProtonPrefix(gameDir)) })
+			if err == nil {
+				fmt.Println("Proton now loads BepInEx for People Playground (winhttp override in its prefix; the old registry is kept as user.reg.ppgmods-backup).")
+			}
 			return err
 		}
-		return fmt.Errorf("usage: ppgmods reppg [status | install]")
+		return fmt.Errorf("usage: ppgmods reppg [status | install [any-game] | fix-proton]")
 	case "revoke-approvals":
 		_, err := m.RevokeUnsafeApprovals()
 		return err

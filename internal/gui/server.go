@@ -125,13 +125,43 @@ type reppgView struct {
 	Latest    string `json:"latest,omitempty"` // newest release ("" until known)
 	Newer     bool   `json:"newer,omitempty"`  // Latest is newer than Installed
 	Error     string `json:"error,omitempty"`  // why the latest release is unknown
+	// OtherGame: the game isn't the version the latest release was made for
+	// (People Playground updated before RE_PPG did, or the other way round).
+	OtherGame bool `json:"other_game,omitempty"`
 }
 
 var reppgLatest struct {
 	sync.Mutex
 	version, err string
+	manifest     *reppg.Manifest
 	at           time.Time
 	checking     bool
+}
+
+// gameMatch caches whether the game matches a release, so the state (asked
+// for every few seconds) hashes Assembly-CSharp.dll only when it changed.
+var gameMatch struct {
+	sync.Mutex
+	key       string
+	ok, known bool
+}
+
+func gameMatches(gameDir string, m *reppg.Manifest) (ok, known bool) {
+	if m == nil || m.GameAssemblySha256 == "" {
+		return false, false
+	}
+	fi, err := os.Stat(reppg.GameAssembly(gameDir))
+	if err != nil {
+		return false, false
+	}
+	key := fmt.Sprint(gameDir, fi.Size(), fi.ModTime().UnixNano(), m.GameAssemblySha256)
+	gameMatch.Lock()
+	defer gameMatch.Unlock()
+	if gameMatch.key != key {
+		gameMatch.ok, gameMatch.known = reppg.GameMatches(gameDir, m)
+		gameMatch.key = key
+	}
+	return gameMatch.ok, gameMatch.known
 }
 
 // reppgStatus reports RE_PPG's versions. The latest release is looked up in
@@ -149,17 +179,67 @@ func reppgStatus(gameDir string) reppgView {
 			m, err := reppg.Latest(ctx)
 			l.Lock()
 			defer l.Unlock()
-			l.checking, l.at, l.version, l.err = false, time.Now(), "", ""
+			l.checking, l.at, l.version, l.err, l.manifest = false, time.Now(), "", "", nil
 			if err != nil {
 				l.err = err.Error()
 			} else {
-				l.version = m.Version
+				l.version, l.manifest = m.Version, m
 			}
 		}()
 	}
 	v.Latest, v.Error = l.version, l.err
 	v.Newer = v.Latest != "" && reppg.Newer(v.Latest, v.Installed)
+	if ok, known := gameMatches(gameDir, l.manifest); known && !ok {
+		v.OtherGame = true
+	}
 	return v
+}
+
+// winhttpView says whether Proton loads BepInEx, when that matters: the
+// game runs under Proton with BepInEx installed.
+// winhttpState is /api/state's "winhttp" (nil when it doesn't matter).
+type winhttpState struct {
+	OK            bool   `json:"ok"`
+	ByLaunch      bool   `json:"by_launch,omitempty"`
+	ByPrefix      bool   `json:"by_prefix,omitempty"`
+	LaunchOptions string `json:"launch_options,omitempty"` // as set in Steam
+	Fix           string `json:"fix"`                      // the launch options line to add
+}
+
+func winhttpView(gameDir string, l game.Loader) *winhttpState {
+	if gameDir == "" || l.NativeLinux || !l.BepInEx {
+		return nil
+	}
+	w := cachedWinHTTP(gameDir)
+	if !w.Proton {
+		return nil
+	}
+	return &winhttpState{OK: w.OK(), ByLaunch: w.ByLaunch, ByPrefix: w.ByPrefix, LaunchOptions: w.LaunchOptions, Fix: game.LaunchFix}
+}
+
+// winhttpCache keeps the last check for a few seconds: it reads Steam's
+// localconfig.vdf and the prefix's registry, and the state is polled often.
+var winhttpCache struct {
+	sync.Mutex
+	dir string
+	at  time.Time
+	w   game.WinHTTP
+}
+
+func cachedWinHTTP(gameDir string) game.WinHTTP {
+	c := &winhttpCache
+	c.Lock()
+	defer c.Unlock()
+	if c.dir != gameDir || time.Since(c.at) > 15*time.Second {
+		c.dir, c.at, c.w = gameDir, time.Now(), game.DetectWinHTTP(gameDir)
+	}
+	return c.w
+}
+
+func forgetWinHTTP() {
+	winhttpCache.Lock()
+	winhttpCache.dir = ""
+	winhttpCache.Unlock()
 }
 
 // skymodsView is what the window shows about the Cloudflare check: whether
@@ -1043,6 +1123,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		"settings":              stateSettings,
 		"skymods":               s.skymodsView(),
 		"reppg":                 reppgStatus(paths.Game),
+		"winhttp":               winhttpView(paths.Game, loader),
 		"cutoff":                manager.WormCutoff.Format("2006-01-02"),
 		"lastBackup":            lastBackup(paths.Data),
 		"desktop": map[string]any{
@@ -1436,8 +1517,23 @@ func (s *server) do(j *job, req actionReq) error {
 	case "profile-delete":
 		return m.DeleteProfile(req.Name)
 	case "reppg-install":
-		v, err := reppg.Install(context.Background(), filepath.Dir(m.ModsDir), s.logf)
+		install := reppg.Install
+		if req.Override["any_game"] {
+			install = reppg.InstallAnyGame
+		}
+		v, err := install(context.Background(), filepath.Dir(m.ModsDir), s.logf)
 		j.Data = map[string]string{"version": v}
+		if errors.Is(err, reppg.ErrGameVersion) {
+			j.Retry = map[string]any{"action": req.Action, "override": map[string]bool{"any_game": true}}
+		}
+		return err
+	case "proton-winhttp":
+		gameDir := filepath.Dir(m.ModsDir)
+		err := game.PreferNativeWinHTTP(gameDir, func() bool { return game.PrefixInUse(game.ProtonPrefix(gameDir)) })
+		forgetWinHTTP()
+		if err == nil {
+			s.logf("Proton now loads BepInEx for People Playground (winhttp DLL override in its prefix; a copy of the old registry is user.reg.ppgmods-backup)")
+		}
 		return err
 	case "revoke-approvals":
 		n, err := m.RevokeUnsafeApprovals()
