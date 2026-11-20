@@ -423,6 +423,9 @@ func Run(opt app.Options, g Options) error {
 	go s.watchFolders()
 	go s.autoUpdate()
 	go cfclear.KeepSkymodsWorking(s.quit, s.logf) // Skymods comes back by itself
+	// Skymods reads reuse one background browser while the window is open
+	// (closed when idle, and below on quit).
+	cfclear.KeepBrowser(true)
 	go func() {
 		for {
 			s.checkRelease(true)
@@ -449,6 +452,7 @@ func Run(opt app.Options, g Options) error {
 		s.stop("") // the window was closed (no-op after Quit or an update)
 	}
 	<-s.quit
+	cfclear.KeepBrowser(false) // closes the kept browser
 	srv.Close()
 	if s.logFile != nil {
 		s.logFile.Close()

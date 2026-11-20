@@ -55,10 +55,39 @@ var firefoxPrefs = map[string]any{
 
 var reBiDiListening = regexp.MustCompile(`WebDriver BiDi listening on (ws://[0-9.:\[\]a-z]+)`)
 
-// runFirefox is Run for a Firefox-based browser.
+// runFirefox is Run for a Firefox-based browser: start it on u, wait for
+// the page, close it.
 func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) (*Result, error) {
+	s, err := startFirefox(u, exe, profile, opt)
+	if err != nil {
+		return nil, err
+	}
+	defer s.close()
+	return s.read(u, opt, logf)
+}
+
+// ffSession is a running Firefox-based browser driven over WebDriver BiDi,
+// with the tab it reads pages in.
+type ffSession struct {
+	cmd    *exec.Cmd
+	kill   context.CancelFunc // ends the browser process
+	c      *bidiConn
+	tab    string
+	opened bool // the tab already shows the page the browser started on
+}
+
+// startFirefox starts the browser on u (in the background unless
+// opt.Headed) and connects to it.
+func startFirefox(u, exe, profile string, opt Options) (*ffSession, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
-	defer cancel()
+	defer cancel() // bounds the start, not the browser
+	procCtx, kill := context.WithCancel(context.Background())
+	ok := false
+	defer func() {
+		if !ok {
+			kill()
+		}
+	}()
 
 	downloads := filepath.Join(profile, "downloads")
 	os.MkdirAll(downloads, 0o700)
@@ -80,7 +109,8 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 	// Start on the page itself: forks such as Zen open extra tabs of their
 	// own, so the first tab isn't always the one the person sees.
 	args = append(args, u)
-	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd := exec.CommandContext(procCtx, exe, args...)
+	dieWithParent(cmd)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, err
@@ -93,9 +123,11 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting %s: %w", filepath.Base(exe), err)
 	}
+	s := &ffSession{cmd: cmd, kill: kill}
 	defer func() {
-		cmd.Process.Kill()
-		cmd.Wait()
+		if !ok {
+			cmd.Wait()
+		}
 	}()
 
 	// The port is announced on the browser's output (stderr or stdout,
@@ -150,16 +182,41 @@ func runFirefox(u, exe, profile string, opt Options, logf func(string, ...any)) 
 	if err != nil {
 		return nil, err
 	}
-	defer c.close()
 	if _, err := c.call(ctx, "session.new", map[string]any{"capabilities": map[string]any{}}); err != nil {
+		c.close()
 		return nil, fmt.Errorf("WebDriver BiDi session: %w", err)
 	}
 	tab, err := pageTab(ctx, c, u)
 	if err != nil {
+		c.close()
 		return nil, err
 	}
+	s.c, s.tab, s.opened = c, tab, true
+	ok = true
+	return s, nil
+}
 
-	tick := time.NewTicker(700 * time.Millisecond)
+// close ends the browser.
+func (s *ffSession) close() {
+	if s.c != nil {
+		s.c.close()
+	}
+	s.kill()
+	s.cmd.Wait()
+}
+
+// read shows u in the session's tab and waits until the real page shows,
+// past any check (see Run).
+func (s *ffSession) read(u string, opt Options, logf func(string, ...any)) (*Result, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
+	defer cancel()
+	c, tab := s.c, s.tab
+	if s.opened {
+		s.opened = false // the browser started on u
+	} else if _, err := c.call(ctx, "browsingContext.navigate", map[string]any{"context": tab, "url": u, "wait": "none"}); err != nil {
+		return nil, fmt.Errorf("the background browser stopped: %w", err)
+	}
+	tick := time.NewTicker(pollEvery)
 	defer tick.Stop()
 	prog := newProgress(logf)
 	for {

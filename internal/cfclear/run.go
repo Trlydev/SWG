@@ -116,9 +116,45 @@ func Run(u string, opt Options) (*Result, error) {
 	} else {
 		logf("opening %s in a background browser", hostOf(u))
 	}
+	start := startChrome
 	if isFirefox(exe) {
-		return runFirefox(u, exe, profile, opt, logf)
+		start = func(u, exe, profile string, opt Options) (browserSession, error) {
+			return startFirefox(u, exe, profile, opt)
+		}
 	}
+	if opt.Headed || opt.ProfileDir == "" || !keepOn.Load() {
+		// A window, a throwaway profile, or a short-lived process (the
+		// command line): start, read, close.
+		if opt.Headed {
+			CloseBrowser() // the kept one holds the profile
+		}
+		s, err := start(u, exe, profile, opt)
+		if err != nil {
+			return nil, err
+		}
+		defer s.close()
+		return s.read(u, opt, logf)
+	}
+	return readKept(u, exe+"\x00"+profile, opt, logf, func() (browserSession, error) { return start(u, exe, profile, opt) })
+}
+
+// browserSession is a running browser that reads pages in one tab.
+type browserSession interface {
+	read(u string, opt Options, logf func(string, ...any)) (*Result, error)
+	close()
+}
+
+// chromeSession is a running Chrome-family browser (chromedp).
+type chromeSession struct {
+	ctx    context.Context // the browser's tab; cancelling it closes the browser
+	cancel context.CancelFunc
+}
+
+func (s *chromeSession) close() { s.cancel() }
+
+// startChrome starts a Chrome-family browser, set up so it can't download
+// and doesn't say HeadlessChrome. u isn't opened yet (read does).
+func startChrome(u, exe, profile string, opt Options) (browserSession, error) {
 	allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(exe),
 		chromedp.UserDataDir(profile),
@@ -139,10 +175,9 @@ func Run(u string, opt Options) (*Result, error) {
 		allocOpts = append(allocOpts, chromedp.Flag("headless", "new"))
 	}
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), allocOpts...)
-	defer cancelAlloc()
-	ctx, cancelBrowser := chromedp.NewContext(allocCtx, chromedp.WithErrorf(quietErrorf))
-	defer cancelBrowser()
-	ctx, cancelTimeout := context.WithTimeout(ctx, opt.Timeout)
+	bctx, cancelBrowser := chromedp.NewContext(allocCtx, chromedp.WithErrorf(quietErrorf))
+	s := &chromeSession{ctx: bctx, cancel: func() { cancelBrowser(); cancelAlloc() }}
+	ctx, cancelTimeout := context.WithTimeout(bctx, opt.Timeout)
 	defer cancelTimeout()
 
 	open := chromedp.ActionFunc(func(ctx context.Context) error {
@@ -161,13 +196,28 @@ func Run(u string, opt Options) (*Result, error) {
 		}
 		return nil
 	})
-	if err := chromedp.Run(ctx, open, chromedp.Navigate(u)); err != nil {
+	if err := chromedp.Run(ctx, open); err != nil {
+		s.close()
+		if ctx.Err() != nil {
+			return nil, timeoutErr(opt)
+		}
+		return nil, fmt.Errorf("the browser could not start: %w", err)
+	}
+	return s, nil
+}
+
+// read opens u in the browser's tab and waits until the real page shows,
+// past any check (see Run).
+func (s *chromeSession) read(u string, opt Options, logf func(string, ...any)) (*Result, error) {
+	ctx, cancel := context.WithTimeout(s.ctx, opt.Timeout)
+	defer cancel()
+	if err := chromedp.Run(ctx, chromedp.Navigate(u)); err != nil {
 		if ctx.Err() != nil {
 			return nil, timeoutErr(opt)
 		}
 		return nil, fmt.Errorf("the browser could not open the page: %w", err)
 	}
-	tick := time.NewTicker(700 * time.Millisecond)
+	tick := time.NewTicker(pollEvery)
 	defer tick.Stop()
 	prog := newProgress(logf)
 	for {

@@ -1,4 +1,4 @@
-# Handoff (after v0.4.9)
+# Handoff (after v0.5.0)
 
 State of ppgmods (People Playground mod manager, Go) for the next session.
 
@@ -6,8 +6,12 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 
 - Repo: github.com/Trlydev/SWG (the git remote DogeKingC/SWG redirects there).
   Go module path: `github.com/Trlydev/SWG`.
-- Latest release: **v0.4.9**. `build.yml` publishes v0.4.N on every push to
-  main (counted from the v0.4.* tags). Pushes to other branches don't build.
+- Latest release: **v0.5.0**. `build.yml` publishes v0.5.N on every push to
+  main (counted from the v0.5.* tags). Pushes to other branches don't build.
+- Since 2026-11-20 the work also happens locally in Claude Code on the
+  owner's Linux PC (CachyOS, real People Playground under Proton with
+  RE_PPG working, Zen Browser as the only browser), so changes can be tried
+  on the real game.
 - Work branch: `claude/trusting-babbage-cu3pyj`.
 
 ## Rules from the owner
@@ -41,6 +45,7 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 | 0.4.7 | Modpack codes (PPG1., .ppgm, double-click opens them); cards lose their Subscribe button; WorldBox codes recognised |
 | 0.4.8 | Windows built on the Linux runner (MinGW); signed checksums name their version (no rollbacks); centred tick box |
 | 0.4.9 | Full UI redesign (below); Skymods check background-only; Play button |
+| 0.5.0 | RE_PPG: game-version check (signed GameAssemblySha256) and Proton winhttp setup (notice + Fix it, `reppg fix-proton`); faster: Nexus preview failures cached, mirror lookups in parallel, a mod's copies download side by side, modpack mirrors looked up ahead, Skymods check gives up in 8 s when someone waits and is remembered across runs, one background browser kept for Skymods reads (0.2 s a read instead of 0.85 s); notices no longer drawn over the page; Match system follows the desktop; more non-public addresses refused |
 | 0.4.2 | Reinstall RE_PPG button; fixes from a 5-agent security review; one-time window code; loader files matched by name and release; Popular sorting fixed (all time from the popularity data); thumbnails shrunk and cached on disk |
 
 ## The window (0.4.9 redesign)
@@ -144,8 +149,37 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
   ppgmods; build.yml signs SHA256SUMS.txt, selfupdate verifies it. Also
   give the data jobs (loaders, popularity, archive, workshop) read-only
   tokens with a separate publish step.
-- If a v0.5.0 tag is ever pushed by hand, main pushes keep counting 0.4.x.
 - Turning a mod back on doesn't notice deleted files.
+
+## What 0.5 adds (details)
+
+- **RE_PPG official installer, tested under Proton** (v0.2.36): it has a
+  CLI (`--install --game DIR --package --bepinex-zip --skip-bepinex
+  --ignore-game-hash --data`, also `--inspect`, `--uninstall`,
+  `--restore-backup`), output only through Proton's own `files/bin/wine`.
+  Under Wine it refuses every path through a link ("Updater paths must not
+  contain links: Z:\"), i.e. any Linux path; only the prefix's drive_c
+  works. ppgmods' install gives byte-identical files (663), so on Linux
+  ppgmods is the way to install it.
+- **Proton needs the winhttp override** or BepInEx never loads (Wine uses
+  its builtin winhttp.dll). `internal/game/proton.go` reads Steam's
+  launch options (localconfig.vdf of the most recent account; newer Steam
+  has only `timestamp` in loginusers.vdf, no MostRecent) and the prefix's
+  user.reg DllOverrides; Fix it adds `"winhttp"="native,builtin"` to
+  user.reg (backup kept; refused while that prefix's Wine runs — checked
+  via /proc). protonfixes has no entry for People Playground.
+- **Skymods check:** a check that wants a person shows the same page
+  forever (no way to tell earlier); waited-on reads give up after 8 s
+  (`readPersonAfter`), the background retry keeps 25 s; attempts saved in
+  browser-checks.json. The owner asked for a custom/minimal/Rust browser
+  to pass it faster: declined (that's bot-check evasion). The window app
+  keeps one browser (`cfclear.KeepBrowser`, idle 2 min, Pdeathsig on Linux);
+  page polls every 150 ms (700 ms was most of a read).
+- **Nexus previews** moved to bucket production-nexus-files-s3-meta and
+  answer 404 for every PPG file, Nexus's own button included (Nov 2026).
+  Failures cached 6 h.
+- govulncheck v1.1.4 crashes on Go 1.27; `golang.org/x/image` (v0.24.0,
+  decodes thumbnails from archives) is worth updating.
 
 ## Untested, ask the owner
 
@@ -153,6 +187,10 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
   the box work?
 - RE_PPG: Install from ppgmods (game closed), start the game: does a C#
   mod load?
+- Proton Fix it on the real game: remove the launch options, press Fix it,
+  start the game: does RE_PPG load? (Checked only with Wine's `reg query`.)
+- Windows: the kept Skymods browser has no die-with-parent there; if
+  ppgmods crashes it stays until closed.
 
 ## Other key facts
 

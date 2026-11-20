@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Trlydev/SWG/internal/loaders"
 	"github.com/Trlydev/SWG/internal/manager"
 	"github.com/Trlydev/SWG/internal/preserve"
 	"github.com/Trlydev/SWG/internal/sources"
@@ -19,11 +20,19 @@ import (
 
 // freshCopyInfo forgets what earlier tests learned about mirror copies
 // (kept in memory by ID), so each test starts as a new run would.
+// The on-disk caches follow the new PPGMODS_HOME too: useIndexCache points
+// them at the first config folder it sees, which in a test run is an
+// earlier test's (where that test's copy info was saved).
 func freshCopyInfo(t *testing.T) {
 	t.Setenv("PPGMODS_HOME", t.TempDir())
+	oldIdx, oldPre, oldLoad := sources.IndexCacheDir, preserve.CacheDir, loaders.CacheDir
+	sources.IndexCacheDir, preserve.CacheDir, loaders.CacheDir = "", "", ""
 	modInfoMu.Lock()
 	modInfo, modInfoLoaded = map[string]copyInfo{}, false
 	modInfoMu.Unlock()
+	t.Cleanup(func() {
+		sources.IndexCacheDir, preserve.CacheDir, loaders.CacheDir = oldIdx, oldPre, oldLoad
+	})
 }
 
 func writeModZip(t *testing.T, path, script string) {
@@ -361,7 +370,7 @@ func TestFetchWorkshopPrefers01Studio(t *testing.T) {
 // copy picked is the same as before: the highest mod.json version.
 func TestFetchWorkshopDownloadsCopiesTogether(t *testing.T) {
 	freshCopyInfo(t)
-	const ws = "3801154352"
+	const ws = "3801154354"
 	src := t.TempDir()
 	versions := map[string]string{"topmods:901": "1.0", "skymods:902": "3.0", "topmods:903": "2.0"}
 	for id, v := range versions {
