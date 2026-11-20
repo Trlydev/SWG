@@ -1406,6 +1406,23 @@ func OpenBrowser(u string) error {
 	return c.Start()
 }
 
+// steamRun starts People Playground (Steam app 1118200) through Steam.
+const steamRun = "steam://rungameid/1118200"
+
+// LaunchGame starts People Playground through the Steam client.
+func LaunchGame() error {
+	var c *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		c = exec.Command("rundll32", "url.dll,FileProtocolHandler", steamRun)
+	case "darwin":
+		c = exec.Command("open", steamRun)
+	default:
+		c = exec.Command("xdg-open", steamRun)
+	}
+	return c.Start()
+}
+
 // OpenFolder shows a folder in the system file manager.
 func OpenFolder(p string) error {
 	switch runtime.GOOS {

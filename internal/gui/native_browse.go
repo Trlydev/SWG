@@ -70,7 +70,9 @@ type browseView struct {
 	kind                 *tabBar
 	notesBox, errsBox    *fyne.Container
 	site, sort, period   *widget.Select
-	q, link              *widget.Entry
+	q                    *widget.Entry
+	trend                *fyne.Container // the Trending strip's cards
+	trendBox             *fyne.Container
 	notes, errs, waiting *widget.Label
 	grid                 *fyne.Container
 	scroll               *container.Scroll
@@ -129,8 +131,8 @@ func newBrowse(u *ui) *browseView {
 	b.period = widget.NewSelect(labels(periodOptions), nil)
 	b.period.SetSelected(label(periodOptions, p.StringWithFallback("browse.period", "week")))
 	b.q = widget.NewEntry()
-	b.q.OnSubmitted = func(s string) { go b.search(strings.TrimSpace(s), 1) }
-	searchBtn := widget.NewButtonWithIcon("Search", theme.SearchIcon(), func() { go b.search(strings.TrimSpace(b.q.Text), 1) })
+	b.q.OnSubmitted = func(string) { b.submit() }
+	searchBtn := widget.NewButtonWithIcon("Search", theme.SearchIcon(), b.submit)
 	searchBtn.Importance = widget.HighImportance
 	b.notes, b.errs, b.waiting = small(""), widget.NewLabel(""), small("")
 	b.errs.Wrapping = fyne.TextWrapWord
@@ -158,34 +160,6 @@ func newBrowse(u *ui) *browseView {
 	selBg.StrokeColor, selBg.StrokeWidth = pal().accent, 1.5
 	b.selBar = container.NewStack(selBg, container.New(layout.NewCustomPaddedLayout(6, 6, 12, 8), container.NewHBox(b.selCount, instSel, clear)))
 	b.selBar.Hide()
-	b.link = widget.NewEntry()
-	b.link.SetPlaceHolder("Have a link? Paste a GameBanana / Steam Workshop / Nexus link, an ID (gb:123, sky:123) or a modpack code (PPG1.…)")
-	installLink := func() {
-		v := strings.TrimSpace(b.link.Text)
-		if v == "" {
-			return
-		}
-		if modpack.Find(v) {
-			b.link.SetText("")
-			go func() {
-				if err := u.s.call("POST", "/api/pack-offer", map[string]any{"text": v}, nil); err != nil {
-					u.toast(err.Error())
-					return
-				}
-				u.refreshState()
-			}()
-			return
-		}
-		ref := v
-		if regexp.MustCompile(`^\d{6,12}$`).MatchString(v) {
-			ref = "sky:" + v
-		}
-		b.link.SetText("")
-		u.run(map[string]any{"action": "install", "refs": []string{ref}}, "Installing "+ref)
-	}
-	b.link.OnSubmitted = func(string) { installLink() }
-	linkBtn := u.busyButton("Install link", installLink)
-
 	refresh := func() {
 		b.sync()
 		b.mu.Lock()
@@ -199,18 +173,22 @@ func newBrowse(u *ui) *browseView {
 	b.period.OnChanged = func(string) { refresh() }
 	b.sync()
 
-	lede := muted("Mods and contraptions from the Open Workshop, GameBanana, Nexus Mods, True Workshop, 01 STUDIO and the mirrors of the deleted Steam Workshop, in one list. Every mod is scanned before it is installed.")
-	lede.SizeName = theme.SizeNameText
 	searchRow := container.NewBorder(nil, nil, nil, searchBtn, b.q)
 	label := func(s string) fyne.CanvasObject {
 		l := widget.NewLabel(s)
 		l.Importance = widget.LowImportance
 		return l
 	}
-	filters := container.NewHBox(label("Site"), b.site, widget.NewLabel(" "), label("Sort"), b.sort, b.period)
-	linkRow := container.NewBorder(nil, nil, nil, linkBtn, b.link)
-	page := container.NewVBox(h1("Browse"), lede, b.kind.root, searchRow, filters, b.notesBox, b.errsBox,
-		b.grid, b.waiting, container.NewCenter(b.more), widget.NewLabel(""), linkRow)
+	filters := container.NewHBox(label("Site"), b.site, label("Sort"), b.sort, b.period)
+	head := container.NewBorder(nil, nil, h1("Browse"), container.NewCenter(filters))
+	b.trend = container.NewHBox()
+	trendScroll := container.NewHScroll(b.trend)
+	trendScroll.SetMinSize(fyne.NewSize(0, 172))
+	trendTitle := widget.NewLabelWithStyle("Trending this week", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	b.trendBox = container.New(&vlist{gap: 2}, trendTitle, trendScroll)
+	b.trendBox.Hide()
+	page := container.New(&vlist{gap: 10}, head, searchRow, b.kind.root, b.notesBox, b.errsBox, b.trendBox,
+		b.grid, b.waiting, container.NewCenter(b.more), widget.NewLabel(""))
 	b.scroll = container.NewVScroll(container.New(layout.NewCustomPaddedLayout(22, 30, 26, 26), page))
 	b.root = container.NewStack(b.scroll, container.NewVBox(layout.NewSpacer(), container.NewCenter(b.selBar), widget.NewLabel("")))
 	return b
@@ -248,9 +226,9 @@ func (b *browseView) sync() {
 	b.site.Options = opts
 	b.site.Refresh()
 	if kind == "contraption" {
-		b.q.SetPlaceHolder("Search contraptions, e.g. tank, house, bridge")
+		b.q.SetPlaceHolder("Search contraptions (tank, house…), or paste a link, ID or modpack code")
 	} else {
-		b.q.SetPlaceHolder("Search mods, e.g. melee, tank, zombie")
+		b.q.SetPlaceHolder("Search mods (melee, zombie…), or paste a link, ID or modpack code")
 	}
 	p := b.u.app.Preferences()
 	p.SetString("browse.kind", kind)
@@ -298,6 +276,9 @@ func (b *browseView) search(q string, page int) {
 	seq := b.seq
 	b.lastQuery, b.page = q, page
 	b.mu.Unlock()
+	if page == 1 {
+		go b.loadTrending(q, kind, seq)
+	}
 
 	var parts []string
 	switch {
@@ -1145,7 +1126,7 @@ func (t *thumbLoader) paused() bool {
 		return true
 	}
 	open := false
-	fyne.DoAndWait(func() { open = t.u.details != nil && t.u.details.pop.Visible() })
+	fyne.DoAndWait(func() { open = t.u.details != nil && t.u.details.open })
 	return open
 }
 
@@ -1216,4 +1197,111 @@ func (l centeredCheck) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	icon := theme.Size(theme.SizeNameInlineIcon)
 	boxX := theme.Size(theme.SizeNameInnerPadding)/2 + theme.Size(theme.SizeNameInputBorder) // where Check draws its box
 	chk.Move(fyne.NewPos((size.Width-icon)/2-boxX, (size.Height-cs.Height)/2))
+}
+
+// submit runs what was typed in the search box: a modpack code opens the
+// modpack, a link or an ID installs that mod, anything else is a search.
+func (b *browseView) submit() {
+	v := strings.TrimSpace(b.q.Text)
+	switch {
+	case modpack.Find(v):
+		b.q.SetText("")
+		b.u.offerPack(v)
+	case looksLikeRef(v):
+		ref := v
+		if regexp.MustCompile(`^\d{6,12}$`).MatchString(v) {
+			ref = "sky:" + v
+		}
+		b.q.SetText("")
+		b.u.run(map[string]any{"action": "install", "refs": []string{ref}}, "Installing "+ref)
+	default:
+		go b.search(v, 1)
+	}
+}
+
+var reRefTyped = regexp.MustCompile(`^(?:(?:gb|sky|tw|nx|ow):[0-9a-z][0-9a-z-]*|\d{6,12})$`)
+
+// looksLikeRef reports whether typed text names one mod (a link or an ID)
+// rather than words to search for.
+func looksLikeRef(v string) bool {
+	if reRefTyped.MatchString(strings.ToLower(v)) {
+		return true
+	}
+	if !strings.HasPrefix(v, "https://") && !strings.HasPrefix(v, "http://") {
+		return false
+	}
+	for _, host := range []string{"gamebanana.com/", "steamcommunity.com/", "nexusmods.com/", "smods.ru/", "trueworkshop"} {
+		if strings.Contains(strings.ToLower(v), host) {
+			return true
+		}
+	}
+	return false
+}
+
+// loadTrending fills the Trending strip: this week's biggest gainers, from
+// the popularity data, shown above the list when nothing is searched.
+func (b *browseView) loadTrending(q, kind string, seq int) {
+	hide := func() { fyne.Do(func() { b.trendBox.Hide() }) }
+	if q != "" {
+		hide()
+		return
+	}
+	var lists [][]*app.SearchResult
+	for _, part := range []string{"ws", "gb", "ow"} {
+		var r app.SearchResults
+		if b.u.s.call("GET", fmt.Sprintf("/api/search?q=&page=1&part=%s&kind=%s&sort=popular&period=week", part, kind), nil, &r) != nil {
+			continue
+		}
+		lists = append(lists, ptrs(r.Workshop), ptrs(r.GameBanana), ptrs(r.OpenWS))
+	}
+	top := mergeShown("popular", lists...)
+	if len(top) > 10 {
+		top = top[:10]
+	}
+	fyne.Do(func() {
+		b.mu.Lock()
+		stale := seq != b.seq
+		b.mu.Unlock()
+		if stale {
+			return
+		}
+		if len(top) == 0 {
+			b.trendBox.Hide()
+			return
+		}
+		var cards []fyne.CanvasObject
+		for _, m := range top {
+			cards = append(cards, b.trendCard(m))
+		}
+		b.trend.Objects = cards
+		b.trend.Refresh()
+		b.trendBox.Show()
+	})
+}
+
+// trendCard is a small card in the Trending strip.
+func (b *browseView) trendCard(m *app.SearchResult) fyne.CanvasObject {
+	p := pal()
+	thumb := b.u.thumbs.box(m.Ref, m.Name, m.Image, 176, 99, m, true)
+	name := widget.NewLabelWithStyle(m.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	name.Truncation = fyne.TextTruncateEllipsis
+	name.SizeName = sSmall
+	trend := muted(m.Trend)
+	trend.Truncation = fyne.TextTruncateEllipsis
+	trend.Wrapping = fyne.TextWrapOff
+	trend.Importance = widget.SuccessImportance
+	trend.SizeName = sTiny
+	bg := canvas.NewRectangle(p.surface)
+	bg.CornerRadius = 10
+	bg.StrokeColor, bg.StrokeWidth = p.border, 1
+	body := container.NewBorder(thumb, nil, nil, nil, container.New(&vlist{gap: -10}, name, trend))
+	card := container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(6, 4, 6, 6), body))
+	return container.New(&widthLayout{188}, newTapArea(card, func() { b.u.openDetails(*m, "") }, func(in bool) {
+		if in {
+			bg.StrokeColor = p.muted
+		} else {
+			bg.StrokeColor = p.border
+		}
+		bg.Refresh()
+	}))
 }

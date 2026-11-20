@@ -97,8 +97,11 @@ type ui struct {
 	browse    *browseView
 	installed *installedPane
 	recover   *recoverView
-	set       *settingsView
-	details   *detailsWin
+	packs     *modpacksView
+
+	detailHolder *fyne.Container // the details panel beside the page
+	set          *settingsView
+	details      *detailsWin
 
 	installedSig string
 	nexusSig     string
@@ -115,7 +118,7 @@ func runNative(s *server) error {
 	u := &ui{s: s, app: a}
 	u.thumbs = newThumbLoader(u)
 	u.win = a.NewWindow(desktop.AppName)
-	u.win.Resize(fyne.NewSize(1200, 820))
+	u.win.Resize(fyne.NewSize(1320, 840))
 	u.win.SetMaster()
 	u.win.SetCloseIntercept(func() {
 		u.mu.Lock()
@@ -181,96 +184,123 @@ func (u *ui) build() {
 		container.NewBorder(nil, nil, u.dotBox, logBtn, u.status))
 	footer := container.NewStack(footBg, container.NewBorder(hline(), nil, nil, nil, container.NewVBox(footRow, u.logWrap)))
 
-	// banners
-	u.updateText = widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	u.updateText.Importance = widget.WarningImportance
+	// notices: one slim line each, above the page (update, app install)
+	u.updateText = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	u.updateText.Truncation = fyne.TextTruncateEllipsis
 	upd := widget.NewButton("Update now", func() { u.run(map[string]any{"action": "self-update"}, "Updating ppgmods") })
 	upd.Importance = widget.HighImportance
-	u.updateBanner = banner(container.NewCenter(container.NewHBox(u.updateText, upd)), p.warnBg)
+	u.updateBanner = notice(container.NewBorder(nil, nil, widget.NewIcon(theme.DownloadIcon()), upd, u.updateText), p.warnBg)
 	u.updateBanner.Hide()
 
 	u.installText = widget.NewLabel("")
-	u.installText.Wrapping = fyne.TextWrapWord
+	u.installText.Truncation = fyne.TextTruncateEllipsis
 	u.installDesk = widget.NewCheck("desktop shortcut", nil)
 	u.installDesk.SetChecked(true)
 	inst := widget.NewButton("Install", u.installApp)
 	inst.Importance = widget.HighImportance
-	later := widget.NewButton("Not now", func() {
+	later := widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
 		u.app.Preferences().SetBool("install-dismissed", true)
 		u.installBanner.Hide()
 	})
 	later.Importance = widget.LowImportance
-	u.installBanner = banner(container.NewBorder(nil, nil, nil, container.NewHBox(u.installDesk, inst, later), u.installText), p.surface2)
+	u.installBanner = notice(container.NewBorder(nil, nil, widget.NewIcon(theme.ComputerIcon()), container.NewHBox(u.installDesk, inst, later), u.installText), p.surface2)
 	u.installBanner.Hide()
 
-	// top bar: brand, game chip, version chip
-	icon := canvas.NewImageFromResource(fyne.NewStaticResource("icon.png", desktop.IconPNG()))
-	icon.SetMinSize(fyne.NewSize(28, 28))
-	icon.FillMode = canvas.ImageFillContain
-	name := canvas.NewText(desktop.AppName, p.text)
-	name.TextStyle = fyne.TextStyle{Bold: true}
-	name.TextSize = 15
-	sub := canvas.NewText("People Playground mod recovery", p.muted)
-	sub.TextSize = 12
-	brand := container.NewHBox(container.NewCenter(icon), container.NewCenter(container.New(&vlist{gap: 0}, name, sub)))
-	var game *fyne.Container
-	game, u.gameChipText, u.gameChipBg = chip("Checking game…", p.surface2, p.text, true)
-	gameTap := newTapArea(game, func() {
-		if u.state().Paths.Game == "" {
-			u.show(4)
-		}
-	}, nil)
-	var ver *fyne.Container
-	ver, u.versionChip, _ = chip("ppgmods", p.surface2, p.muted, true)
-	topBg := canvas.NewRectangle(p.surface)
-	topRow := container.New(layout.NewCustomPaddedLayout(10, 10, 18, 18),
-		container.NewBorder(nil, nil, brand, container.NewCenter(container.NewHBox(gameTap, ver))))
-	top := container.NewVBox(container.NewStack(topBg, container.NewBorder(nil, hline(), nil, nil, topRow)), u.updateBanner, u.installBanner)
-
-	// views and the sidebar
+	// the pages
 	u.browse = newBrowse(u)
 	u.installed = newInstalled(u)
+	u.packs = newModpacks(u)
 	u.recover = newRecover(u)
 	u.set = newSettings(u)
-	u.views = []fyne.CanvasObject{u.browse.root, u.installed.root, u.recover.root, safetyView(u), u.set.root}
+	u.views = []fyne.CanvasObject{u.browse.root, u.installed.root, u.packs.root, u.recover.root, safetyView(u), u.set.root}
 	for i, v := range u.views {
 		if i > 0 {
 			v.Hide()
 		}
 	}
 	u.viewStack = container.NewStack(u.views...)
+
+	// the sidebar: brand, Play, the pages, and the game's status at the foot
+	icon := canvas.NewImageFromResource(fyne.NewStaticResource("icon.png", desktop.IconPNG()))
+	icon.SetMinSize(fyne.NewSize(34, 34))
+	icon.FillMode = canvas.ImageFillContain
+	name := canvas.NewText("PPG Mod Manager", p.text)
+	name.TextStyle = fyne.TextStyle{Bold: true}
+	name.TextSize = 15
+	sub := canvas.NewText("People Playground", p.muted)
+	sub.TextSize = 11
+	brand := container.NewHBox(container.NewCenter(icon), container.NewCenter(container.New(&vlist{gap: 0}, name, sub)))
+	play := widget.NewButtonWithIcon("Play", theme.MediaPlayIcon(), u.play)
+	play.Importance = widget.HighImportance
 	items := []struct {
 		icon fyne.Resource
 		name string
 	}{
-		{theme.SearchIcon(), "Browse"}, {theme.ListIcon(), "Installed"}, {theme.HistoryIcon(), "Recover Workshop"},
-		{theme.WarningIcon(), "Safety"}, {theme.SettingsIcon(), "Settings"},
+		{theme.SearchIcon(), "Browse"}, {theme.ListIcon(), "My mods"}, {theme.ContentCopyIcon(), "Modpacks"},
+		{theme.HistoryIcon(), "Recover Workshop"}, {theme.WarningIcon(), "Safety"}, {theme.SettingsIcon(), "Settings"},
 	}
-	nav := tight()
+	main, tools := tight(), tight()
 	for i, it := range items {
 		i := i
 		n := newNavItem(it.icon, it.name, func() { u.show(i) })
 		u.navs = append(u.navs, n)
-		nav.Add(n.root)
+		if i < pageRecover {
+			main.Add(n.root)
+		} else {
+			tools.Add(n.root)
+		}
 	}
-	u.navs[0].setActive(true)
-	repo := widget.NewHyperlink("GitHub repository", nil)
+	u.navs[pageBrowse].setActive(true)
+	toolsLabel := muted("MORE")
+	toolsLabel.TextStyle = fyne.TextStyle{Bold: true}
+	toolsLabel.SizeName = sTiny
+	var game *fyne.Container
+	game, u.gameChipText, u.gameChipBg = chip("Checking game…", p.surface2, p.text, true)
+	gameTap := newTapArea(game, func() {
+		if u.state().Paths.Game == "" {
+			u.show(pageSettings)
+		}
+	}, nil)
+	u.versionChip = canvas.NewText("ppgmods", p.muted)
+	u.versionChip.TextSize = 11
+	repo := widget.NewHyperlink("GitHub", nil)
 	repo.OnTapped = func() { u.openURL("https://github.com/Trlydev/SWG") }
 	repo.SizeName = sSmall
-	quit := widget.NewButton("Quit", func() { u.s.stop("") })
+	quit := widget.NewButtonWithIcon("", theme.LogoutIcon(), func() { u.s.stop("") })
 	quit.Importance = widget.LowImportance
+	foot := container.New(&vlist{gap: 6}, container.NewHBox(gameTap),
+		container.NewBorder(nil, nil, container.NewCenter(u.versionChip), quit, container.NewCenter(repo)))
 	sideBg := canvas.NewRectangle(p.surface)
 	side := container.NewStack(sideBg, container.NewBorder(nil, nil, nil, vline(),
-		container.New(layout.NewCustomPaddedLayout(14, 10, 10, 10),
-			container.NewBorder(nil, container.NewVBox(repo, container.NewHBox(quit)), nil, nil, nav))))
-	sideFixed := container.New(&widthLayout{220}, side)
-	u.win.SetContent(container.NewBorder(top, footer, sideFixed, nil, u.viewStack))
+		container.New(layout.NewCustomPaddedLayout(14, 10, 12, 12),
+			container.NewBorder(container.New(&vlist{gap: 14}, brand, play), foot, nil, nil,
+				container.New(&vlist{gap: 10}, main, container.New(layout.NewCustomPaddedLayout(6, 0, 8, 0), toolsLabel), tools)))))
+	sideFixed := container.New(&widthLayout{224}, side)
+
+	// details open beside the page, not over it
+	// (the fixed-width column itself is shown and hidden, so a closed panel
+	// takes no room)
+	u.detailHolder = container.New(&widthLayout{430})
+	u.detailHolder.Hide()
+	body := container.NewBorder(container.NewVBox(u.updateBanner, u.installBanner), nil, nil,
+		u.detailHolder, u.viewStack)
+	u.win.SetContent(container.NewBorder(nil, footer, sideFixed, nil, body))
 	u.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
 		if k.Name == fyne.KeyEscape && u.details != nil {
 			u.details.close()
 		}
 	})
 }
+
+// The pages, in sidebar order.
+const (
+	pageBrowse = iota
+	pageMine
+	pageModpacks
+	pageRecover
+	pageSafety
+	pageSettings
+)
 
 // show switches the sidebar section.
 func (u *ui) show(i int) {
@@ -282,9 +312,31 @@ func (u *ui) show(i int) {
 		}
 		u.navs[j].setActive(j == i)
 	}
-	if i == 1 {
+	if i == pageMine || i == pageModpacks {
 		go u.refreshState()
 	}
+}
+
+// play starts People Playground through Steam.
+func (u *ui) play() {
+	if u.state().Paths.Game == "" {
+		u.toast("People Playground wasn't found: set its folder in Settings")
+		u.show(pageSettings)
+		return
+	}
+	go func() {
+		if err := u.s.call("GET", "/api/open?what=play", nil, nil); err != nil {
+			u.toast(err.Error())
+			return
+		}
+		u.toast("Starting People Playground through Steam")
+	}()
+}
+
+// notice is a slim one-line strip above the page.
+func notice(content fyne.CanvasObject, fill color.Color) *fyne.Container {
+	bg := canvas.NewRectangle(fill)
+	return container.NewStack(bg, container.NewBorder(nil, hline(), nil, nil, container.New(layout.NewCustomPaddedLayout(2, 2, 14, 10), content)))
 }
 
 // view wraps a section's content like the page's main area.
@@ -295,6 +347,9 @@ func view(content fyne.CanvasObject) fyne.CanvasObject {
 type widthLayout struct{ w float32 }
 
 func (l *widthLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	if len(objs) == 0 {
+		return fyne.NewSize(l.w, 0)
+	}
 	return fyne.NewSize(l.w, objs[0].MinSize().Height)
 }
 
@@ -372,7 +427,7 @@ func (u *ui) refreshState() {
 		u.gameChipBg.Refresh()
 		u.versionChip.Text = "ppgmods " + st.Version
 		u.versionChip.Refresh()
-		u.navs[1].setCount(fmt.Sprint(len(st.Installed)))
+		u.navs[pageMine].setCount(fmt.Sprint(len(st.Installed)))
 		sig += fmt.Sprint(st.NeedCompiler)
 		if sig != u.installedSig {
 			u.installedSig = sig
@@ -380,6 +435,7 @@ func (u *ui) refreshState() {
 			u.browse.markInstalled()
 		}
 		u.recover.update(&st)
+		u.packs.update(&st)
 		u.set.update(&st)
 		u.renderDesktop(&st)
 		u.renderSkymods(st.Skymods)
@@ -574,7 +630,7 @@ func (u *ui) jobDone(j *job) {
 	sum := j.Summary
 	if j.Name == "verify" {
 		u.installed.showVerify(j.Problems)
-		u.show(1)
+		u.show(pageMine)
 		return
 	}
 	if j.OK {
@@ -732,7 +788,7 @@ func (u *ui) renderDesktop(st *stateView) {
 		if d.CopyExists {
 			u.installText.SetText("PPG Mod Manager is installed on this PC, but you are running another copy. Install this copy over it, or switch to the installed one.")
 		} else {
-			u.installText.SetText("Install PPG Mod Manager on this PC: it goes in " + where + ", keeps itself up to date, and you can delete this download.")
+			u.installText.SetText("Install ppgmods on this PC (" + where + "): it updates itself, and you can delete this download.")
 		}
 		u.installBanner.Show()
 	}

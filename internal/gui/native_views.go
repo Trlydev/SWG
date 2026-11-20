@@ -5,9 +5,7 @@ package gui
 import (
 	"fmt"
 	"image/color"
-	"io"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -22,13 +20,13 @@ import (
 
 	"github.com/Trlydev/SWG/internal/app"
 	"github.com/Trlydev/SWG/internal/manager"
-	"github.com/Trlydev/SWG/internal/modpack"
 )
 
 // ---------- details ----------
 
 type detailsWin struct {
-	pop    *widget.PopUp
+	open   bool   // shown in the panel beside the page
+	hide   func() // closes the panel
 	ref    string
 	mirror string
 	m      app.SearchResult
@@ -60,15 +58,18 @@ func (d *detailsWin) relayout() {
 }
 
 func (d *detailsWin) close() {
-	d.pop.Hide()
+	d.open = false
+	if d.hide != nil {
+		d.hide()
+	}
 }
 
 // openDetails shows a mod's overview and runs the safety check on it (or
-// on the chosen mirror copy) before anything is installed. Like the page,
-// it is a sheet over the window.
+// on the chosen mirror copy) before anything is installed. It opens in the
+// panel beside the page, so the list stays in view.
 func (u *ui) openDetails(m app.SearchResult, mirror string) {
 	d := u.details
-	same := d != nil && d.ref == m.Ref && d.pop.Visible()
+	same := d != nil && d.ref == m.Ref && d.open
 	if !same {
 		if d != nil {
 			d.close()
@@ -93,30 +94,32 @@ func (u *ui) openDetails(m app.SearchResult, mirror string) {
 		d.install.Importance = widget.HighImportance
 		pageBtn := widget.NewButton("View original page", func() { u.openURL(orStr(d.page, m.URL)) })
 		pageBtn.Importance = widget.LowImportance
-		closeBtn := widget.NewButton("Close", func() { d.close() })
+		closeBtn := widget.NewButtonWithIcon("", theme.CancelIcon(), func() { d.close() })
+		closeBtn.Importance = widget.LowImportance
 		title := widget.NewLabelWithStyle(m.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 		title.SizeName = sH1
 		title.Wrapping = fyne.TextWrapWord
-		hero := u.thumbs.box(m.Ref, m.Name, m.Image, 0, 300, nil, false)
+		hero := u.thumbs.box(m.Ref, m.Name, m.Image, 0, 220, nil, false)
 		section := func(name string, c fyne.CanvasObject) fyne.CanvasObject { return tight(sectionTitle(name), c) }
 		d.body = container.New(&vlist{gap: 14},
 			tight(title, d.sub), d.facts, d.mirrors,
 			section("Safety check", d.check), d.required,
 			section("Description", d.desc))
 		d.scroll = container.NewVScroll(container.NewBorder(hero, nil, nil, nil,
-			container.New(layout.NewCustomPaddedLayout(16, 16, 22, 22), d.body)))
+			container.New(layout.NewCustomPaddedLayout(14, 14, 18, 18), d.body)))
 		actBg := canvas.NewRectangle(p.surface)
 		actions := container.NewStack(actBg, container.NewBorder(hline(), nil, nil, nil,
-			container.New(layout.NewCustomPaddedLayout(10, 10, 22, 22),
-				tight(d.warn, container.NewHBox(pageBtn, layout.NewSpacer(), closeBtn, d.install)))))
+			container.New(layout.NewCustomPaddedLayout(10, 10, 18, 18),
+				tight(d.warn, container.NewHBox(pageBtn, layout.NewSpacer(), d.install)))))
 		sheetBg := canvas.NewRectangle(p.surface)
-		sheetBg.CornerRadius = 12
-		sheetBg.StrokeColor, sheetBg.StrokeWidth = p.border, 1
-		sheet := container.NewStack(sheetBg, container.NewBorder(nil, actions, nil, nil, d.scroll))
-		d.pop = widget.NewModalPopUp(sheet, u.win.Canvas())
-		cs := u.win.Canvas().Size()
-		d.pop.Resize(fyne.NewSize(minF(860, cs.Width-24), cs.Height-24))
-		d.pop.Show()
+		top := container.NewBorder(nil, nil, nil, closeBtn)
+		sheet := container.NewStack(sheetBg, container.NewBorder(nil, nil, vline(), nil,
+			container.NewBorder(nil, actions, nil, nil, container.NewStack(d.scroll, container.NewVBox(top)))))
+		d.open = true
+		d.hide = func() { u.detailHolder.Hide(); u.detailHolder.Objects = nil }
+		u.detailHolder.Objects = []fyne.CanvasObject{sheet}
+		u.detailHolder.Show()
+		u.detailHolder.Refresh()
 		go u.loadDetails(d, m)
 	}
 	d.check.Objects = []fyne.CanvasObject{container.NewHBox(widget.NewActivity(), muted("Downloading and scanning before install…"))}
@@ -524,29 +527,21 @@ type installedPane struct {
 	list      *fyne.Container
 	missing   *fyne.Container
 	verify    *fyne.Container
-	openMods  *widget.Button
-	openContr *widget.Button
 	lastApply bool
-	check     *widget.Button
 	apply     *widget.Button
 	autoNote  *widget.Label
-	profBar   *fyne.Container
-	profSel   *widget.Select
-	profNames []string
 }
 
 // setAuto shows how updates happen: by themselves (Settings), with what
 // the last automatic run did, or by the buttons when that is turned off.
 func (p *installedPane) setAuto(st *stateView) {
 	if st.Settings.NoAutoUpdate {
-		p.check.Show()
 		p.apply.SetText("Apply safe updates")
-		p.autoNote.SetText("Automatic updates are off (Settings): check and apply them here.")
+		p.autoNote.SetText("Automatic updates are off (Settings). Update now installs the safe ones; ⋯ can check without installing.")
 		return
 	}
-	p.check.Hide()
 	p.apply.SetText("Update now")
-	note := "Your mods and contraptions update by themselves while ppgmods is open, through the same safety checks as an install."
+	note := "Your mods update by themselves while ppgmods is open, through the same safety checks as an install."
 	if st.AutoUpdate != "" {
 		note += " " + st.AutoUpdate + "."
 	}
@@ -563,110 +558,40 @@ func newInstalled(u *ui) *installedPane {
 		u.app.Preferences().SetString("installed.kind", p.kindValue())
 		p.render()
 	})
-	check := u.busyButton("Check for updates", func() {
+	checkUpdates := func() {
 		p.lastApply = false
 		u.run(map[string]any{"action": "update", "apply": false}, "Checking for updates")
-	})
-	apply := u.busyButton("Apply safe updates", func() {
+	}
+	apply := u.busyButton("Update now", func() {
 		p.lastApply = true
 		u.run(map[string]any{"action": "update", "apply": true}, "Applying safe updates")
 	})
 	apply.Importance = widget.HighImportance
-	p.check, p.apply = check, apply
+	apply.Icon = theme.ViewRefreshIcon()
+	p.apply = apply
 	p.autoNote = muted("")
 	p.autoNote.Wrapping = fyne.TextWrapWord
-	verify := u.busyButton("Verify files", func() { u.run(map[string]any{"action": "verify"}, "Verifying files") })
-	find := u.busyButton("Find already-installed", func() {
-		u.run(map[string]any{"action": "find-installed"}, "Looking for mods installed without this app")
+	var more *widget.Button
+	more = widget.NewButtonWithIcon("", theme.MoreHorizontalIcon(), func() {
+		menu := fyne.NewMenu("",
+			fyne.NewMenuItem("Check for updates (don't install)", checkUpdates),
+			fyne.NewMenuItem("Verify files", func() { u.run(map[string]any{"action": "verify"}, "Verifying files") }),
+			fyne.NewMenuItem("Find mods installed without ppgmods", func() {
+				u.run(map[string]any{"action": "find-installed"}, "Looking for mods installed without this app")
+			}),
+			fyne.NewMenuItemSeparator(),
+			fyne.NewMenuItem("Open the Mods folder", func() { u.open("mods") }),
+			fyne.NewMenuItem("Open the Contraptions folder", func() { u.open("contraptions") }),
+		)
+		pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(more)
+		widget.ShowPopUpMenuAtPosition(menu, u.win.Canvas(), pos.Add(fyne.NewPos(0, more.Size().Height)))
 	})
-	export := u.busyButton("Share as modpack", func() { u.run(map[string]any{"action": "list-export"}, "Saving the modpack") })
-	export.Importance = widget.LowImportance
-	importList := u.busyButton("Open modpack…", func() {
-		dialog.ShowFileOpen(func(r fyne.URIReadCloser, err error) {
-			if err != nil || r == nil {
-				return
-			}
-			defer r.Close()
-			b, err := io.ReadAll(io.LimitReader(r, 1<<20+1))
-			if err != nil {
-				u.toast(err.Error())
-				return
-			}
-			if modpack.Find(string(b)) {
-				go func() {
-					if err := u.s.call("POST", "/api/pack-offer", map[string]any{"text": string(b)}, nil); err != nil {
-						u.toast(err.Error())
-						return
-					}
-					u.refreshState()
-				}()
-				return
-			}
-			u.run(map[string]any{"action": "list-import", "list": string(b)}, "Installing the mods of the list")
-		}, u.win)
-	})
-	importList.Importance = widget.LowImportance
-	p.openMods = widget.NewButton("Open Mods folder", func() { u.open("mods") })
-	p.openContr = widget.NewButton("Open Contraptions folder", func() { u.open("contraptions") })
-	p.openMods.Importance, p.openContr.Importance = widget.LowImportance, widget.LowImportance
+	more.Importance = widget.LowImportance
 	p.missing.Hide()
 	p.verify.Hide()
-	p.profileBar()
-	p.root = view(container.New(&vlist{gap: 12}, h1("Installed"), p.kind.root,
-		flowBox(8, check, apply, verify, find, export, importList, p.openMods, p.openContr), p.autoNote, p.profBar, p.compiler, p.missing, p.verify, p.list))
+	head := container.NewBorder(nil, nil, h1("My mods"), container.NewCenter(container.NewHBox(apply, more)))
+	p.root = view(container.New(&vlist{gap: 12}, head, p.kind.root, p.autoNote, p.compiler, p.missing, p.verify, p.list))
 	return p
-}
-
-// profileBar is the row to switch, save and delete profiles: saved sets of
-// the mods that are on.
-func (p *installedPane) profileBar() {
-	u := p.u
-	p.profSel = widget.NewSelect(nil, nil)
-	p.profSel.PlaceHolder = "No profile"
-	use := u.busyButton("Use", func() {
-		if n := p.profSel.Selected; n != "" {
-			u.run(map[string]any{"action": "profile-use", "name": n}, "Switching to profile "+n)
-		}
-	})
-	save := u.busyButton("Save as…", func() {
-		name := widget.NewEntry()
-		name.SetPlaceHolder("e.g. Gore pack")
-		name.SetText(p.profSel.Selected)
-		body := container.New(&vlist{gap: 8}, text("Saves which mods are on now under this name. Switching to it later turns the other mods off (moved out of the Mods folder, nothing deleted) and these back on."), name)
-		u.confirm("Save profile", body, "Save", false, func() {
-			if n := strings.TrimSpace(name.Text); n != "" {
-				u.run(map[string]any{"action": "profile-save", "name": n}, "Saving profile "+n)
-			}
-		})
-	})
-	del := widget.NewButton("Delete", func() {
-		n := p.profSel.Selected
-		if n == "" {
-			return
-		}
-		u.confirm("Delete profile "+n+"?", text("Only the saved list is deleted; your mods stay as they are."), "Delete", true, func() {
-			u.run(map[string]any{"action": "profile-delete", "name": n}, "Deleting profile "+n)
-		})
-	})
-	del.Importance = widget.LowImportance
-	label := widget.NewLabelWithStyle("Profile", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	p.profBar = container.NewHBox(label, narrow(260, p.profSel), use, save, del)
-}
-
-// renderProfiles fills the profile list from the state.
-func (p *installedPane) renderProfiles(st *stateView) {
-	if strings.Join(st.Profiles, "\x00") != strings.Join(p.profNames, "\x00") {
-		p.profNames = st.Profiles
-		p.profSel.Options = st.Profiles
-		p.profSel.Refresh()
-	}
-	if p.profSel.Selected == "" || !slices.Contains(st.Profiles, p.profSel.Selected) {
-		p.profSel.Selected = ""
-		if st.Profile != "" && slices.Contains(st.Profiles, st.Profile) {
-			p.profSel.Selected = st.Profile
-		}
-		p.profSel.Refresh()
-	}
 }
 
 func (p *installedPane) kindValue() string {
@@ -693,16 +618,7 @@ func (p *installedPane) render() {
 	p.kind.SetText(0, fmt.Sprintf("Mods  %d", nm))
 	p.kind.SetText(1, fmt.Sprintf("Contraptions  %d", nc))
 	wantC := p.kind.selected == 1
-	p.renderProfiles(u.state())
-	if wantC {
-		p.openMods.Hide()
-		p.openContr.Show()
-		p.profBar.Hide()
-	} else {
-		p.openMods.Show()
-		p.openContr.Hide()
-		p.profBar.Show()
-	}
+
 	var rows []fyne.CanvasObject
 	for _, m := range all {
 		if isC(m) == wantC {
@@ -777,7 +693,6 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 	if !m.Revision.IsZero() {
 		meta += " · source date " + m.Revision.Format("2006-01-02")
 	}
-	meta += " · " + strings.Join(m.Folders, ", ")
 	if m.Withdrawn != "" {
 		meta += "\nWithdrawn from the Open Workshop: " + m.Withdrawn
 	}
@@ -805,44 +720,57 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 		on := widget.NewButton("Turn on", func() { u.run(map[string]any{"action": "turn-on", "key": m.Key}, "Turning on "+m.Name) })
 		on.Importance = widget.HighImportance
 		actions.Add(on)
-		actions.Add(widget.NewButton("Remove", func() {
+		rm := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
 			u.confirm("Remove "+m.Name+"?", text("This deletes its folders (kept in ppgmods-off while it's off)."), "Remove", true, func() {
 				u.run(map[string]any{"action": "remove", "key": m.Key}, "Removing "+m.Name)
 			})
-		}))
-	} else if m.Link != "" {
-		link := m.Link
-		b := widget.NewButton("Open page", func() { u.openURL(link) })
-		b.Importance = widget.LowImportance
-		actions.Add(b)
-	}
-	if m.Quarantined == "" && !m.Off {
-		if m.ItemKind != "contraption" {
-			actions.Add(widget.NewButton("Turn off", func() { u.run(map[string]any{"action": "turn-off", "key": m.Key}, "Turning off "+m.Name) }))
+		})
+		rm.Importance = widget.LowImportance
+		actions.Add(rm)
+	} else {
+		// On: the main action is turning it off; the rest goes in a menu
+		// and Remove is an icon, so a row has three controls, not seven.
+		var items []*fyne.MenuItem
+		if m.Link != "" {
+			link := m.Link
+			items = append(items, fyne.NewMenuItem("Open its page", func() { u.openURL(link) }))
 		}
 		if strings.HasPrefix(m.Key, "gb:") {
-			l := "Pin"
+			l := "Pin (stop updates)"
 			if m.Pinned {
-				l = "Unpin"
+				l = "Unpin (get updates again)"
 			}
-			actions.Add(widget.NewButton(l, func() {
+			items = append(items, fyne.NewMenuItem(l, func() {
 				u.run(map[string]any{"action": "pin", "key": m.Key, "pinned": !m.Pinned}, map[bool]string{true: "Resuming updates", false: "Pinning"}[m.Pinned])
 			}))
 		}
-		actions.Add(widget.NewButton("Rollback", func() { u.run(map[string]any{"action": "rollback", "key": m.Key}, "Rolling back "+m.Name) }))
-		share := widget.NewButton("Share", func() { u.run(map[string]any{"action": "ow-share", "key": m.Key}, "Packing "+m.Name) })
-		share.Importance = widget.LowImportance
-		actions.Add(share)
-		actions.Add(widget.NewButton("Quarantine", func() {
-			u.confirm("Quarantine "+m.Name+"?", text("Its folder is moved out of the game folder, so the game can't load it. Nothing is deleted: Release puts it back."), "Quarantine", false, func() {
-				u.run(map[string]any{"action": "quarantine", "key": m.Key}, "Quarantining "+m.Name)
-			})
-		}))
-		actions.Add(widget.NewButton("Remove", func() {
+		items = append(items,
+			fyne.NewMenuItem("Roll back to the previous version", func() { u.run(map[string]any{"action": "rollback", "key": m.Key}, "Rolling back "+m.Name) }),
+			fyne.NewMenuItem("Share on the Open Workshop", func() { u.run(map[string]any{"action": "ow-share", "key": m.Key}, "Packing "+m.Name) }),
+			fyne.NewMenuItemSeparator(),
+			fyne.NewMenuItem("Quarantine (move it out of the game)", func() {
+				u.confirm("Quarantine "+m.Name+"?", text("Its folder is moved out of the game folder, so the game can't load it. Nothing is deleted: Release puts it back."), "Quarantine", false, func() {
+					u.run(map[string]any{"action": "quarantine", "key": m.Key}, "Quarantining "+m.Name)
+				})
+			}))
+		if m.ItemKind != "contraption" {
+			off := widget.NewButton("Turn off", func() { u.run(map[string]any{"action": "turn-off", "key": m.Key}, "Turning off "+m.Name) })
+			actions.Add(off)
+		}
+		var more *widget.Button
+		more = widget.NewButtonWithIcon("", theme.MoreHorizontalIcon(), func() {
+			pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(more)
+			widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), u.win.Canvas(), pos.Add(fyne.NewPos(0, more.Size().Height)))
+		})
+		more.Importance = widget.LowImportance
+		rm := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
 			u.confirm("Remove "+m.Name+"?", text("This deletes "+strings.Join(m.Folders, ", ")+" from your game folder."), "Remove", true, func() {
 				u.run(map[string]any{"action": "remove", "key": m.Key}, "Removing "+m.Name)
 			})
-		}))
+		})
+		rm.Importance = widget.LowImportance
+		actions.Add(more)
+		actions.Add(rm)
 	}
 	thumb := fixed(u.thumbs.box(m.Key, m.Name, "", 96, 54, nil, true), 96, 54)
 	main := container.New(&vlist{gap: -6}, flowBox(6, append([]fyne.CanvasObject{name}, pills...)...), muted(meta))
@@ -1238,16 +1166,20 @@ func newSettings(u *ui) *settingsView {
 	save.Importance = widget.HighImportance
 	autoHint := muted("Checks every 6 hours while ppgmods is open. Each update is scanned like a new install; one that fails is held back and the old version stays.")
 	thumbsHint := muted("Valve deleted the preview images of the removed mods. ppgmods can fetch small mods (under 3 MB) one at a time to show their own thumbnail; this also pre-scans them so installing is instant.")
-	skyHint := muted("smods.ru sometimes asks browsers to prove they are real. ppgmods then reads Skymods through a background browser with its own profile. If smods.ru wants a person to tick a box, a banner tells you.")
-	form := container.New(&vlist{gap: 14},
-		field("People Playground folder", container.NewBorder(nil, nil, nil, pick, v.game), v.gameHint),
-		field("Cooldown for new uploads (hours)", v.cooldown, nil),
+	skyHint := muted("smods.ru sometimes asks browsers to prove they are real. ppgmods then reads Skymods through an invisible background browser with its own profile, and tries again by itself when smods.ru wants a person.")
+	hinted := func(c fyne.CanvasObject, h *widget.Label) fyne.CanvasObject {
+		return container.New(&vlist{gap: 0}, c, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), h))
+	}
+	gameForm := container.New(&vlist{gap: 10},
+		field("People Playground folder", container.NewBorder(nil, nil, nil, pick, v.game), v.gameHint))
+	modsForm := container.New(&vlist{gap: 12},
+		hinted(v.autoUpd, autoHint),
+		field("Cooldown for new uploads (hours)", narrow(160, v.cooldown), nil),
+		v.offline)
+	lookForm := container.New(&vlist{gap: 12},
 		field("Appearance", narrow(220, v.theme), nil),
-		container.New(&vlist{gap: 0}, v.autoUpd, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), autoHint)),
-		v.offline,
-		container.New(&vlist{gap: 0}, v.bgThumbs, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), thumbsHint)),
-		container.New(&vlist{gap: 0}, v.skyAuto, container.New(layout.NewCustomPaddedLayout(0, 0, 30, 0), skyHint)),
-		container.NewHBox(save))
+		hinted(v.bgThumbs, thumbsHint))
+	save.Icon = theme.DocumentSaveIcon()
 	v.install = u.busyButton("Install on this PC", u.installApp)
 	v.uninstall = widget.NewButton("Uninstall from this PC", func() {
 		u.confirm("Uninstall PPG Mod Manager?", text("This removes the program, its menu entry and its shortcuts, then closes this window. Your installed mods, backups and settings stay where they are."),
@@ -1260,10 +1192,12 @@ func newSettings(u *ui) *settingsView {
 		return container.New(&vlist{gap: 8}, append([]fyne.CanvasObject{h2(title)}, objs...)...)
 	}
 	v.root = view(container.New(&vlist{gap: 22},
-		tight(h1("Settings"), narrow(620, form)),
-		section("Game setup", narrow(720, panelBox(v.setup))),
+		container.NewBorder(nil, nil, h1("Settings"), container.NewCenter(save)),
+		section("Game", narrow(720, panelBox(container.New(&vlist{gap: 12}, gameForm, v.setup)))),
+		section("Mods and updates", narrow(720, panelBox(modsForm))),
+		section("Look and speed", narrow(720, panelBox(lookForm))),
 		section("Nexus Mods", narrow(720, panelBox(v.nexus))),
-		section("Skymods (smods.ru)", narrow(720, v.skySettings())),
+		section("Skymods (smods.ru)", narrow(720, container.New(&vlist{gap: 8}, hinted(v.skyAuto, skyHint), v.skySettings()))),
 		section("Folders", panelBox(v.paths), container.NewHBox(openData)),
 		section("This app", v.appInfo, container.NewHBox(v.install, v.uninstall)),
 		section("About", v.version, v.about,

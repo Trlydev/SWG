@@ -1619,6 +1619,14 @@ func (s *server) handleOpen(w http.ResponseWriter, r *http.Request) {
 		path = filepath.Join(dl, "ppgmods-share")
 	case "exports":
 		path = exportDir()
+	case "play":
+		if err := app.LaunchGame(); err != nil {
+			http.Error(w, "couldn't start Steam: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.logf("starting People Playground through Steam")
+		writeJSON(w, map[string]bool{"ok": true})
+		return
 	case "url":
 		u := r.URL.Query().Get("url")
 		if app.AllowedURL(u) && !strings.HasPrefix(u, "http://") {

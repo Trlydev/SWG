@@ -127,3 +127,18 @@ func TestCardHasNoSubscribeButton(t *testing.T) {
 		f.Close()
 	}
 }
+
+// The search box installs a link or an ID and searches for anything else.
+func TestLooksLikeRef(t *testing.T) {
+	for v, want := range map[string]bool{
+		"gb:462076": true, "sky:2853017413": true, "ow:lite-pixel-blood": true, "2853017413": true,
+		"https://gamebanana.com/mods/462076":                                true,
+		"https://steamcommunity.com/sharedfiles/filedetails/?id=2853017413": true,
+		"https://www.nexusmods.com/peopleplayground/mods/12":                true,
+		"melee weapons": false, "tank": false, "12345": false, "https://example.com": false,
+	} {
+		if got := looksLikeRef(v); got != want {
+			t.Errorf("looksLikeRef(%q) = %v, want %v", v, got, want)
+		}
+	}
+}

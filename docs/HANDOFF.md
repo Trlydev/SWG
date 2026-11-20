@@ -1,4 +1,4 @@
-# Handoff (after v0.4.6)
+# Handoff (after v0.4.9)
 
 State of ppgmods (People Playground mod manager, Go) for the next session.
 
@@ -6,7 +6,7 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 
 - Repo: github.com/Trlydev/SWG (the git remote DogeKingC/SWG redirects there).
   Go module path: `github.com/Trlydev/SWG`.
-- Latest release: **v0.4.6**. `build.yml` publishes v0.4.N on every push to
+- Latest release: **v0.4.9**. `build.yml` publishes v0.4.N on every push to
   main (counted from the v0.4.* tags). Pushes to other branches don't build.
 - Work branch: `claude/trusting-babbage-cu3pyj`.
 
@@ -38,7 +38,29 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 | 0.4.4 | Skymods check: tick the box in a plain browser window (worked for the owner) |
 | 0.4.5 | Open Workshop index signed with the original key only (WORKSHOP_SIGNING_KEY); key read however pasted |
 | 0.4.6 | Subscribe: tick cards into a cart, Subscribe installs all; installs queue while a task runs; automatic updates (Settings) |
+| 0.4.7 | Modpack codes (PPG1., .ppgm, double-click opens them); cards lose their Subscribe button; WorldBox codes recognised |
+| 0.4.8 | Windows built on the Linux runner (MinGW); signed checksums name their version (no rollbacks); centred tick box |
+| 0.4.9 | Full UI redesign (below); Skymods check background-only; Play button |
 | 0.4.2 | Reinstall RE_PPG button; fixes from a 5-agent security review; one-time window code; loader files matched by name and release; Popular sorting fixed (all time from the popularity data); thumbnails shrunk and cached on disk |
+
+## The window (0.4.9 redesign)
+
+- Sidebar (`native_fyne.go` build): brand, **Play** (steam://rungameid/1118200
+  via `/api/open?what=play`), Browse, My mods, Modpacks, then MORE:
+  Recover Workshop, Safety, Settings; game status, version, GitHub, quit at
+  the foot. Pages are the `page*` constants.
+- Update and app-install notices are slim lines above the page (`notice`).
+- Details open in a panel beside the page (`u.detailHolder`, a fixed-width
+  column shown/hidden), not a sheet over it.
+- Browse: one search box that also takes links, IDs and modpack codes
+  (`submit`, `looksLikeRef`); a Trending strip (popular this week, Workshop
+  mirrors, GameBanana, Open Workshop) when nothing is searched.
+- My mods: Update now + ⋯ (check, verify, find, folders); each row has
+  Turn off, ⋯ (page, pin, rollback, share, quarantine) and a remove icon.
+- Modpacks page (`native_packs.go`): share, open (code or file), profiles.
+- Settings in panels: Game, Mods and updates, Look and speed, Nexus,
+  Skymods, Folders, This app, About; Save at the top.
+- The `--web` page was not redesigned.
 
 ## What 0.4 has
 
