@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -178,6 +179,16 @@ func TestDetectWinHTTP(t *testing.T) {
 }
 
 // A process with the prefix in its environment counts as using it.
+// TestMain lets the test binary stand in for a long-running process
+// (TestPrefixInUse starts copies of it named like Wine's).
+func TestMain(m *testing.M) {
+	if os.Getenv("PPGMODS_TEST_SLEEP") == "1" {
+		time.Sleep(10 * time.Second)
+		return
+	}
+	os.Exit(m.Run())
+}
+
 func TestPrefixInUse(t *testing.T) {
 	if _, err := os.Stat("/proc/self/environ"); err != nil {
 		t.Skip("no /proc")
@@ -187,24 +198,42 @@ func TestPrefixInUse(t *testing.T) {
 		t.Fatal("unused prefix in use")
 	}
 	t.Setenv("WINEPREFIX", pfx+"/")
+	self, err := os.Executable()
+	if err != nil {
+		t.Skip(err)
+	}
+	b, err := os.ReadFile(self)
+	if err != nil {
+		t.Skip(err)
+	}
 	start := func(name string) {
-		// A copy of sleep named like a Wine process.
+		// A copy of this test binary, named like a Wine process, that just
+		// waits (TestMain). Not sleep: some systems' coreutils is one
+		// program that picks the tool by its name.
 		bin := filepath.Join(t.TempDir(), name)
-		src, err := exec.LookPath("sleep")
-		if err != nil {
+		if err := os.WriteFile(bin, b, 0o755); err != nil {
 			t.Skip(err)
 		}
-		b, _ := os.ReadFile(src)
-		os.WriteFile(bin, b, 0o755)
-		cmd := exec.Command(bin, "5")
-		cmd.Env = os.Environ()
+		cmd := exec.Command(bin)
+		cmd.Env = append(os.Environ(), "PPGMODS_TEST_SLEEP=1")
 		if err := cmd.Start(); err != nil {
 			t.Skip(err)
 		}
 		t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+		// Right after the start, /proc can still show the parent's command
+		// line (before the new program replaced it): wait for the name.
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			line, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", cmd.Process.Pid))
+			if strings.HasPrefix(string(line), bin+"\x00") {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("%s didn't start", name)
 	}
 	// This test (like a shell) has WINEPREFIX set but isn't Wine.
-	start("sleep")
+	start("not-wine")
 	if PrefixInUse(pfx) {
 		t.Error("a process that isn't Wine counted")
 	}
