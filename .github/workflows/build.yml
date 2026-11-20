@@ -25,10 +25,18 @@ concurrency:
 # What GLFW (Fyne's window library) compiles against, nothing more.
 env:
   WINDOW_HEADERS: libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev libxkbcommon-dev libwayland-dev
+  # apt on the runner: a stuck mirror connection gives up after 30 s and is
+  # retried, instead of hanging (a release once spent 20 minutes here).
+  APT_OPTS: -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+  # The packages above all come from Ubuntu itself; the runner image also
+  # lists Microsoft's and other repositories, which apt-get update would
+  # fetch for nothing. The runner is thrown away after the job.
+  APT_ONLY_UBUNTU: sudo find /etc/apt/sources.list.d -type f ! -name ubuntu.sources -delete
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -47,7 +55,10 @@ jobs:
           key: test-${{ hashFiles('go.sum') }}-${{ github.sha }}
           restore-keys: test-${{ hashFiles('go.sum') }}-
       - name: Window toolkit headers (the native window uses OpenGL)
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends $WINDOW_HEADERS
+        run: |
+          $APT_ONLY_UBUNTU
+          sudo apt-get $APT_OPTS update -q
+          sudo apt-get $APT_OPTS install -y -q --no-install-recommends $WINDOW_HEADERS
       - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./... && GOOS=windows CGO_ENABLED=0 go vet ./internal/desktop ./internal/selfupdate ./internal/manager
       - run: go test ./...
@@ -58,6 +69,7 @@ jobs:
   # keeps Fyne's C code compiled between pushes.
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
@@ -99,7 +111,10 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "Building $v"
       - name: Toolchains (window headers, MinGW for Windows)
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends $WINDOW_HEADERS gcc-mingw-w64-x86-64
+        run: |
+          $APT_ONLY_UBUNTU
+          sudo apt-get $APT_OPTS update -q
+          sudo apt-get $APT_OPTS install -y -q --no-install-recommends $WINDOW_HEADERS gcc-mingw-w64-x86-64
       - name: Windows icon and version info
         env:
           VERSION: ${{ steps.ver.outputs.version }}
