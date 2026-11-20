@@ -384,7 +384,17 @@ func nxAskFiles(mods []NXMod) map[int]nxMainFile {
 // nxPreview lists the files inside a Nexus upload (Nexus's public content
 // preview).
 func nxPreview(modID int, uri string) ([]string, error) {
-	u := fmt.Sprintf("https://file-metadata.nexusmods.com/file/nexus-files-s3-meta/%d/%d/%s.json", nxGameID, modID, url.PathEscape(uri))
+	// The bucket Nexus's own "Preview file contents" button asks for (its
+	// pages name it upload_metadata_bucket; it was nexus-files-s3-meta
+	// until late 2026). In November 2026 it answers 404 for every People
+	// Playground file, Nexus's own button included; NXInfos remembers the
+	// failures, so that costs nothing until Nexus serves previews again.
+	// Newer files are named like "14/dd/92/<uuid>": the slashes stay.
+	parts := strings.Split(uri, "/")
+	for i, p := range parts {
+		parts[i] = url.PathEscape(p)
+	}
+	u := fmt.Sprintf("https://file-metadata.nexusmods.com/file/production-nexus-files-s3-meta/%d/%d/%s.json", nxGameID, modID, strings.Join(parts, "/"))
 	var tree struct {
 		Children []nxNode `json:"children"`
 	}
