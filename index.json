@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-20T23:25:49.79641607Z",
+ "generated": "2026-11-20T23:37:36.240067527Z",
  "entries": [
   {
    "slug": "60m-mega-bloc-v5-2385213638",
@@ -980,6 +980,36 @@
    "owner": "Trlydev",
    "approved": true,
    "rules": [
+    "namespace"
+   ]
+  },
+  {
+   "slug": "cursed-energy-attacks",
+   "name": "Cursed Energy Attacks",
+   "author": "Quan",
+   "kind": "mod",
+   "version": "1.0",
+   "image": "https://raw.githubusercontent.com/Trlydev/SWG/workshop-data/thumbs/d4709379ad6aa374471122fa218a2979.jpg",
+   "workshop_id": "3351798392",
+   "file": "https://github.com/Trlydev/SWG/releases/download/workshop-files/cursed-energy-attacks-1.0-0ba476374460.zip",
+   "sha256": "0ba47637446015b2f0adde7cf826ac8c2641dd89530fbb5a3a4e2729283fcc4c",
+   "size": 3122626,
+   "scan_max": "MEDIUM",
+   "findings": [
+    "[MEDIUM namespace] Cursed Energy Attacks [sky-3351798392]/modresources.cs: uses System.IO (file system access)",
+    "[MEDIUM file-enumerate] Cursed Energy Attacks [sky-3351798392]/modresources.cs: lists files/folders on disk: Directory.GetFiles"
+   ],
+   "published": "2026-11-20T23:37:36.227236886Z",
+   "first": "2026-11-20T23:37:36.227236886Z",
+   "commit": "",
+   "maintainers": [
+    "Trlydev"
+   ],
+   "owner": "Trlydev",
+   "issue": 4,
+   "approved": true,
+   "rules": [
+    "file-enumerate",
     "namespace"
    ]
   },
