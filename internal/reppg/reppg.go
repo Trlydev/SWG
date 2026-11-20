@@ -34,6 +34,7 @@ import (
 
 	"github.com/Trlydev/SWG/internal/game"
 	"github.com/Trlydev/SWG/internal/scan"
+	"github.com/Trlydev/SWG/internal/stall"
 )
 
 // RE_PPG's publisher key, from RE_PPG/bootstrap/publisher-public.xml.
@@ -696,7 +697,13 @@ func get(ctx context.Context, u string, max int64) ([]byte, error) {
 
 // download saves u to a temporary file and returns its path.
 func download(ctx context.Context, u string) (string, error) {
-	resp, err := fetch(ctx, u)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return "", err
+	}
+	// RE_PPG-base.zip is ~110 MB: no overall limit (client's 10 minutes
+	// could cut it off on a slow line), only on a minute of silence.
+	resp, err := stall.Do(client, req, time.Minute)
 	if err != nil {
 		return "", err
 	}

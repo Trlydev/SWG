@@ -146,7 +146,7 @@ func ModsbaseDownload(link, page, path string, maxBytes int64) (string, error) {
 	}
 	setHeaders(req)
 	req.Header.Set("Referer", page)
-	resp, err := client.Do(req)
+	resp, err := downloadDo(req)
 	if err != nil {
 		return "", err
 	}

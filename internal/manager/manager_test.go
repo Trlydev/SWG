@@ -20,19 +20,33 @@ func rejected(err error) bool {
 }
 
 func TestCheckCutoff(t *testing.T) {
-	m := &Manager{}
+	m := &Manager{Policy: Policy{Cooldown: 48 * time.Hour}}
 	clean := &scan.Report{}
+	code := &scan.Report{Scripts: 1}
+	dll := &scan.Report{Findings: []scan.Finding{{Severity: scan.Info, Rule: "known-library", File: "Mod/Lib.dll"}}}
 	before := &Candidate{SteamOrig: true, Revision: WormCutoff.Add(-time.Hour)}
 	after := &Candidate{SteamOrig: true, Revision: WormCutoff.Add(time.Hour)}
+	fresh := &Candidate{SteamOrig: true, Revision: time.Now().Add(-time.Hour)}
 	unknown := &Candidate{SteamOrig: true}
-	if err := m.Check(before, clean, nil); err != nil {
+	if err := m.Check(before, code, nil); err != nil {
 		t.Fatalf("pre-cutoff copy refused: %v", err)
 	}
-	if !rejected(m.Check(after, clean, nil)) || !rejected(m.Check(unknown, clean, nil)) {
-		t.Fatal("post-cutoff or undated Steam copy accepted")
+	// After the cutoff, code (scripts or any DLL) can carry the worm.
+	if !rejected(m.Check(after, code, nil)) || !rejected(m.Check(after, dll, nil)) {
+		t.Fatal("post-cutoff Steam copy with code accepted")
+	}
+	// Without code it can't; a new upload still waits out the cooldown.
+	if err := m.Check(after, clean, nil); err != nil {
+		t.Fatalf("code-free post-cutoff copy (past the cooldown) refused: %v", err)
+	}
+	if err := m.Check(fresh, clean, nil); !rejected(err) || !strings.Contains(err.Error(), "cooldown") {
+		t.Fatalf("code-free upload inside the cooldown: %v", err)
+	}
+	if !rejected(m.Check(unknown, clean, nil)) {
+		t.Fatal("undated Steam copy accepted")
 	}
 	m.Policy.AllowAfterCutoff = true
-	if err := m.Check(after, clean, nil); err != nil {
+	if err := m.Check(after, code, nil); err != nil {
 		t.Fatalf("override ignored: %v", err)
 	}
 }

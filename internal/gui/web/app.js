@@ -584,7 +584,7 @@ async function search(q, p) {
     const shown = mergeShown(browse.sort, lists.ow, lists.tw.filter((x) => !merged.has(x.ref)), lists.gb, nx, lists.ws, s01);
     [...grid.querySelectorAll(".mod")].slice(start).forEach((c) => c.remove());
     status.before(...shown.map(card));
-    const waiting = [...pending].map((x) => ({ gb: "GameBanana", tw: "True Workshop", ws: "Workshop mirrors (Skymods can be slow)", s01: "01 STUDIO", nx: "Nexus Mods", ow: "Open Workshop" }[x]));
+    const waiting = [...pending].map((x) => ({ gb: "GameBanana", tw: "True Workshop", ws: "Steam Workshop (Skymods can be slow)", s01: "01 STUDIO", nx: "Nexus Mods", ow: "Open Workshop" }[x]));
     status.textContent = waiting.length ? "Still searching: " + waiting.join(", ") + "…" : (!shown.length && p === 1 ? "No mods found." : "");
     status.hidden = !status.textContent;
     errs.hidden = !errors.length;
@@ -767,7 +767,7 @@ function card(m) {
         ...sourceBadges(m),
         m.kind === "contraption" ? el("span", { class: "badge badge-kind" }, "contraption") : null,
         m.category && m.category !== "Contraptions" ? el("span", { class: "badge" }, m.category) : null,
-        m.after_cutoff ? el("span", { class: "badge badge-bad", title: "Revised after the worm started; refused" }, "after cutoff") : null,
+        m.after_cutoff ? el("span", { class: "badge", title: "Revised after the worm started: a new Workshop upload. It installs only if it has no code." }, "new upload") : null,
         installed ? el("span", { class: "badge badge-ok" }, "installed") : null,
         installed || m.after_cutoff ? null : el("button", {
           class: "btn btn-primary btn-sm", "data-busy": true, disabled: jobRunning,

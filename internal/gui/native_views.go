@@ -183,7 +183,8 @@ func (u *ui) loadDetails(d *detailsWin, m app.SearchResult) {
 		d.facts.Refresh()
 		d.desc.SetText(orStr(v.Description, "No description."))
 		if v.AfterCutoff {
-			d.sub.Add(pill("revised after the worm cutoff", pBad))
+			// A new Workshop upload: it installs only if it has no code.
+			d.sub.Add(pill("new upload: installs only without code", pKind))
 		}
 		d.relayout()
 		if len(v.Required) > 0 {
@@ -316,7 +317,7 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 		}
 	}
 	rows := []fyne.CanvasObject{u.mirrorRow(d, "", container.NewHBox(widget.NewLabelWithStyle("Automatic", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		muted("highest mod.json version from before the worm, skipping any the scanner flags")), nil, "", false)}
+		muted("highest mod.json version, skipping any the scanner flags (copies changed after the worm only without code)")), nil, "", false)}
 	for _, mr := range mirrors {
 		var tags []fyne.CanvasObject
 		if newestOK != nil && mr.ID == newestOK.ID {
@@ -338,7 +339,7 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 			tags = append(tags, pill("file gone", pBad))
 		}
 		if mr.AfterCutoff {
-			tags = append(tags, pill("after worm cutoff", pBad))
+			tags = append(tags, pill("new upload: only without code", pKind))
 		}
 		if chosen != "" && mr.ID == chosen {
 			tags = append(tags, pill("checked below", pNeutral))
@@ -353,7 +354,7 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 			line += " · " + mr.Size
 		}
 		main := container.NewHBox(widget.NewLabelWithStyle(mr.Source, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), muted(strings.TrimPrefix(line, " ")))
-		rows = append(rows, u.mirrorRow(d, mr.ID, main, tags, mr.Page, mr.AfterCutoff || mr.Gone))
+		rows = append(rows, u.mirrorRow(d, mr.ID, main, tags, mr.Page, mr.Gone))
 	}
 	title := "Mirror"
 	if len(mirrors) > 1 {

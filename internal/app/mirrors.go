@@ -291,11 +291,17 @@ func workshopMirrors(ws, titleHint string) ([]Mirror, error) {
 		skyErr    error
 		s01       *sources.S01Mod
 		s01Err    error
+		steam     sources.SteamItem
+		onSteam   bool
 		lookups   sync.WaitGroup
 	)
-	lookups.Add(2)
+	lookups.Add(3)
 	go func() { defer lookups.Done(); skyCopies, skyErr = sources.SkyCopies(ws) }()
 	go func() { defer lookups.Done(); s01, s01Err = sources.S01ByWorkshopID(ws) }()
+	// Steam knows the title of an item that is still on the Workshop (code-
+	// free items are still published there): with Skymods blocked it is
+	// what finds the item's top-mods copies.
+	go func() { defer lookups.Done(); steam, onSteam = sources.SteamItemByID(ws) }()
 	lookups.Wait()
 	if copies, err := skyCopies, skyErr; err == nil {
 		for _, it := range copies {
@@ -325,6 +331,9 @@ func workshopMirrors(ws, titleHint string) ([]Mirror, error) {
 	knownMu.Lock()
 	if titleHint == "" {
 		titleHint = knownTitle[ws]
+	}
+	if titleHint == "" && onSteam {
+		titleHint = steam.Title
 	}
 	tmURLs := map[string]bool{}
 	for u := range knownTM[ws] {
@@ -691,17 +700,11 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 		}
 		mirrors = pick
 	}
-	var usable []Mirror
-	for _, mr := range mirrors {
-		if mr.AfterCutoff && !a.Opt.Policy.AllowAfterCutoff {
-			a.logf("  %s copy (%s) skipped: revised on/after the worm cutoff", mr.Source, mr.Version)
-			continue
-		}
-		usable = append(usable, mr)
-	}
-	if len(usable) == 0 {
-		return nil, &manager.Rejection{Reasons: []string{fmt.Sprintf("every mirror copy was revised on/after the worm cutoff %s; it may contain the worm (override: --allow-after-cutoff)", manager.WormCutoff.Format("2006-01-02"))}}
-	}
+	// Copies revised on/after the worm cutoff are downloaded too: the
+	// Workshop still takes uploads without code, which can't carry the
+	// worm. One that turns out to contain code is dropped below.
+	usable := mirrors
+	withCode := 0 // post-cutoff copies dropped for containing code
 
 	// Download the copies (newest revision first; at most four), read each
 	// one's mod.json, then rank by ModVersion: mirror dates can mislead
@@ -843,6 +846,14 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 		}
 		in := inspect(m, c)
 		version, ugc, clean, max := in.version, in.ugc, in.clean, in.max
+		if mr.AfterCutoff && !a.Opt.Policy.AllowAfterCutoff && m != nil && !in.codeFree {
+			a.logf("  %s copy (%s) skipped: revised on/after the worm cutoff and it contains code", mr.Source, mr.Version)
+			withCode++
+			if a.Opt.Mirror == mr.ID {
+				return nil, &manager.Rejection{Reasons: []string{fmt.Sprintf("this copy was revised on/after the worm cutoff %s and contains code; it may contain the worm (override: --allow-after-cutoff)", manager.WormCutoff.Format("2006-01-02"))}}
+			}
+			continue
+		}
 		invalid := ""
 		switch {
 		case m == nil:
@@ -882,6 +893,9 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 		copies = append(copies, copyC{mr, c, version, clean, max})
 	}
 	if len(copies) == 0 {
+		if withCode > 0 && len(gone) == 0 && browser == nil {
+			return nil, &manager.Rejection{Reasons: []string{fmt.Sprintf("every mirror copy was revised on/after the worm cutoff %s and contains code; it may contain the worm (override: --allow-after-cutoff)", manager.WormCutoff.Format("2006-01-02"))}}
+		}
 		if browser != nil {
 			return nil, browser
 		}
@@ -1065,6 +1079,7 @@ type inspected struct {
 	version, ugc, author string
 	modJSON, contraption bool
 	clean                bool
+	codeFree             bool // no code at all (scan.Report.CodeFree)
 	max                  string
 }
 
@@ -1082,6 +1097,7 @@ func inspect(m *manager.Manager, c *manager.Candidate) inspected {
 		return in
 	}
 	defer os.RemoveAll(dir)
+	in.codeFree = rep.CodeFree()
 	if roots, _ := modRoots(dir); len(roots) > 0 {
 		var mj struct {
 			ModVersion         string          `json:"ModVersion"`

@@ -97,19 +97,42 @@ func TestFetchWorkshopSkipsInfectedNewestCopy(t *testing.T) {
 	}
 }
 
+// Copies revised after the worm cutoff: one with code is refused (it may
+// carry the worm); one without code is a new Workshop upload, which the
+// worm can't be in, and installs once the cooldown has passed.
 func TestFetchWorkshopAllCopiesAfterCutoff(t *testing.T) {
 	freshCopyInfo(t)
 	const ws = "1234567891"
+	dir, _ := CacheDir("sky:" + ws)
+	writeModZip(t, filepath.Join(dir, "topmods-913-code.zip"), `class A { }`)
 	after := manager.WormCutoff.Add(24 * time.Hour)
 	mirrorMemo[ws] = mirrorMemoEntry{at: time.Now(), list: []Mirror{
-		{ID: "topmods:3", Source: "top-mods", VersionTime: after, AfterCutoff: true, tm: &sources.TMItem{}},
+		{ID: "topmods:913", Source: "top-mods", Author: "a", VersionTime: after, AfterCutoff: true, tm: &sources.TMItem{}},
 	}}
 	defer delete(mirrorMemo, ws)
+	st, _ := manager.LoadState()
+	m := &manager.Manager{State: st, ModsDir: t.TempDir()}
 	a := &App{Opt: DefaultOptions()}
-	_, err := a.fetchWorkshop(nil, ws)
+	_, err := a.fetchWorkshop(m, ws)
 	var rej *manager.Rejection
-	if err == nil || !asRejection(err, &rej) {
-		t.Fatalf("want a rejection, got %v", err)
+	if err == nil || !asRejection(err, &rej) || !strings.Contains(err.Error(), "contains code") {
+		t.Fatalf("post-cutoff copy with code: want a rejection, got %v", err)
+	}
+
+	const ws2 = "1234567892"
+	dir2, _ := CacheDir("sky:" + ws2)
+	zipFiles(t, filepath.Join(dir2, "topmods-914-art.zip"), map[string]string{
+		"Mod/mod.json": `{"Name":"Art","Author":"a","ModVersion":"1.0"}`, "Mod/sprite.png": "\x89PNG\r\n\x1a\n"})
+	mirrorMemo[ws2] = mirrorMemoEntry{at: time.Now(), list: []Mirror{
+		{ID: "topmods:914", Source: "top-mods", Author: "a", VersionTime: after, AfterCutoff: true, tm: &sources.TMItem{}},
+	}}
+	defer delete(mirrorMemo, ws2)
+	c, err := a.fetchWorkshop(m, ws2)
+	if err != nil || c.Mirror != "topmods:914" {
+		t.Fatalf("code-free post-cutoff copy: %v %v", c, err)
+	}
+	if err := m.Install(c); err != nil {
+		t.Fatalf("code-free post-cutoff copy (past the cooldown) not installed: %v", err)
 	}
 }
 

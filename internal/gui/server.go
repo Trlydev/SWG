@@ -24,7 +24,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1044,6 +1046,24 @@ type installedView struct {
 	Kind      string `json:"kind"`      // source label
 	ItemKind  string `json:"item_kind"` // mod or contraption
 	Link      string `json:"link"`
+	// Aliases are the item's other refs (shadowing the stored ones), so
+	// Browse marks it installed under any of them: a contraption recovered
+	// from the Steam cache is local:c-<Workshop ID>, which Browse shows as
+	// sky:<Workshop ID>.
+	Aliases []string `json:"aliases,omitempty"`
+}
+
+// reLocalWorkshop is a local key named after a Workshop item.
+var reLocalWorkshop = regexp.MustCompile(`^local:(?:c-)?(\d{8,12})$`)
+
+// viewAliases is an installed item's stored aliases plus the Workshop ref
+// its local key names, if any.
+func viewAliases(m *manager.Installed) []string {
+	out := append([]string(nil), m.Aliases...)
+	if mm := reLocalWorkshop.FindStringSubmatch(m.Key); mm != nil && !slices.Contains(out, "sky:"+mm[1]) {
+		out = append(out, "sky:"+mm[1])
+	}
+	return out
 }
 
 func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
@@ -1058,7 +1078,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 		mg := &manager.Manager{State: st, ModsDir: paths.Mods, ContraptionsDir: paths.Contraptions}
 		for _, m := range st.Sorted() {
-			v := installedView{Installed: m, Link: m.Source, ItemKind: m.Kind}
+			v := installedView{Installed: m, Link: m.Source, ItemKind: m.Kind, Aliases: viewAliases(m)}
 			v.Missing = paths.Mods != "" && mg.MissingFolders(m)
 			if ix := workshop.CachedIndex(); ix != nil && strings.HasPrefix(m.Mirror, "openworkshop:") {
 				if e := ix.Find(strings.TrimPrefix(m.Mirror, "openworkshop:")); e != nil {
@@ -1078,6 +1098,11 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 				v.Kind = "Nexus Mods"
 			case strings.HasPrefix(m.Key, "ow:"):
 				v.Kind = "Open Workshop"
+			case reLocalWorkshop.MatchString(m.Key):
+				// Recovered from the Steam cache: a Steam Workshop item like
+				// any other, whichever way it got here.
+				v.Kind = "Steam Workshop"
+				v.Link = "https://steamcommunity.com/sharedfiles/filedetails/?id=" + reLocalWorkshop.FindStringSubmatch(m.Key)[1]
 			default:
 				v.Kind = "Local file"
 				v.Link = ""

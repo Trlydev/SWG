@@ -60,6 +60,23 @@ type Report struct {
 	Findings []Finding `json:"findings"`
 }
 
+// CodeFree reports whether the scanned files hold no code at all: no C#
+// source (counting what mod.json lists), no DLL of any kind, and nothing
+// rated HIGH or worse (executables, disguised binaries, hidden code, archives
+// that can't be looked into). The September 2026 worm lived in code, so a
+// code-free copy can't carry it, however recently it was changed.
+func (r *Report) CodeFree() bool {
+	if r.Scripts > 0 || r.Max() >= High {
+		return false
+	}
+	for _, f := range r.Findings {
+		if strings.EqualFold(filepath.Ext(f.File), ".dll") {
+			return false
+		}
+	}
+	return true
+}
+
 // Max returns the highest severity in the report, or -1 if there are none.
 func (r *Report) Max() Severity {
 	m := Severity(-1)

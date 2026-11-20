@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/Trlydev/SWG/internal/manager"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -150,5 +151,34 @@ func TestWindowCode(t *testing.T) {
 	}
 	if w := swap("guess"); w.Code != 403 {
 		t.Errorf("a made-up code was accepted: %d", w.Code)
+	}
+}
+
+// Browse marks an item installed under any of its refs: a contraption
+// recovered from the Steam cache (local:c-<Workshop ID>) is also
+// sky:<Workshop ID>, which is how Browse shows it.
+func TestViewAliases(t *testing.T) {
+	cases := map[string][]string{
+		"local:c-2091325214": {"sky:2091325214"},
+		"local:3351798392":   {"sky:3351798392"},
+		"local:c-plane-v1":   nil,
+		"local:0123abcd4567": nil,
+		"tw:9":               {"sky:2226697361"},
+	}
+	for key, want := range cases {
+		m := &manager.Installed{Key: key}
+		if key == "tw:9" {
+			m.Aliases = []string{"sky:2226697361"}
+		}
+		got := viewAliases(m)
+		if fmt.Sprint(got) != fmt.Sprint(want) && !(len(got) == 0 && len(want) == 0) {
+			t.Errorf("%s: %v, want %v", key, got, want)
+		}
+	}
+	// The view's aliases are what the state sends (not the stored ones).
+	m := &manager.Installed{Key: "local:c-2091325214"}
+	b, _ := json.Marshal(installedView{Installed: m, Aliases: viewAliases(m)})
+	if !strings.Contains(string(b), `"aliases":["sky:2091325214"]`) || len(m.Aliases) != 0 {
+		t.Errorf("state JSON %s; stored aliases %v", b, m.Aliases)
 	}
 }

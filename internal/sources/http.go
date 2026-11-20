@@ -16,6 +16,8 @@ import (
 	"os"
 	"syscall"
 	"time"
+
+	"github.com/Trlydev/SWG/internal/stall"
 )
 
 var UserAgent = "ppgmods/dev (+https://github.com/Trlydev/SWG)"
@@ -146,11 +148,19 @@ func get(url string) (*http.Response, error) {
 
 // Download saves url to path and returns its MD5 and SHA-256 hex digests.
 func Download(url, path string, maxBytes int64) (md5hex, sha256hex string, err error) {
-	resp, err := get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", "", err
+	}
+	setHeaders(req)
+	resp, err := downloadDo(req)
 	if err != nil {
 		return "", "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", "", fmt.Errorf("GET %s: HTTP %d", url, resp.StatusCode)
+	}
 	f, err := os.Create(path)
 	if err != nil {
 		return "", "", err
@@ -160,6 +170,17 @@ func Download(url, path string, maxBytes int64) (md5hex, sha256hex string, err e
 		os.Remove(path)
 	}
 	return md5hex, sha256hex, err
+}
+
+// downloadIdle is how long a file download may send nothing before it is
+// given up. Downloads have no overall limit (client's 5 minutes cut off big
+// mods on slow lines); see package stall.
+var downloadIdle = 60 * time.Second
+
+// downloadDo sends a file download request with client's transport, cookies
+// and redirect rules, limited only by downloadIdle.
+func downloadDo(req *http.Request) (*http.Response, error) {
+	return stall.Do(client, req, downloadIdle)
 }
 
 // saveHashed copies at most maxBytes from r into f, closes f and returns the

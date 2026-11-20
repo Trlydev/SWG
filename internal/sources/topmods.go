@@ -291,7 +291,13 @@ func ModsfireDownload(page, referer, path string, maxBytes int64) (string, error
 	if file == "" {
 		return "", errors.New("modsfire.com did not generate a download link")
 	}
-	if resp, err = step("https://modsfire.com"+file, "https://modsfire.com"+gen); err != nil {
+	req, err := http.NewRequest("GET", "https://modsfire.com"+file, nil)
+	if err != nil {
+		return "", err
+	}
+	setHeaders(req)
+	req.Header.Set("Referer", "https://modsfire.com"+gen)
+	if resp, err = downloadDo(req); err != nil { // the file itself: no overall limit
 		return "", err
 	}
 	defer resp.Body.Close()

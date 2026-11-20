@@ -1,6 +1,6 @@
 module github.com/Trlydev/SWG
 
-go 1.25.0
+go 1.26.0
 
 require (
 	fyne.io/fyne/v2 v2.8.1
@@ -9,7 +9,7 @@ require (
 	github.com/chromedp/chromedp v0.13.6
 	github.com/gobwas/ws v1.4.0
 	github.com/nwaples/rardecode/v2 v2.4.1
-	golang.org/x/image v0.24.0
+	golang.org/x/image v0.47.0
 )
 
 require (
@@ -57,7 +57,7 @@ require (
 	github.com/yuin/goldmark v1.8.2 // indirect
 	go4.org v0.0.0-20260112195520-a5071408f32f // indirect
 	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

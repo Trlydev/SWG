@@ -40,7 +40,7 @@ func urlQuery(s string) string { return url.QueryEscape(s) }
 
 var siteOptions = []struct{ label, value string }{
 	{"All sites", "all"}, {"Open Workshop", "ow"}, {"GameBanana", "gb"}, {"Nexus Mods", "nx"},
-	{"True Workshop", "tw"}, {"01 STUDIO", "s01"}, {"Steam Workshop mirrors", "sky"},
+	{"True Workshop", "tw"}, {"01 STUDIO", "s01"}, {"Steam Workshop", "sky"},
 }
 
 var sortOptions = []struct{ label, value string }{
@@ -640,7 +640,9 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 		pills = append(pills, pill(m.Category, pNeutral))
 	}
 	if m.AfterCutoff {
-		pills = append(pills, pill("after cutoff", pBad))
+		// Revised after the worm cutoff: a new Workshop upload. It installs
+		// only if it turns out to have no code (the worm lived in code).
+		pills = append(pills, pill("new upload", pKind))
 	}
 	c.installed = pill("installed", pOK)
 	pills = append(pills, c.installed)
@@ -671,7 +673,7 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 		b.updateSelection()
 	})
 	c.pick.Checked = picked
-	if installed || m.AfterCutoff {
+	if installed {
 		c.pick.Hide()
 	}
 	thumb := u.thumbs.box(m.Ref, m.Name, m.Image, 0, 128, m, true)
@@ -1108,7 +1110,7 @@ func (t *thumbLoader) enqueue(m *app.SearchResult) {
 func prescanThumb(m *app.SearchResult) bool {
 	switch {
 	case strings.HasPrefix(m.Ref, "sky:"):
-		return !m.AfterCutoff && sizeBytes(m.Size) <= 3<<20
+		return sizeBytes(m.Size) <= 3<<20
 	case strings.HasPrefix(m.Ref, "ow:"):
 		return sizeBytes(m.Size) <= 10<<20
 	}

@@ -138,8 +138,17 @@ func (m *Manager) Check(c *Candidate, rep *scan.Report, prev *Installed) error {
 	var reasons []string
 	p := m.Policy
 	if c.SteamOrig && !c.Revision.IsZero() && !c.Revision.Before(WormCutoff) && !p.AllowAfterCutoff {
-		reasons = append(reasons, fmt.Sprintf("Steam copy revised %s, on/after the worm cutoff %s (override: --allow-after-cutoff)",
-			c.Revision.Format("2006-01-02 15:04"), WormCutoff.Format("2006-01-02")))
+		switch {
+		case !rep.CodeFree():
+			reasons = append(reasons, fmt.Sprintf("Steam copy revised %s, on/after the worm cutoff %s, and it contains code (override: --allow-after-cutoff)",
+				c.Revision.Format("2006-01-02 15:04"), WormCutoff.Format("2006-01-02")))
+		case p.Cooldown > 0 && time.Since(c.Revision) < p.Cooldown:
+			// A new upload without code (the Workshop still takes those):
+			// the worm can't be in it, but like any new upload it waits out
+			// the cooldown.
+			reasons = append(reasons, fmt.Sprintf("new Workshop upload (no code) revised %s ago, cooldown is %s (override: --cooldown 0)",
+				time.Since(c.Revision).Round(time.Minute), p.Cooldown))
+		}
 	}
 	if c.SteamOrig && c.Revision.IsZero() && !p.AllowAfterCutoff {
 		reasons = append(reasons, "revision date unknown, cannot prove it predates the worm (override: --allow-after-cutoff)")
