@@ -86,6 +86,8 @@ type browseView struct {
 	lastQuery string
 	earlier   []fyne.CanvasObject // cards of the pages before this one
 	wsTitles  map[string]bool     // titles of the Workshop cards shown (all pages), to drop later duplicates
+	wsIDs     map[string]bool     // Workshop IDs of the Workshop cards shown (all pages)
+	wsNames   map[string]string   // ...and their titles
 	cards     map[string]*browseCard
 	selected  map[string]*app.SearchResult // the cart: picked, not yet subscribed
 	busy      bool
@@ -307,6 +309,8 @@ func (b *browseView) search(q string, page int) {
 		if page == 1 {
 			b.mu.Lock()
 			b.wsTitles = map[string]bool{}
+			b.wsIDs = map[string]bool{}
+			b.wsNames = map[string]string{}
 			b.mu.Unlock()
 			b.earlier = nil
 			b.cards = map[string]*browseCard{}
@@ -388,17 +392,57 @@ func (b *browseView) search(q string, page int) {
 			b.wsTitles[normTitle(x.Name)] = true
 		}
 		seen := b.wsTitles
+		// The copies index names the Workshop item a True Workshop or
+		// GameBanana upload is a copy of: such a card is folded into that
+		// Workshop card (tagged there) on this page, and dropped on later
+		// pages once its Workshop card was shown.
+		if b.wsIDs == nil {
+			b.wsIDs, b.wsNames = map[string]bool{}, map[string]string{}
+		}
+		earlier := map[string]string{} // Workshop ID -> title, cards already shown
+		for id := range b.wsIDs {
+			earlier[id] = b.wsNames[id]
+		}
+		byID := map[string]*app.SearchResult{}
+		for _, x := range ws {
+			if id, ok := strings.CutPrefix(x.Ref, "sky:"); ok {
+				byID[id] = x
+				b.wsIDs[id], b.wsNames[id] = true, x.Name
+			}
+		}
 		b.mu.Unlock()
+		folded := func(x *app.SearchResult, label string) bool {
+			if x.WorkshopID == "" {
+				return false
+			}
+			if w := byID[x.WorkshopID]; w != nil && app.CopyOf(x, w) {
+				if !hasPrefixAny(w.Mirrors, label) {
+					w.Mirrors = append(w.Mirrors, label)
+				}
+				if x.Downloads > w.Downloads {
+					w.Downloads = x.Downloads
+				}
+				return true
+			}
+			t := earlier[x.WorkshopID]
+			return t != "" && app.CopyOf(x, &app.SearchResult{Ref: "sky:" + x.WorkshopID, Name: t})
+		}
 		shownAlready := func(name string) bool {
 			t := normTitle(name)
 			return seen[t] && len(t) >= 12 && len(strings.Fields(t)) >= 3
 		}
 		var tw []*app.SearchResult
 		for _, x := range ptrs(lists["tw"]) {
-			if merged[x.Ref] || shownAlready(x.Name) {
+			if merged[x.Ref] || folded(x, "True Workshop") || shownAlready(x.Name) {
 				continue
 			}
 			tw = append(tw, x)
+		}
+		var gb []*app.SearchResult
+		for _, x := range ptrs(lists["gb"]) {
+			if !folded(x, "GameBanana") {
+				gb = append(gb, x)
+			}
 		}
 		var ow []*app.SearchResult
 		for _, x := range ptrs(lists["ow"]) {
@@ -413,7 +457,7 @@ func (b *browseView) search(q string, page int) {
 			}
 		}
 		nx = nxKeep
-		shown := mergeShown(sortV, ow, tw, ptrs(lists["gb"]), nx, ws, s01)
+		shown := mergeShown(sortV, ow, tw, gb, nx, ws, s01)
 		var waiting []string
 		for _, p := range parts {
 			if pending[p] {
@@ -612,6 +656,7 @@ func sourceBadges(m *app.SearchResult) []fyne.CanvasObject {
 	}{
 		{"Skymods", "Skymods", pSky}, {"top-mods", "top-mods", pSky}, {"True Workshop", "True Workshop", pTW},
 		{"01 STUDIO", "01 STUDIO", p01}, {"Nexus", "Nexus", pNX}, {"Open Workshop", "Open Workshop", pOW},
+		{"GameBanana", "GameBanana", pGB},
 	} {
 		if hasPrefixAny(m.Mirrors, src.prefix) || src.prefix == "01 STUDIO" && m.Source == "01 STUDIO" {
 			out = append(out, pill(src.label, src.kind))

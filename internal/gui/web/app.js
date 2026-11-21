@@ -581,7 +581,25 @@ async function search(q, p) {
       if ((x.download_count || 0) > (w.download_count || 0)) w.download_count = x.download_count;
       return false;
     });
-    const shown = mergeShown(browse.sort, lists.ow, lists.tw.filter((x) => !merged.has(x.ref)), lists.gb, nx, lists.ws, s01);
+    // A True Workshop or GameBanana upload whose mod.json names a Workshop
+    // card shown here (the copies index) joins it, when a name agrees too:
+    // mod.json files get reused as templates.
+    const nameFits = (a, b) => {
+      a = normTitle(a).replace(/ /g, ""); b = normTitle(b).replace(/ /g, "");
+      if (!a || !b) return false;
+      if (a.length > b.length) [a, b] = [b, a];
+      return a === b || (a.length >= 6 && b.includes(a));
+    };
+    const fold = (label) => (x) => {
+      const w = x.workshop_id && wsByRef.get("sky:" + x.workshop_id);
+      if (!w || !(nameFits(x.name, w.name) || nameFits(x.mod_name, w.name))) return true;
+      if (!(w.mirrors || []).some((l) => l.startsWith(label))) w.mirrors = [...(w.mirrors || []), label];
+      if ((x.download_count || 0) > (w.download_count || 0)) w.download_count = x.download_count;
+      return false;
+    };
+    const tw = lists.tw.filter((x) => !merged.has(x.ref)).filter(fold("True Workshop"));
+    const gb = lists.gb.filter(fold("GameBanana"));
+    const shown = mergeShown(browse.sort, lists.ow, tw, gb, nx, lists.ws, s01);
     [...grid.querySelectorAll(".mod")].slice(start).forEach((c) => c.remove());
     status.before(...shown.map(card));
     const waiting = [...pending].map((x) => ({ gb: "GameBanana", tw: "True Workshop", ws: "Steam Workshop (Skymods can be slow)", s01: "01 STUDIO", nx: "Nexus Mods", ow: "Open Workshop" }[x]));

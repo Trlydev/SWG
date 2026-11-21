@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Trlydev/SWG/internal/copies"
 	"github.com/Trlydev/SWG/internal/loaders"
 	"github.com/Trlydev/SWG/internal/manager"
 	"github.com/Trlydev/SWG/internal/popularity"
@@ -53,6 +55,25 @@ type Mirror struct {
 	s01 *sources.S01Mod
 	nx  *sources.NXMod
 	ow  *workshop.Entry
+	gb  *gbCopy
+}
+
+// gbCopy is a GameBanana upload the copies index links to a Workshop item.
+type gbCopy struct {
+	mod  sources.GBMod
+	file sources.GBFile
+}
+
+func gbMirror(m sources.GBMod, f sources.GBFile) Mirror {
+	v := "uploaded " + FmtTime(f.AddedTime())
+	if f.Version != "" {
+		v = f.Version + ", " + v
+	}
+	return Mirror{
+		ID: fmt.Sprintf("gamebanana:%d", m.ID), Source: "GameBanana", Title: m.Name, Author: m.Submitter.Name,
+		Version: v, VersionTime: f.AddedTime(), Size: HumanSize(f.Size), Page: m.URL, Image: m.Thumb(),
+		gb: &gbCopy{m, f},
+	}
 }
 
 var reSkyArchive = regexp.MustCompile(`/archives/(\d+)`)
@@ -280,6 +301,64 @@ func distinctTitle(a, b string) bool {
 	return len(sources.SlugWords(a)) >= 3
 }
 
+// namesAgree reports whether two names plausibly name the same mod: equal,
+// one containing the other, or sharing most of their distinctive words
+// ("Nova's Spider-Man Mod" / "Spider-Man"). Used to trust a copy's
+// mod.json Workshop ID: mod.json files get reused as templates, Workshop ID
+// and all ("Arda's Melee and guns pack" carries "Bimba Great Company"'s).
+func namesAgree(a, b string) bool {
+	na, nb := normTitle(a), normTitle(b)
+	if na == "" || nb == "" {
+		return false
+	}
+	if na == nb {
+		return true
+	}
+	if len(na) > len(nb) {
+		na, nb = nb, na
+	}
+	if len(na) >= 6 && strings.Contains(nb, na) {
+		return true
+	}
+	wa, wb := nameWords(a), nameWords(b)
+	if len(wa) == 0 || len(wb) == 0 {
+		return false
+	}
+	common := 0
+	for w := range wa {
+		if wb[w] {
+			common++
+		}
+	}
+	return 2*common >= min(len(wa), len(wb))+1 || common >= 2 && 2*common >= min(len(wa), len(wb))
+}
+
+var nameFiller = map[string]bool{"mod": true, "mods": true, "pack": true, "the": true, "and": true, "of": true,
+	"by": true, "for": true, "ppg": true, "people": true, "playground": true, "update": true, "updated": true,
+	"version": true, "ver": true, "new": true, "remastered": true, "reupload": true, "fixed": true, "fix": true}
+
+func nameWords(s string) map[string]bool {
+	out := map[string]bool{}
+	for _, w := range sources.SlugWords(reTitleTags.ReplaceAllString(s, " ")) {
+		if len(w) < 2 || nameFiller[w] || strings.Trim(w, "0123456789v") == "" {
+			continue
+		}
+		out[w] = true
+	}
+	return out
+}
+
+// copyAgrees reports whether the upload ref (title as listed) is, by the
+// copies index, a copy of the Workshop item titled wsTitle: its mod.json
+// names that item and its name agrees.
+func copyAgrees(ix *copies.Index, ref, title, ws, wsTitle string) bool {
+	e, ok := ix.Entry(ref)
+	if !ok || e.WS == "" || e.WS != ws || wsTitle == "" {
+		return false
+	}
+	return namesAgree(title, wsTitle) || e.Name != "" && namesAgree(e.Name, wsTitle)
+}
+
 // CompareVersions compares mod.json ModVersion strings numerically
 // ("4.0" > "3.2", "1.75.2" > "1.70.8"). Unknown versions sort lowest.
 func CompareVersions(a, b string) int { return version.Compare(a, b) }
@@ -486,6 +565,68 @@ func workshopMirrors(ws, titleHint string) ([]Mirror, error) {
 			list = append(list, tmMirror(it))
 		}
 	}
+	// The copies index: True Workshop and GameBanana uploads whose mod.json
+	// names this Workshop item.
+	// mod.json files get reused as templates, so a copy also has to carry
+	// the item's name (Steam's title, or the mirrors'); with no title known,
+	// copies that disagree with each other are all left out.
+	indexed := map[string]bool{}
+	useIndexCache()
+	if ix, _ := copies.Fetch(); ix != nil && len(ix.CopiesOf(ws)) > 0 {
+		titles := []string{titleHint}
+		for _, mr := range list {
+			titles = append(titles, mr.Title)
+		}
+		var cands []Mirror
+		var names []string
+		var tws []int
+		for _, ref := range ix.CopiesOf(ws) {
+			var id int
+			if _, err := fmt.Sscanf(ref, "tw:%d", &id); err == nil {
+				tws = append(tws, id)
+			} else if _, err := fmt.Sscanf(ref, "gb:%d", &id); err == nil {
+				m, err1 := sources.GBGetMod(id)
+				files, err2 := sources.GBFiles(id)
+				if err1 == nil && err2 == nil && len(files) > 0 {
+					cands = append(cands, gbMirror(*m, files[0]))
+					names = append(names, ix.Items[ref].Name)
+				}
+			}
+		}
+		if len(tws) > 0 {
+			if all, err := sources.TWAll(); err == nil {
+				for _, it := range all {
+					if slices.Contains(tws, it.ID) {
+						cands = append(cands, twMirror(it))
+						names = append(names, ix.Items[fmt.Sprintf("tw:%d", it.ID)].Name)
+					}
+				}
+			}
+		}
+		known := slices.ContainsFunc(titles, func(t string) bool { return t != "" })
+		for i, mr := range cands {
+			ok := false
+			if known {
+				for _, t := range titles {
+					if t != "" && (namesAgree(mr.Title, t) || names[i] != "" && namesAgree(names[i], t)) {
+						ok = true
+						break
+					}
+				}
+			} else {
+				ok = true // no title to check against: the copies must agree with each other
+				for j := range cands {
+					if j != i && !namesAgree(mr.Title, cands[j].Title) && !(names[i] != "" && names[i] == names[j]) {
+						ok = false
+					}
+				}
+			}
+			if ok {
+				list = append(list, mr)
+				indexed[mr.ID] = true
+			}
+		}
+	}
 	// True Workshop uploads carry no Workshop ID in the listing: match by
 	// name and author here, and confirm with mod.json's CreatorUGCIdentity
 	// once downloaded.
@@ -499,6 +640,9 @@ func workshopMirrors(ws, titleHint string) ([]Mirror, error) {
 		}
 		if all, err := sources.TWAll(); err == nil {
 			for _, it := range all {
+				if indexed[fmt.Sprintf("trueworkshop:%d", it.ID)] {
+					continue // already listed from the index
+				}
 				if it.Type == "mod" && (sameMod(it.Title, it.Author, titleHint, author) || distinctTitle(it.Title, titleHint)) && !ugcMismatch(fmt.Sprintf("trueworkshop:%d", it.ID), ws) {
 					list = append(list, twMirror(it))
 				}
@@ -767,6 +911,9 @@ func useIndexCache() {
 	if popularity.CacheDir == "" {
 		popularity.CacheDir = sources.IndexCacheDir
 	}
+	if copies.CacheDir == "" {
+		copies.CacheDir = sources.IndexCacheDir
+	}
 }
 
 func keys(m map[string]bool) []string {
@@ -986,6 +1133,11 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 		if mr.nx != nil {
 			// From Nexus Mods, not Steam: no worm-cutoff check; the cooldown
 			// applies (Nexus uploads aren't reviewed).
+			c.SteamOrig, c.Revision = false, mr.VersionTime
+		}
+		if mr.gb != nil {
+			// A GameBanana upload, not a Steam download: no worm-cutoff
+			// check; the cooldown applies (GameBanana doesn't review code).
 			c.SteamOrig, c.Revision = false, mr.VersionTime
 		}
 		if mr.s01 != nil {
@@ -1294,6 +1446,14 @@ func (a *App) downloadMirror(mr Mirror, ws string) (string, error) {
 	}
 	var links []string
 	switch {
+	case mr.gb != nil:
+		// GameBanana's own download: its malware analysis and MD5 checked.
+		a.logf("  downloading from GameBanana...")
+		c, err := a.fetchGB(mr.gb.mod.ID, mr.gb.file.ID, nil)
+		if err != nil {
+			return "", err
+		}
+		return c.Path, nil
 	case mr.s01 != nil:
 		u := sources.S01DownloadURL(ws)
 		if u == "" {

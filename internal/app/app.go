@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Trlydev/SWG/internal/copies"
 	"github.com/Trlydev/SWG/internal/game"
 	"github.com/Trlydev/SWG/internal/loaders"
 	"github.com/Trlydev/SWG/internal/manager"
@@ -156,12 +157,14 @@ type SearchResult struct {
 	AfterCutoff bool     `json:"after_cutoff,omitempty"` // Workshop: every known copy is after the cutoff
 	Reviewed    bool     `json:"reviewed,omitempty"`     // True Workshop: reviewed by the site's maintainers
 	Downloads   int      `json:"download_count,omitempty"`
-	Kind        string   `json:"kind,omitempty"`     // "contraption" when known
-	Mirrors     []string `json:"mirrors,omitempty"`  // Workshop: "top-mods 2026-09-19", ...
-	Trend       string   `json:"trend,omitempty"`    // popularity sort: "+1,204 views this week"
-	Rank        int      `json:"rank,omitempty"`     // popularity sort: what it is ranked by (the period's gain, or the all-time count)
-	Version     string   `json:"version,omitempty"`  // Workshop cards: highest known version of the copies
-	OnSteam     bool     `json:"on_steam,omitempty"` // Workshop: the item itself is live on the Steam Workshop
+	Kind        string   `json:"kind,omitempty"`        // "contraption" when known
+	Mirrors     []string `json:"mirrors,omitempty"`     // Workshop: "top-mods 2026-09-19", ...
+	Trend       string   `json:"trend,omitempty"`       // popularity sort: "+1,204 views this week"
+	Rank        int      `json:"rank,omitempty"`        // popularity sort: what it is ranked by (the period's gain, or the all-time count)
+	Version     string   `json:"version,omitempty"`     // Workshop cards: highest known version of the copies
+	OnSteam     bool     `json:"on_steam,omitempty"`    // Workshop: the item itself is live on the Steam Workshop
+	WorkshopID  string   `json:"workshop_id,omitempty"` // True Workshop, GameBanana: the Workshop item its mod.json names (copies index)
+	ModName     string   `json:"mod_name,omitempty"`    // ...and the name in that mod.json (trust WorkshopID only when a name agrees: see CopyOf)
 
 	newest  time.Time
 	bestVer string // Workshop cards: highest version among the copies
@@ -472,6 +475,7 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 	}
 	// A True Workshop upload of a Workshop item found here joins its card
 	// instead of showing up twice.
+	annotateCopies(&r)
 	var keepTW []SearchResult
 	// How many Workshop cards share each title: an exact, distinctive title
 	// joins a True Workshop card to its Workshop card even when the listed
@@ -485,7 +489,8 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 		{
 			for _, ws := range order {
 				e := byWS[ws]
-				same := sameMod(t.Name, t.Author, e.Name, e.Author) ||
+				same := CopyOf(&t, e) || // its mod.json says so (copies index)
+					sameMod(t.Name, t.Author, e.Name, e.Author) ||
 					distinctTitle(t.Name, e.Name) && titles[normTitle(e.Name)] == 1 && !ugcMismatch("trueworkshop:"+strings.TrimPrefix(t.Ref, "tw:"), ws)
 				if (t.Kind == manager.KindContraption) == (e.Kind == manager.KindContraption) && same {
 					id := "trueworkshop:" + strings.TrimPrefix(t.Ref, "tw:")
@@ -548,7 +553,36 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 		r.Workshop = rerank(r.Workshop, q, func(SearchResult) int { return 0 })
 		r.TrueWS = rerank(r.TrueWS, q, func(x SearchResult) int { return x.Downloads })
 	}
+	annotateCopies(&r)
 	return r
+}
+
+// annotateCopies notes, on True Workshop and GameBanana cards, the Workshop
+// item each is a copy of (the copies index: read from their mod.json), so
+// the window shows the mod as one card.
+func annotateCopies(r *SearchResults) {
+	useIndexCache()
+	ix, _ := copies.Fetch()
+	if ix == nil {
+		return
+	}
+	for _, l := range [][]SearchResult{r.TrueWS, r.GameBanana} {
+		for i := range l {
+			e, _ := ix.Entry(l[i].Ref)
+			l[i].WorkshopID, l[i].ModName = e.WS, e.Name
+		}
+	}
+}
+
+// CopyOf reports whether x (a True Workshop or GameBanana card) is a copy of
+// the Workshop card w: its mod.json names w's item and its title or mod.json
+// name agrees with w's title (mod.json files get reused as templates).
+func CopyOf(x, w *SearchResult) bool {
+	ws, ok := strings.CutPrefix(w.Ref, "sky:")
+	if !ok || x.WorkshopID == "" || x.WorkshopID != ws {
+		return false
+	}
+	return namesAgree(x.Name, w.Name) || x.ModName != "" && namesAgree(x.ModName, w.Name)
 }
 
 // tmItemForTitle finds the Workshop item a True Workshop card is a copy of
@@ -940,6 +974,7 @@ func searchTrending(q string, page int, parts map[string]bool, opt SearchOpts) S
 			}
 		}
 	}
+	annotateCopies(&r)
 	return r
 }
 
