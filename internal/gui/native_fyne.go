@@ -48,6 +48,7 @@ type stateView struct {
 	REPPG        reppgView       `json:"reppg"`
 	WinHTTP      *winhttpState   `json:"winhttp"`
 	SteamItems   []string        `json:"steam_items"` // subscribed to on the Steam Workshop
+	ThumbsGen    int64           `json:"thumbs_gen"`  // bumped when installed thumbnails were made
 	Cutoff       string          `json:"cutoff"`
 	LastBackup   string          `json:"lastBackup"`
 	Desktop      struct {
@@ -527,7 +528,7 @@ func (u *ui) refreshState() {
 		u.versionChip.Text = "ppgmods " + st.Version
 		u.versionChip.Refresh()
 		u.navs[pageMine].setCount(fmt.Sprint(len(st.Installed)))
-		sig += fmt.Sprint(st.NeedCompiler)
+		sig += fmt.Sprint(st.NeedCompiler, st.ThumbsGen)
 		if sig != u.installedSig {
 			u.installedSig = sig
 			u.installed.render()

@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -219,6 +220,9 @@ func winhttpView(gameDir string, l game.Loader) *winhttpState {
 	}
 	return &winhttpState{OK: w.OK(), ByLaunch: w.ByLaunch, ByPrefix: w.ByPrefix, LaunchOptions: w.LaunchOptions, Fix: game.LaunchFix}
 }
+
+// thumbsGen counts thumbnail backfills, so the window redraws My mods.
+var thumbsGen atomic.Int64
 
 var reWorkshopDir = regexp.MustCompile(`^\d{8,12}$`) // a Workshop item's folder in Steam's cache
 
@@ -473,6 +477,15 @@ func Run(opt app.Options, g Options) error {
 	go s.watchFolders()
 	go s.autoUpdate()
 	go cfclear.KeepSkymodsWorking(s.quit, s.logf) // Skymods comes back by itself
+	go func() {
+		// My mods showed a letter for items installed before thumbnails
+		// were cached: make them from the game folder, once.
+		if m, err := s.newApp(nil).Manager(true); err == nil {
+			if n := app.BackfillThumbs(m); n > 0 {
+				thumbsGen.Add(1)
+			}
+		}
+	}()
 	// Skymods reads reuse one background browser while the window is open
 	// (closed when idle, and below on quit).
 	cfclear.KeepBrowser(true)
@@ -1203,6 +1216,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		"reppg":                 reppgStatus(paths.Game),
 		"winhttp":               winhttpView(paths.Game, loader),
 		"steam_items":           steamSubscribed(),
+		"thumbs_gen":            thumbsGen.Load(), // My mods re-renders when thumbnails were added
 		"cutoff":                manager.WormCutoff.Format("2006-01-02"),
 		"lastBackup":            lastBackup(paths.Data),
 		"desktop": map[string]any{

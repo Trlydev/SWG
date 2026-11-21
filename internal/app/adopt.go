@@ -206,6 +206,23 @@ func installedThumb(m *manager.Manager, key string) {
 	}
 }
 
+// BackfillThumbs makes the cached thumbnail of every installed item that has
+// none, from its folder in the game (installs made before ppgmods cached
+// thumbnails showed only a letter in My mods). It returns how many it made.
+func BackfillThumbs(m *manager.Manager) int {
+	n := 0
+	for _, inst := range m.State.Sorted() {
+		if ThumbPath(inst.Key) != "" {
+			continue
+		}
+		installedThumb(m, inst.Key)
+		if ThumbPath(inst.Key) != "" {
+			n++
+		}
+	}
+	return n
+}
+
 // modRootIn returns the folder holding mod.json (dir or one level below).
 func modRootIn(dir string) (string, modJSONInfo, bool) {
 	for _, c := range append([]string{dir}, subdirs(dir)...) {

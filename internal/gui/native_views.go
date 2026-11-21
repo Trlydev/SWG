@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/color"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -536,7 +537,12 @@ type installedPane struct {
 	lastApply bool
 	apply     *widget.Button
 	autoNote  *widget.Label
+	search    *widget.Entry  // filters the list as you type
+	sortBy    *widget.Select // Name, Recently installed, Source
 }
+
+// The My mods sort choices.
+var installedSorts = []string{"Name", "Recently installed", "Source"}
 
 // setAuto shows how updates happen: by themselves (Settings), with what
 // the last automatic run did, or by the buttons when that is turned off.
@@ -595,8 +601,21 @@ func newInstalled(u *ui) *installedPane {
 	more.Importance = widget.LowImportance
 	p.missing.Hide()
 	p.verify.Hide()
+	// One search box and one sort menu beside the tabs: a long list stays
+	// findable without more buttons on every row.
+	p.search = widget.NewEntry()
+	p.search.SetPlaceHolder("Search my mods")
+	p.search.OnChanged = func(string) { p.render() }
+	p.sortBy = widget.NewSelect(installedSorts, func(v string) {
+		u.app.Preferences().SetString("installed.sort", v)
+		p.render()
+	})
+	p.sortBy.SetSelected(orStr(u.app.Preferences().String("installed.sort"), "Name"))
+	search := container.NewThemeOverride(fixed(p.search, 220, p.search.MinSize().Height), roundTheme{newTheme()}) // a round search bar
+	tools := container.NewHBox(search, fixed(p.sortBy, 180, p.sortBy.MinSize().Height))
 	head := container.NewBorder(nil, nil, h1("My mods"), container.NewCenter(container.NewHBox(apply, more)))
-	p.root = view(container.New(&vlist{gap: 12}, head, p.kind.root, p.autoNote, p.compiler, p.missing, p.verify, p.list))
+	tabs := container.NewBorder(nil, nil, p.kind.root, container.NewCenter(tools))
+	p.root = view(container.New(&vlist{gap: 12}, head, tabs, p.autoNote, p.compiler, p.missing, p.verify, p.list))
 	return p
 }
 
@@ -625,16 +644,47 @@ func (p *installedPane) render() {
 	p.kind.SetText(1, fmt.Sprintf("Contraptions  %d", nc))
 	wantC := p.kind.selected == 1
 
-	var rows []fyne.CanvasObject
+	q := ""
+	if p.search != nil {
+		q = strings.ToLower(strings.TrimSpace(p.search.Text))
+	}
+	var shown []installedView
 	for _, m := range all {
-		if isC(m) == wantC {
-			rows = append(rows, p.row(m))
+		if isC(m) != wantC {
+			continue
 		}
+		if q != "" && !strings.Contains(strings.ToLower(m.Name+" "+m.Author+" "+m.Kind), q) {
+			continue
+		}
+		shown = append(shown, m)
+	}
+	sortBy := "Name"
+	if p.sortBy != nil {
+		sortBy = p.sortBy.Selected
+	}
+	sort.SliceStable(shown, func(i, j int) bool {
+		a, b := shown[i], shown[j]
+		switch sortBy {
+		case "Recently installed":
+			return a.InstalledAt.After(b.InstalledAt)
+		case "Source":
+			if a.Kind != b.Kind {
+				return a.Kind < b.Kind
+			}
+		}
+		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
+	})
+	var rows []fyne.CanvasObject
+	for _, m := range shown {
+		rows = append(rows, p.row(m))
 	}
 	if len(rows) == 0 {
 		msg := "No mods installed yet. Find mods under Browse, or recover them from your Workshop cache."
 		if wantC {
 			msg = "No contraptions installed yet. Switch Browse to Contraptions to find some."
+		}
+		if q != "" {
+			msg = "Nothing here matches \"" + strings.TrimSpace(p.search.Text) + "\"."
 		}
 		l := muted(msg)
 		l.Alignment = fyne.TextAlignCenter
@@ -695,10 +745,7 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 	if m.Author != "" {
 		meta = "by " + m.Author + " · "
 	}
-	meta += m.Key + " · installed " + m.InstalledAt.Format("2006-01-02")
-	if !m.Revision.IsZero() {
-		meta += " · source date " + m.Revision.Format("2006-01-02")
-	}
+	meta += "installed " + m.InstalledAt.Format("2006-01-02")
 	if m.Withdrawn != "" {
 		meta += "\nWithdrawn from the Open Workshop: " + m.Withdrawn
 	}
@@ -736,7 +783,15 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 	} else {
 		// On: the main action is turning it off; the rest goes in a menu
 		// and Remove is an icon, so a row has three controls, not seven.
-		var items []*fyne.MenuItem
+		id := fyne.NewMenuItem("ID: "+m.Key, nil) // for reference (copy it from the log)
+		id.Disabled = true
+		items := []*fyne.MenuItem{id}
+		if !m.Revision.IsZero() {
+			rev := fyne.NewMenuItem("Source date: "+m.Revision.Format("2006-01-02"), nil)
+			rev.Disabled = true
+			items = append(items, rev)
+		}
+		items = append(items, fyne.NewMenuItemSeparator())
 		if m.Link != "" {
 			link := m.Link
 			items = append(items, fyne.NewMenuItem("Open its page", func() { u.openURL(link) }))
@@ -778,13 +833,42 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 		actions.Add(more)
 		actions.Add(rm)
 	}
-	thumb := fixed(u.thumbs.box(m.Key, m.Name, "", 96, 54, nil, true), 96, 54)
-	main := container.New(&vlist{gap: -6}, flowBox(6, append([]fyne.CanvasObject{name}, pills...)...), muted(meta))
-	vcenter := func(o fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewVBox(layout.NewSpacer(), o, layout.NewSpacer())
+	thumb := fixed(u.thumbs.box(m.Key, m.Name, "", 72, 40, nil, true), 72, 40)
+	main := container.New(&vlist{gap: -10}, flowBox(6, append([]fyne.CanvasObject{name}, pills...)...), muted(meta))
+	vcenter := func(o fyne.CanvasObject) fyne.CanvasObject { return container.NewCenter(o) }
+	// Compact rows: a long list fits more on screen.
+	return panelWith(container.NewBorder(nil, nil, vcenter(thumb), vcenter(actions),
+		container.New(layout.NewCustomPaddedLayout(0, 0, 8, 8), container.New(&vcenterLayout{}, main))), pal().surface, 6, 12)
+}
+
+// roundTheme gives inputs fully round ends (My mods' search bar).
+type roundTheme struct{ fyne.Theme }
+
+func (t roundTheme) Size(n fyne.ThemeSizeName) float32 {
+	if n == theme.SizeNameInputRadius || n == theme.SizeNameSelectionRadius {
+		return 999
 	}
-	return panelBox(container.NewBorder(nil, nil, vcenter(thumb), vcenter(actions),
-		container.New(layout.NewCustomPaddedLayout(0, 0, 8, 8), vcenter(main))))
+	return t.Theme.Size(n)
+}
+
+// vcenterLayout centres its objects vertically and gives them the full
+// width (container.NewCenter would shrink them to their minimum width).
+type vcenterLayout struct{}
+
+func (vcenterLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var s fyne.Size
+	for _, o := range objs {
+		s = s.Max(o.MinSize())
+	}
+	return s
+}
+
+func (vcenterLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		h := o.MinSize().Height
+		o.Resize(fyne.NewSize(size.Width, h))
+		o.Move(fyne.NewPos(0, (size.Height-h)/2))
+	}
 }
 
 // renderCompiler explains that script mods need RE_PPG on 1.27 and later.
