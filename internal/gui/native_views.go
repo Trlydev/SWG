@@ -343,7 +343,12 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 			tags = append(tags, pill("file gone", pBad))
 		}
 		if mr.Steam {
-			tags = append(tags, pill("subscribe in Steam", pOK))
+			// Signed in, ppgmods downloads Steam's copy itself.
+			if u.state().Steam.Account != "" {
+				tags = append(tags, pill("downloads from Steam", pOK))
+			} else {
+				tags = append(tags, pill("subscribe in Steam", pOK))
+			}
 		} else if mr.AfterCutoff {
 			tags = append(tags, pill("new upload: only without code", pKind))
 		}
