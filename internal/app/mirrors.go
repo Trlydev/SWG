@@ -265,6 +265,21 @@ func sameMod(titleA, authorA, titleB, authorB string) bool {
 
 var reTitleTags = regexp.MustCompile(`\[[^\]]*\]|\([^)]*\)`)
 
+// distinctTitle reports whether two titles are the same and distinctive
+// enough to name one mod whoever is listed as its author: the Workshop
+// mirrors list the Steam account that uploaded it ("Timtams"), True
+// Workshop the author in the mod ("Nova Interactive"), so the authors of
+// the same mod often differ. Short or generic titles ("Spider-man") don't
+// count. A copy whose mod.json names another Workshop item is still dropped
+// once downloaded (ugcMismatch).
+func distinctTitle(a, b string) bool {
+	na := normTitle(a)
+	if na == "" || na != normTitle(b) || len(na) < 12 {
+		return false
+	}
+	return len(sources.SlugWords(a)) >= 3
+}
+
 // CompareVersions compares mod.json ModVersion strings numerically
 // ("4.0" > "3.2", "1.75.2" > "1.70.8"). Unknown versions sort lowest.
 func CompareVersions(a, b string) int { return version.Compare(a, b) }
@@ -484,7 +499,7 @@ func workshopMirrors(ws, titleHint string) ([]Mirror, error) {
 		}
 		if all, err := sources.TWAll(); err == nil {
 			for _, it := range all {
-				if it.Type == "mod" && sameMod(it.Title, it.Author, titleHint, author) && !ugcMismatch(fmt.Sprintf("trueworkshop:%d", it.ID), ws) {
+				if it.Type == "mod" && (sameMod(it.Title, it.Author, titleHint, author) || distinctTitle(it.Title, titleHint)) && !ugcMismatch(fmt.Sprintf("trueworkshop:%d", it.ID), ws) {
 					list = append(list, twMirror(it))
 				}
 			}

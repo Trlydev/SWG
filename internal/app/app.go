@@ -437,12 +437,21 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 	// A True Workshop upload of a Workshop item found here joins its card
 	// instead of showing up twice.
 	var keepTW []SearchResult
+	// How many Workshop cards share each title: an exact, distinctive title
+	// joins a True Workshop card to its Workshop card even when the listed
+	// authors differ, but only when no other card has that title.
+	titles := map[string]int{}
+	for _, ws := range order {
+		titles[normTitle(byWS[ws].Name)]++
+	}
 	for _, t := range r.TrueWS {
 		merged := false
 		{
 			for _, ws := range order {
 				e := byWS[ws]
-				if (t.Kind == manager.KindContraption) == (e.Kind == manager.KindContraption) && sameMod(t.Name, t.Author, e.Name, e.Author) {
+				same := sameMod(t.Name, t.Author, e.Name, e.Author) ||
+					distinctTitle(t.Name, e.Name) && titles[normTitle(e.Name)] == 1 && !ugcMismatch("trueworkshop:"+strings.TrimPrefix(t.Ref, "tw:"), ws)
+				if (t.Kind == manager.KindContraption) == (e.Kind == manager.KindContraption) && same {
 					id := "trueworkshop:" + strings.TrimPrefix(t.Ref, "tw:")
 					v := bestVersion(id, t.Name)
 					label := "True Workshop"

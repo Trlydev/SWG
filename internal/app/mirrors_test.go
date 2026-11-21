@@ -596,3 +596,24 @@ func TestWorkshopRefNames(t *testing.T) {
 		}
 	}
 }
+
+// An exact, distinctive title is the same mod whoever is listed as author
+// (the Workshop mirrors list the uploader, True Workshop the mod's author);
+// short or generic titles aren't.
+func TestDistinctTitle(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"Nova's Spider-Man Mod", "Nova's Spider-Man Mod", true},
+		{"Nova's Spider-Man Mod", "nova's spider man mod", true},
+		{"Spider-man", "Spider-man", false}, // too generic
+		{"Spider-Man Mod", "Nova's Spider-Man Mod", false},
+		{"Chemical Warfare", "Chemical Warfare", false}, // two words
+		{"Prostheses Mod Rework", "Prostheses Mod Rework", true},
+	} {
+		if got := distinctTitle(c.a, c.b); got != c.want {
+			t.Errorf("distinctTitle(%q, %q) = %v", c.a, c.b, got)
+		}
+	}
+}
