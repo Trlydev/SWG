@@ -22,6 +22,7 @@ Not affiliated with Studio Minus, Valve, GameBanana or Skymods.
 
 | Source | What it is | Downloads | Notes |
 |---|---|---|---|
+| [Steam Workshop](https://steamcommunity.com/app/1118200/workshop/) | The Workshop itself. Valve removed every item with C# code, but items without code (contraptions, scenes, sprite mods) are still uploaded and updated | Subscribe in Steam | ppgmods asks Steam's public API which items are still live. When Steam's own copy is as new as any mirror copy or newer (same day counts), Install opens it in Steam to subscribe, and Steam puts it in the game; **Use a mirror copy instead** is offered when a mirror has one. Updates of copies ppgmods installed keep coming from the mirrors, and installing several at once uses mirror copies (no question per item). Steam also gives an item's title, which finds its top-mods copies while Skymods is blocked. |
 | Local Steam cache | `steamapps/workshop/content/1118200` on your PC | `backup-workshop` | **Best source, and it won't last.** Steam deletes removed items when it syncs. Back the cache up before launching Steam online. |
 | [True Workshop](https://ppgworkshop.onrender.com/) | Community archive of uploaded PPG mods (~140). Uploads pass the site's scanner and most are **reviewed by its maintainers** | Automatic | Files are on a public Hugging Face dataset; each item lists its SHA-256, which ppgmods checks. Reviewed items show "✓ reviewed" and skip the cooldown; unreviewed ones are marked "not reviewed" and wait out the cooldown. Updates are detected when an item's file changes. |
 | [GameBanana](https://gamebanana.com/games/7715) | Live mod site, ~560 PPG submissions, authors still uploading | Automatic | Public API, MD5 checksums and server-side antivirus results. This is the only source `update` follows. |
@@ -88,8 +89,9 @@ The window covers everything:
   deleted the Workshop preview images of the removed mods, so ppgmods shows
   each mod's own thumbnail from inside its archive. For small mods it fetches
   these in the background (this can be turned off in Settings).
-- **Installed** (switch between **Mods** and **Contraptions**): check for and apply safe updates, verify files, rollback,
-  pin, remove.
+- **My mods** (switch between **Mods** and **Contraptions**, search them and
+  sort by name, install date or source): check for and apply safe updates,
+  verify files, rollback, pin, remove.
 - **Recover Workshop**: back up the Steam cache, restore the safe copies, or
   import a downloaded archive.
 - **Safety**: what is checked and why.
@@ -226,7 +228,9 @@ dates mislead: True Workshop shows upload dates, and top-mods' date is not
 always the newest. ppgmods downloads each copy (at most four) and compares
 the **`ModVersion` in its `mod.json`**. Quick Draw, for example: Skymods v4.0,
 True Workshop v3.2 (uploaded later), top-mods v1.0. It installs the highest
-version from before the worm cutoff, skipping copies the scanner flags.
+version, skipping copies the scanner flags. Copies revised on or after
+the worm cutoff are new Workshop uploads: one is used only if it has no
+code at all (the worm lived in code), after the cooldown.
 Before a copy is downloaded, the version in its title ("V:2.8", "v3.1") is
 shown instead; a copy whose file host says the file is gone is marked
 "file gone" and skipped. Copies that turn out to have no `mod.json` (not a
@@ -363,7 +367,8 @@ automatically, within hours. Each layer here targets part of that:
 
 | Check | Default | Override |
 |---|---|---|
-| Steam-origin copies (Skymods, Workshop cache) revised on/after **2026-09-21** | refused | `--allow-after-cutoff` |
+| Steam-origin copies (Skymods, top-mods, Workshop cache) revised on/after **2026-09-21** that contain code (C#, a DLL, anything HIGH or worse) | refused | `--allow-after-cutoff` |
+| Such a copy without any code (a new Workshop upload) younger than the **cooldown** | refused | `--cooldown 0` |
 | Steam-origin copy with no provable revision date | refused | `--allow-after-cutoff` |
 | GameBanana / unreviewed True Workshop file younger than the **cooldown** (gives the community and the site's scanner time to catch a bad upload; maintainer-reviewed True Workshop uploads skip it) | 48 h | `--cooldown 0` |
 | True Workshop SHA-256 mismatch, or the site's own scan not `clean` | refused | none |

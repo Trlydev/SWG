@@ -1,6 +1,7 @@
 package cfclear
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -11,3 +12,7 @@ import (
 func dieWithParent(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 }
+
+// tieToParent: Linux ties the browser to ppgmods before it starts
+// (dieWithParent).
+func tieToParent(*os.Process) {}

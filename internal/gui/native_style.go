@@ -564,10 +564,16 @@ func (g *cardGrid) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 		g.height = y
 		if g.parent != nil {
 			p := g.parent
-			go fyne.Do(p.Refresh) // the scroll area takes the new height
+			uiLater(p.Refresh) // the scroll area takes the new height
 		}
 	}
 }
+
+// uiLater runs f on the UI thread after the current layout pass (calling
+// Refresh from inside Layout would lay out again in the middle). Tests
+// replace it: Fyne's test driver runs fyne.Do at once, on the calling
+// goroutine, which raced with the test's own drawing.
+var uiLater = func(f func()) { go fyne.Do(f) }
 
 func newCardGrid(min, gap float32) *fyne.Container {
 	g := &cardGrid{min: min, gap: gap}

@@ -53,7 +53,12 @@ jobs:
             ~/.cache/go-build
             ~/go/pkg/mod
           key: test-${{ hashFiles('go.sum') }}-${{ github.sha }}
-          restore-keys: test-${{ hashFiles('go.sum') }}-
+          # Go's build cache is content-addressed: an older one (from before
+          # a dependency update) still has everything that didn't change,
+          # such as the window toolkit's C code.
+          restore-keys: |
+            test-${{ hashFiles('go.sum') }}-
+            test-
       - name: Window toolkit headers (the native window uses OpenGL)
         run: |
           $APT_ONLY_UBUNTU
@@ -89,6 +94,7 @@ jobs:
           restore-keys: |
             release-${{ hashFiles('go.sum') }}-
             release-linux-
+            release-
       - name: Pick version
         id: ver
         env:

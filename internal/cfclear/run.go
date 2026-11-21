@@ -196,7 +196,11 @@ func startChrome(u, exe, profile string, opt Options) (browserSession, error) {
 		}
 		return nil
 	})
-	if err := chromedp.Run(ctx, open); err != nil {
+	err := chromedp.Run(ctx, open)
+	if c := chromedp.FromContext(bctx); c != nil && c.Browser != nil {
+		tieToParent(c.Browser.Process())
+	}
+	if err != nil {
 		s.close()
 		if ctx.Err() != nil {
 			return nil, timeoutErr(opt)

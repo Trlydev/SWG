@@ -123,6 +123,7 @@ func startFirefox(u, exe, profile string, opt Options) (*ffSession, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting %s: %w", filepath.Base(exe), err)
 	}
+	tieToParent(cmd.Process)
 	s := &ffSession{cmd: cmd, kill: kill}
 	defer func() {
 		if !ok {
