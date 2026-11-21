@@ -82,9 +82,13 @@ func (u *ui) openDetails(m app.SearchResult, mirror string) {
 	if !same {
 		p := pal()
 		d.sub = flowBox(6, sourceBadges(&m)...)
+		byline := muted("") // its own line: in the pills' row it overlapped them
 		if m.Author != "" {
-			d.sub.Add(muted("by " + m.Author))
+			byline.SetText("by " + m.Author)
+		} else {
+			byline.Hide()
 		}
+		byline.Truncation = fyne.TextTruncateEllipsis
 		d.facts = flowBox(8)
 		d.mirrors = tight()
 		d.required = tight()
@@ -103,7 +107,7 @@ func (u *ui) openDetails(m app.SearchResult, mirror string) {
 		hero := u.thumbs.box(m.Ref, m.Name, m.Image, 0, 220, nil, false)
 		section := func(name string, c fyne.CanvasObject) fyne.CanvasObject { return tight(sectionTitle(name), c) }
 		d.body = container.New(&vlist{gap: 14},
-			tight(title, d.sub), d.facts, d.mirrors,
+			tight(title, d.sub, byline), d.facts, d.mirrors,
 			section("Safety check", d.check), d.required,
 			section("Description", d.desc))
 		d.scroll = container.NewVScroll(container.NewBorder(hero, nil, nil, nil,
@@ -325,8 +329,10 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 			}
 		}
 	}
-	rows := []fyne.CanvasObject{u.mirrorRow(d, "", container.NewHBox(widget.NewLabelWithStyle("Automatic", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		muted("highest mod.json version, skipping any the scanner flags (copies changed after the worm only without code)")), nil, "", false)}
+	auto := muted("highest mod.json version, skipping any the scanner flags (copies changed after the worm only without code)")
+	auto.Wrapping = fyne.TextWrapWord
+	rows := []fyne.CanvasObject{u.mirrorRow(d, "", container.New(&vlist{gap: -8},
+		widget.NewLabelWithStyle("Automatic", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), auto), nil, "", false)}
 	for _, mr := range mirrors {
 		var tags []fyne.CanvasObject
 		if newestOK != nil && mr.ID == newestOK.ID {
@@ -369,7 +375,17 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 		if mr.Size != "" {
 			line += " · " + mr.Size
 		}
-		main := container.NewHBox(widget.NewLabelWithStyle(mr.Source, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), muted(strings.TrimPrefix(line, " ")))
+		// Two lines that can narrow: the copy and its version (cut short
+		// with … when there is no room), then its tags, wrapping. One line
+		// of everything made the panel wider than the window.
+		meta := muted(strings.TrimPrefix(line, " "))
+		meta.Truncation = fyne.TextTruncateEllipsis
+		head := container.NewBorder(nil, nil, widget.NewLabelWithStyle(mr.Source, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, meta)
+		main := fyne.CanvasObject(head)
+		if len(tags) > 0 {
+			main = container.New(&vlist{gap: 2}, head, flowBox(6, tags...))
+		}
+		tags = nil
 		// Steam's copy can be checked (and installed) once signed in to Steam.
 		steamOff := mr.Steam && u.state().Steam.Account == ""
 		rows = append(rows, u.mirrorRow(d, mr.ID, main, tags, mr.Page, mr.Gone || steamOff))

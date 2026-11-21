@@ -292,7 +292,7 @@ func (u *ui) build() {
 	sideBg := canvas.NewRectangle(p.surface)
 	side := container.NewStack(sideBg, container.NewBorder(nil, nil, nil, vline(),
 		container.New(layout.NewCustomPaddedLayout(14, 10, 12, 12),
-			container.NewBorder(container.New(&vlist{gap: 14}, brand, play), foot, nil, nil,
+			container.NewBorder(container.New(layout.NewCustomPaddedLayout(0, 10, 0, 0), container.New(&vlist{gap: 14}, brand, play)), foot, nil, nil,
 				container.New(&vlist{gap: 10}, main, container.New(layout.NewCustomPaddedLayout(6, 0, 8, 0), toolsLabel), tools)))))
 	sideFixed := container.New(&widthLayout{224}, side)
 
