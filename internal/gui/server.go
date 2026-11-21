@@ -1115,6 +1115,10 @@ type installedView struct {
 	// from the Steam cache is local:c-<Workshop ID>, which Browse shows as
 	// sky:<Workshop ID>.
 	Aliases []string `json:"aliases,omitempty"`
+	// DuplicateOf names the other installed copies of the same Workshop
+	// item (from another site, or under another kind of key): the game
+	// loads both.
+	DuplicateOf []string `json:"duplicate_of,omitempty"`
 }
 
 // reLocalWorkshop is a local key named after a Workshop item.
@@ -1141,8 +1145,12 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 			profiles = []string{}
 		}
 		mg := &manager.Manager{State: st, ModsDir: paths.Mods, ContraptionsDir: paths.Contraptions}
+		dups := mg.Duplicates()
 		for _, m := range st.Sorted() {
 			v := installedView{Installed: m, Link: m.Source, ItemKind: m.Kind, Aliases: viewAliases(m)}
+			for _, d := range dups[m.Key] {
+				v.DuplicateOf = append(v.DuplicateOf, d.Name)
+			}
 			v.Missing = paths.Mods != "" && mg.MissingFolders(m)
 			if ix := workshop.CachedIndex(); ix != nil && strings.HasPrefix(m.Mirror, "openworkshop:") {
 				if e := ix.Find(strings.TrimPrefix(m.Mirror, "openworkshop:")); e != nil {

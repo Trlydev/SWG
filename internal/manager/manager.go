@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -254,7 +255,9 @@ func folderName(root, key string) string {
 	if name = strings.TrimRight(name, ". "); name == "" {
 		name = "mod"
 	}
-	tag := strings.ReplaceAll(key, ":", "-")
+	// "sky:" is the Steam Workshop's key prefix (from when Skymods was the
+	// only mirror); folders say ws- for Workshop.
+	tag := strings.ReplaceAll(strings.Replace(key, "sky:", "ws:", 1), ":", "-")
 	if len(tag) > 24 {
 		tag = tag[:24]
 	}
@@ -282,7 +285,19 @@ func (m *Manager) Install(c *Candidate) error {
 	defer os.RemoveAll(dir)
 	PrintReport(m.logf, rep, dir)
 
+	ugc := stagedWorkshopID(dir)
 	prev := m.State.Mods[c.Key]
+	if prev == nil && ugc != "" {
+		// The same Workshop item installed from another source (its mod.json
+		// says so): this copy replaces that one instead of the game getting
+		// both.
+		if same := m.State.SameWorkshopItem(ugc, c.Key); same != nil {
+			m.logf("  already installed as %s (%s): this copy replaces it", same.Name, same.Key)
+			c.Aliases = append(c.Aliases, c.Key)
+			c.Key = same.Key
+			prev = same
+		}
+	}
 	if prev != nil && prev.Quarantined != "" {
 		return errQuarantined(prev) // an update or repair must not bring it back
 	}
@@ -321,6 +336,7 @@ func (m *Manager) Install(c *Candidate) error {
 		ScanMax:      maxName(rep),
 		RiskAccepted: rep.Max() >= scan.Critical && m.Policy.AcceptRisk && !m.Policy.AllowCritical,
 	}
+	inst.WorkshopID = ugc
 	if prev != nil {
 		inst.Pinned = prev.Pinned
 	}
@@ -643,6 +659,32 @@ func readIdent(dir string) modIdent {
 // UGCString reads a Workshop ID written as a string or a number ("0" and
 // null mean none). A number must not go through float64: 3801154351 would
 // become 3.801154351e+09.
+// stagedWorkshopID is the Workshop ID a staged copy's mod.json names
+// (CreatorUGCIdentity), "" if none.
+func stagedWorkshopID(dir string) string {
+	roots, err := modRoots(dir)
+	if err != nil {
+		return ""
+	}
+	for _, r := range roots {
+		b, err := os.ReadFile(filepath.Join(r, "mod.json"))
+		if err != nil {
+			continue
+		}
+		var mj struct {
+			CreatorUGCIdentity json.RawMessage `json:"CreatorUGCIdentity"`
+		}
+		if json.Unmarshal(bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")), &mj) == nil {
+			if ws := UGCString(mj.CreatorUGCIdentity); reWorkshopNum.MatchString(ws) {
+				return ws
+			}
+		}
+	}
+	return ""
+}
+
+var reWorkshopNum = regexp.MustCompile(`^\d{6,12}$`)
+
 func UGCString(raw json.RawMessage) string {
 	s := strings.Trim(strings.TrimSpace(string(raw)), `"`)
 	if s == "" || s == "0" || s == "null" {
@@ -1289,6 +1331,57 @@ func workshopIDIn(dir string) string {
 		return ""
 	}
 	return u
+}
+
+// WorkshopIdentity is the Steam Workshop item an installed entry is ("" if
+// none known): its key, an alias, the ID recorded at install, or the
+// CreatorUGCIdentity in its mod.json in the game folder.
+func (m *Manager) WorkshopIdentity(inst *Installed) string {
+	if ws := WorkshopIDOf(inst.Key); ws != "" {
+		return ws
+	}
+	if inst.WorkshopID != "" {
+		return inst.WorkshopID
+	}
+	for _, a := range inst.Aliases {
+		if ws := WorkshopIDOf(a); ws != "" {
+			return ws
+		}
+	}
+	if inst.Kind != KindContraption && len(inst.Folders) > 0 && m.ModsDir != "" {
+		return workshopIDIn(filepath.Join(m.ModsDir, inst.Folders[0]))
+	}
+	return ""
+}
+
+// Duplicates groups installed entries that are the same Workshop item
+// (installed from two sites, or under two kinds of key): each entry's key
+// maps to the others. Items turned off or in quarantine don't count (the game
+// doesn't load them).
+func (m *Manager) Duplicates() map[string][]*Installed {
+	by := map[string][]*Installed{}
+	for _, inst := range m.State.Sorted() {
+		if inst.Off || inst.Quarantined != "" {
+			continue
+		}
+		if ws := m.WorkshopIdentity(inst); ws != "" {
+			by[ws] = append(by[ws], inst)
+		}
+	}
+	out := map[string][]*Installed{}
+	for _, group := range by {
+		if len(group) < 2 {
+			continue
+		}
+		for _, a := range group {
+			for _, b := range group {
+				if a != b {
+					out[a.Key] = append(out[a.Key], b)
+				}
+			}
+		}
+	}
+	return out
 }
 
 // modJSONNames returns the Name and Author fields of the mod.json in dir.

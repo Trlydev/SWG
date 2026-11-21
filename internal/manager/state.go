@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ type Installed struct {
 	ScanMax      string            `json:"scan_max,omitempty"`      // highest scanner finding at install/adoption
 	RiskAccepted bool              `json:"risk_accepted,omitempty"` // installed despite CRITICAL findings, by the person's choice
 	Aliases      []string          `json:"aliases,omitempty"`       // other refs for the same mod, e.g. tw:30 for sky:2516131949
+	WorkshopID   string            `json:"workshop_id,omitempty"`   // the Steam Workshop item its mod.json names (CreatorUGCIdentity)
 	Revision     time.Time         `json:"revision,omitempty"`      // upload/revision time at the source
 	ArchiveSHA   string            `json:"archive_sha256,omitempty"`
 	Files        map[string]string `json:"files"` // "<folder>/<rel>" -> sha256
@@ -121,7 +123,54 @@ func (s *State) Find(key string) *Installed {
 			}
 		}
 	}
+	// The same Workshop item under another kind of key (sky:<id>, or
+	// local:c-<id> / local:<id> for a copy recovered from the Steam cache),
+	// or a copy from another site whose mod.json names it. Without this,
+	// installing it again added a second copy to the game.
+	if ws := WorkshopIDOf(key); ws != "" {
+		return s.SameWorkshopItem(ws, "")
+	}
 	return nil
+}
+
+// SameWorkshopItem is the installed entry that is Workshop item ws, other
+// than skip: by its key, an alias, or the Workshop ID its mod.json named
+// when it was installed (a True Workshop copy of a Steam item, say).
+func (s *State) SameWorkshopItem(ws, skip string) *Installed {
+	if ws == "" {
+		return nil
+	}
+	for _, m := range s.Mods {
+		if m.Key == skip {
+			continue
+		}
+		if m.WorkshopID == ws || WorkshopIDOf(m.Key) == ws {
+			return m
+		}
+		for _, a := range m.Aliases {
+			if WorkshopIDOf(a) == ws {
+				return m
+			}
+		}
+	}
+	return nil
+}
+
+var (
+	reSkyKey   = regexp.MustCompile(`^sky:(\d{6,12})$`)
+	reLocalKey = regexp.MustCompile(`^local:(?:c-)?(\d{8,12})$`)
+)
+
+// WorkshopIDOf is the Steam Workshop item a key names ("" if none): sky:<id>,
+// or a local key named after a Workshop folder.
+func WorkshopIDOf(key string) string {
+	if m := reSkyKey.FindStringSubmatch(key); m != nil {
+		return m[1]
+	}
+	if m := reLocalKey.FindStringSubmatch(key); m != nil {
+		return m[1]
+	}
+	return ""
 }
 
 // OwnerOf returns the entry that installed a Mods/ or Contraptions/ folder.

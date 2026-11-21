@@ -189,7 +189,7 @@ func (u *ui) loadDetails(d *detailsWin, m app.SearchResult) {
 		add("Category", v.Category)
 		add("Downloads", num(v.Details.Downloads))
 		add("Views", num(v.Views))
-		add("ID", m.Ref)
+		add("ID", app.DisplayRef(m.Ref))
 		d.facts.Refresh()
 		d.desc.SetText(orStr(v.Description, "No description."))
 		switch {
@@ -769,6 +769,21 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 	if m.Off {
 		pills = append(pills, pill("off", pNeutral))
 	}
+	if len(m.DuplicateOf) > 0 {
+		pills = append(pills, pill("installed twice", pBad))
+	}
+	// Installed here and subscribed to on Steam: the game loads it twice
+	// (Steam's copy from its Workshop folder, this one from the game folder).
+	twice := false
+	if ws := installedWorkshopID(m); ws != "" {
+		for _, id := range u.state().SteamItems {
+			if id == ws {
+				twice = true
+				pills = append(pills, pill("subscribed on Steam too", pBad))
+				break
+			}
+		}
+	}
 	meta := ""
 	if m.Author != "" {
 		meta = "by " + m.Author + " · "
@@ -782,6 +797,12 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 	}
 	if m.Off {
 		meta += "\nTurned off: moved out of the Mods folder (into ppgmods-off), so the game doesn't load it."
+	}
+	if twice {
+		meta += "\nThe game loads it twice: unsubscribe in Steam, or remove this copy."
+	}
+	if len(m.DuplicateOf) > 0 {
+		meta += "\nAlso installed as " + strings.Join(m.DuplicateOf, ", ") + ": remove one of the copies."
 	}
 	actions := container.NewHBox()
 	if m.Quarantined != "" {
@@ -811,7 +832,7 @@ func (p *installedPane) row(m installedView) fyne.CanvasObject {
 	} else {
 		// On: the main action is turning it off; the rest goes in a menu
 		// and Remove is an icon, so a row has three controls, not seven.
-		id := fyne.NewMenuItem("ID: "+m.Key, nil) // for reference (copy it from the log)
+		id := fyne.NewMenuItem("ID: "+app.DisplayRef(m.Key), nil) // for reference
 		id.Disabled = true
 		items := []*fyne.MenuItem{id}
 		if !m.Revision.IsZero() {
@@ -877,6 +898,20 @@ func (t roundTheme) Size(n fyne.ThemeSizeName) float32 {
 		return 999
 	}
 	return t.Theme.Size(n)
+}
+
+// installedWorkshopID is the Workshop item an installed entry is, by its key
+// or an alias ("" if none).
+func installedWorkshopID(m installedView) string {
+	if ws := manager.WorkshopIDOf(m.Key); ws != "" {
+		return ws
+	}
+	for _, a := range m.Aliases {
+		if ws := manager.WorkshopIDOf(a); ws != "" {
+			return ws
+		}
+	}
+	return ""
 }
 
 // vcenterLayout centres its objects vertically and gives them the full

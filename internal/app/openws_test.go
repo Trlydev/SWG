@@ -3,6 +3,7 @@ package app
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -264,8 +265,17 @@ func TestBestForWorkshop(t *testing.T) {
 // Check for updates counts every installed item: checked, or why not.
 // A Workshop copy with no newer source, an item found on the PC, a pinned
 // one and one turned off are "not checked", not silently left out.
+// noSteam makes the Steam lookups answer "not on Steam" (no network).
+func noSteam(t *testing.T) {
+	oldItem, oldPre := steamItem, steamPrefetch
+	steamItem = func(id string) (sources.SteamItem, bool) { return sources.SteamItem{ID: id}, false }
+	steamPrefetch = func([]string) {}
+	t.Cleanup(func() { steamItem, steamPrefetch = oldItem, oldPre })
+}
+
 func TestUpdateCountsEverything(t *testing.T) {
 	t.Setenv("PPGMODS_HOME", t.TempDir())
+	noSteam(t)
 	defer workshop.SetIndexForTest(&workshop.Index{})()
 	defer sources.SetS01ForTest([]sources.S01Mod{})()
 	st, _ := manager.LoadState()
@@ -333,5 +343,81 @@ func TestS01Update(t *testing.T) {
 	other := &manager.Installed{Key: "sky:999999", Name: "Not theirs"}
 	if _, mine, _ := a.s01Update(m, other); mine {
 		t.Fatal("someone else's mod treated as 01 STUDIO's")
+	}
+}
+
+// Items recovered from the Steam cache (local:c-<Workshop ID>) and Workshop
+// items still on Steam update from Steam when its copy is newer.
+func TestUpdateFromSteam(t *testing.T) {
+	t.Setenv("PPGMODS_HOME", t.TempDir())
+	defer workshop.SetIndexForTest(&workshop.Index{})()
+	defer sources.SetS01ForTest([]sources.S01Mod{})()
+	const ws = "2091325214"
+	cdir := t.TempDir()
+	old := filepath.Join(cdir, ws)
+	os.MkdirAll(old, 0o755)
+	os.WriteFile(filepath.Join(old, ws+".jaap"), []byte("old"), 0o644)
+	os.WriteFile(filepath.Join(old, ws+".json"), []byte(`{}`), 0o644)
+	st, _ := manager.LoadState()
+	installed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	st.Mods["local:c-"+ws] = &manager.Installed{Key: "local:c-" + ws, Name: "break-action v3", Kind: manager.KindContraption,
+		Folders: []string{ws}, Revision: installed, InstalledAt: installed}
+	st.Mods["local:c-1234567890"] = &manager.Installed{Key: "local:c-1234567890", Name: "Gone from Steam", Kind: manager.KindContraption, InstalledAt: installed}
+	m := &manager.Manager{State: st, ModsDir: t.TempDir(), ContraptionsDir: cdir}
+
+	updated := time.Now().Add(-72 * time.Hour) // newer, and past the cooldown
+	oldItem, oldPre, oldIn, oldDL := steamItem, steamPrefetch, steamSignedIn, steamDownload
+	defer func() { steamItem, steamPrefetch, steamSignedIn, steamDownload = oldItem, oldPre, oldIn, oldDL }()
+	steamPrefetch = func([]string) {}
+	steamItem = func(id string) (sources.SteamItem, bool) {
+		if id == ws {
+			return sources.SteamItem{ID: id, Live: true, Title: "break-action v3", Updated: updated, AppID: 1118200}, true
+		}
+		return sources.SteamItem{ID: id}, false
+	}
+	fresh := filepath.Join(t.TempDir(), ws)
+	os.MkdirAll(fresh, 0o755)
+	os.WriteFile(filepath.Join(fresh, ws+".jaap"), []byte("new"), 0o644)
+	os.WriteFile(filepath.Join(fresh, ws+".json"), []byte(`{}`), 0o644)
+	steamDownload = func(_ context.Context, id, _ string) (string, error) { return fresh, nil }
+
+	// Not signed in: counted, not downloaded.
+	steamSignedIn = func() bool { return false }
+	var log []string
+	a := &App{Opt: DefaultOptions(), Logf: func(f string, v ...any) { log = append(log, fmt.Sprintf(f, v...)) }}
+	a.Opt.Yes = true
+	s := a.Update(m)
+	if !strings.Contains(strings.Join(log, "\n"), "newer on the Steam Workshop (sign in") || s.OK != 0 {
+		t.Fatalf("not signed in: %+v\n%s", s, strings.Join(log, "\n"))
+	}
+
+	// Signed in: updated in place, under the same key.
+	steamSignedIn = func() bool { return true }
+	log = nil
+	s = a.Update(m)
+	if s.OK != 1 {
+		t.Fatalf("signed in: %+v\n%s", s, strings.Join(log, "\n"))
+	}
+	inst := m.State.Find("local:c-" + ws)
+	if inst == nil || inst.Key != "local:c-"+ws {
+		t.Fatalf("the item lost its key: %+v", m.State.Mods)
+	}
+	var got []byte
+	for _, f := range inst.Folders {
+		if b, err := os.ReadFile(filepath.Join(cdir, f, ws+".jaap")); err == nil {
+			got = b
+		}
+	}
+	if string(got) != "new" {
+		t.Errorf("contraption not updated: %q (folders %v)", got, inst.Folders)
+	}
+
+	// Now current: nothing to do.
+	log = nil
+	if s = a.Update(m); s.OK != 0 || s.Current < 1 {
+		t.Errorf("after the update: %+v\n%s", s, strings.Join(log, "\n"))
+	}
+	if !strings.Contains(strings.Join(log, "\n"), "not checked: 1 found on this PC") {
+		t.Errorf("the item not on Steam isn't reported as before:\n%s", strings.Join(log, "\n"))
 	}
 }

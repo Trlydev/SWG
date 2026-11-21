@@ -551,7 +551,7 @@ func (u *ui) refreshState() {
 	u.mu.Unlock()
 	sig := ""
 	for _, m := range st.Installed {
-		sig += fmt.Sprint(m.Key, m.Name, m.Missing, m.Folders, m.ScanMax, m.Pinned, m.RiskAccepted, m.Author, m.Withdrawn, "|")
+		sig += fmt.Sprint(m.Key, m.Name, m.Missing, m.Folders, m.ScanMax, m.Pinned, m.RiskAccepted, m.Author, m.Withdrawn, m.DuplicateOf, "|")
 	}
 	fyne.Do(func() {
 		p := pal()
@@ -566,7 +566,7 @@ func (u *ui) refreshState() {
 		u.versionChip.Text = "ppgmods " + st.Version
 		u.versionChip.Refresh()
 		u.navs[pageMine].setCount(fmt.Sprint(len(st.Installed)))
-		sig += fmt.Sprint(st.NeedCompiler, st.ThumbsGen)
+		sig += fmt.Sprint(st.NeedCompiler, st.ThumbsGen, st.SteamItems)
 		if sig != u.installedSig {
 			u.installedSig = sig
 			u.installed.render()

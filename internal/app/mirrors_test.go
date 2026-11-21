@@ -582,3 +582,17 @@ func TestSteamCopyDownloadedItself(t *testing.T) {
 		t.Fatalf("not signed in to Steam: %v", err)
 	}
 }
+
+// Workshop items are stored as sky:<id> but read and typed as Workshop IDs.
+func TestWorkshopRefNames(t *testing.T) {
+	for in, want := range map[string]string{"ws:3838486260": "sky:3838486260", "workshop:3838486260": "sky:3838486260", "ws:abc": "ws:abc"} {
+		if got := NormalizeRef(in); got != want {
+			t.Errorf("NormalizeRef(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{"sky:3838486260": "Workshop 3838486260", "local:c-2091325214": "Workshop 2091325214 (from the Steam cache)", "tw:9": "tw:9"} {
+		if got := DisplayRef(in); got != want {
+			t.Errorf("DisplayRef(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

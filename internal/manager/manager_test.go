@@ -531,3 +531,78 @@ func TestOfficialFile(t *testing.T) {
 		t.Error("another file name passed")
 	}
 }
+
+// The same Workshop item is found whatever kind of key it is installed or
+// asked for under.
+func TestFindSameWorkshopItem(t *testing.T) {
+	st := &State{Mods: map[string]*Installed{
+		"local:c-2091325214": {Key: "local:c-2091325214"},
+		"tw:9":               {Key: "tw:9", Aliases: []string{"sky:2226697361"}},
+		"local:0123abcd4567": {Key: "local:0123abcd4567"},
+	}}
+	for ref, want := range map[string]string{
+		"sky:2091325214":     "local:c-2091325214",
+		"local:2091325214":   "local:c-2091325214",
+		"local:c-2226697361": "tw:9",
+		"sky:2226697361":     "tw:9",
+		"local:0123abcd4567": "local:0123abcd4567",
+	} {
+		if m := st.Find(ref); m == nil || m.Key != want {
+			t.Errorf("Find(%q) = %v, want %s", ref, m, want)
+		}
+	}
+	if st.Find("sky:9999999999") != nil || st.Find("local:0123abcd") != nil {
+		t.Error("found something that isn't installed")
+	}
+}
+
+// A copy from another site whose mod.json names an installed Workshop item
+// replaces that copy (the game gets one, not two); existing duplicates are
+// reported.
+func TestSameWorkshopItemFromAnotherSite(t *testing.T) {
+	m := newTestManager(t)
+	mod := func(ver string) string {
+		return zipOf(t, map[string]string{
+			"Chem/mod.json": `{"Name":"Chemical Warfare","Author":"a","ModVersion":"` + ver + `","CreatorUGCIdentity":"2226697361"}`,
+			"Chem/a.png":    "png",
+		})
+	}
+	if err := m.Install(&Candidate{Key: "tw:9", Name: "Chemical Warfare", Path: mod("1.0")}); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.State.Mods["tw:9"]; got == nil || got.WorkshopID != "2226697361" {
+		t.Fatalf("Workshop ID not recorded: %+v", got)
+	}
+	// The Steam copy of the same item, under its own key.
+	if err := m.Install(&Candidate{Key: "sky:2226697361", Name: "Chemical Warfare", Path: mod("2.0")}); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.State.Mods) != 1 {
+		t.Fatalf("installed twice: %v", keysOf(m.State.Mods))
+	}
+	if ents := listDir(t, m.ModsDir); len(ents) != 1 {
+		t.Fatalf("two copies in the game: %v", ents)
+	}
+	if d := m.Duplicates(); len(d) != 0 {
+		t.Errorf("no duplicates expected: %v", d)
+	}
+
+	// Two entries that are the same item (an older state): both reported.
+	m.State.Mods["local:c-2226697361"] = &Installed{Key: "local:c-2226697361", Name: "Old copy", Kind: KindContraption}
+	d := m.Duplicates()
+	if len(d["tw:9"]) != 1 || d["tw:9"][0].Name != "Old copy" || len(d["local:c-2226697361"]) != 1 {
+		t.Errorf("duplicates: %v", d)
+	}
+	m.State.Mods["local:c-2226697361"].Off = true // not loaded: doesn't count
+	if d := m.Duplicates(); len(d) != 0 {
+		t.Errorf("a turned-off copy counted: %v", d)
+	}
+}
+
+func keysOf(m map[string]*Installed) []string {
+	var out []string
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}

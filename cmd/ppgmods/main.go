@@ -40,7 +40,7 @@ Usage: ppgmods <command> [args] [flags]
 
 Find and install:
   search <text>              search GameBanana and Skymods (Workshop mirror)
-  install <ref> [<ref>...]   install gb:<id>, sky:<workshop id>, tw:<id> (True
+  install <ref> [<ref>...]   install gb:<id>, ws:<workshop id>, tw:<id> (True
                              Workshop), or a GameBanana /
                              Steam Workshop link (Workshop items come from the
                              Skymods mirror via modsbase.com)
@@ -574,7 +574,7 @@ func cmdSearch(q string) error {
 		}
 		fmt.Printf("  %-11s %-45s%s, %s, %s\n", it.Ref, it.Name, app.By(it.Author), it.Date, rev)
 	}
-	fmt.Println("Steam Workshop mirrors: Skymods + top-mods (ppgmods install sky:<workshop id>)")
+	fmt.Println("Steam Workshop (Steam, Skymods, top-mods): ppgmods install ws:<workshop id>")
 	for _, it := range r.Workshop {
 		warn := ""
 		if it.AfterCutoff {

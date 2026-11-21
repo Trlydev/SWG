@@ -893,6 +893,13 @@ var reWSURL = regexp.MustCompile(`steamcommunity\.com/(?:sharedfiles|workshop)/f
 // links and bare Workshop IDs into gb:<id> / sky:<workshop id> / tw:<id>.
 func NormalizeRef(ref string) string {
 	ref = strings.TrimSpace(ref)
+	// ws:<id> and workshop:<id> name a Steam Workshop item, stored as
+	// sky:<id> (the prefix dates from when Skymods was the only mirror).
+	for _, p := range []string{"ws:", "workshop:"} {
+		if id, ok := strings.CutPrefix(ref, p); ok && reWorkshopDir.MatchString(id) {
+			return "sky:" + id
+		}
+	}
 	if mm := reGBURL.FindStringSubmatch(ref); mm != nil {
 		return "gb:" + mm[1]
 	}
@@ -1597,6 +1604,69 @@ func (a *App) Repair(m *manager.Manager, keys []string) Summary {
 	return s
 }
 
+// DisplayRef is how a ref reads to a person: Workshop items as "Workshop
+// <id>" rather than the stored "sky:<id>".
+func DisplayRef(ref string) string {
+	if id, ok := strings.CutPrefix(ref, "sky:"); ok {
+		return "Workshop " + id
+	}
+	if ws := manager.WorkshopIDOf(ref); ws != "" {
+		return "Workshop " + ws + " (from the Steam cache)"
+	}
+	return ref
+}
+
+// workshopIDOf is the Workshop item an installed key names (see
+// manager.WorkshopIDOf).
+func workshopIDOf(key string) string { return manager.WorkshopIDOf(key) }
+
+// Test hooks: what Steam says about an item, and whether ppgmods is signed
+// in to Steam.
+var (
+	steamItem     = sources.SteamItemByID
+	steamPrefetch = func(ids []string) { sources.SteamDetails(ids) }
+	steamSignedIn = func() bool { return SteamTool().Account() != "" }
+)
+
+// steamUpdate updates an installed item from the Steam Workshop when it is
+// still there and Steam's copy is newer than the installed one. It reports
+// whether it dealt with the item (false: not on Steam, the caller goes on).
+// Not signed in to Steam, a newer copy is counted for the person to sign in.
+func (a *App) steamUpdate(m *manager.Manager, inst *manager.Installed, s *Summary, skip func(string)) bool {
+	ws := workshopIDOf(inst.Key)
+	if ws == "" {
+		return false
+	}
+	it, ok := steamItem(ws)
+	if !ok {
+		return false
+	}
+	have := inst.Revision
+	if have.IsZero() {
+		have = inst.InstalledAt
+	}
+	if !it.Updated.After(have.Add(time.Minute)) {
+		s.Current++
+		return true
+	}
+	if !steamSignedIn() {
+		skip("newer on the Steam Workshop (sign in to Steam in Settings to update them)")
+		return true
+	}
+	a.logf("%s: Steam has a newer copy (updated %s)", orName(inst.Name, inst.Key), FmtTime(it.Updated))
+	c, err := a.fromSteam(ws, steamMirror(ws, it))
+	if err == nil {
+		// The same item: keep its key, so it updates in place.
+		if c.Key != inst.Key {
+			c.Aliases = append(c.Aliases, c.Key)
+			c.Key = inst.Key
+		}
+		err = m.Install(c)
+	}
+	a.tally(s, inst.Key, "HELD", err)
+	return true
+}
+
 // Update checks installed GameBanana mods for newer files. Without
 // Opt.Yes it is a dry run.
 func (a *App) Update(m *manager.Manager) Summary {
@@ -1621,6 +1691,15 @@ func (a *App) Update(m *manager.Manager) Summary {
 			a.logf("not checked: %d %s", notChecked[w], w)
 		}
 	}()
+	// Items still on the Steam Workshop can update from Steam: ask about
+	// all of them in one go (answers are kept for the checks below).
+	var wsIDs []string
+	for _, inst := range m.State.Sorted() {
+		if ws := workshopIDOf(inst.Key); ws != "" {
+			wsIDs = append(wsIDs, ws)
+		}
+	}
+	steamPrefetch(wsIDs)
 	for _, inst := range m.State.Sorted() {
 		if inst.Quarantined != "" {
 			skip("in quarantine")
@@ -1657,6 +1736,9 @@ func (a *App) Update(m *manager.Manager) Summary {
 				var mine bool
 				c, mine, err = a.s01Update(m, inst)
 				if !mine {
+					if a.steamUpdate(m, inst, &s, skip) {
+						continue
+					}
 					skip("Steam Workshop copies (Steam deleted the originals: nothing newer exists unless the author republishes it)")
 					continue
 				}
@@ -1700,6 +1782,9 @@ func (a *App) Update(m *manager.Manager) Summary {
 			continue
 		}
 		if !strings.HasPrefix(inst.Key, "gb:") {
+			if strings.HasPrefix(inst.Key, "local:") && a.steamUpdate(m, inst, &s, skip) {
+				continue // still on Steam (recovered from the Steam cache)
+			}
 			if strings.HasPrefix(inst.Key, "local:") {
 				skip("found on this PC without a site to update from")
 			} else {

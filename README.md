@@ -137,7 +137,7 @@ ppgmods search "melee"
 ppgmods install gb:655674                # or paste the gamebanana.com/mods/... URL
 
 # 4. Skymods (Steam Workshop mirror), by Workshop ID: queue as many as you like
-ppgmods install sky:3801154351 sky:2573469317 gb:655674
+ppgmods install ws:3801154351 ws:2573469317 gb:655674
 #    already have a file from modsbase? import it:
 ppgmods import ~/Downloads/3801154351_Quick_Draw_Mod.zip --workshop-id 3801154351
 

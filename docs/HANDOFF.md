@@ -1,4 +1,4 @@
-# Handoff (after v0.5.2)
+# Handoff (after v0.5.3)
 
 State of ppgmods (People Playground mod manager, Go) for the next session.
 
@@ -6,7 +6,7 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 
 - Repo: github.com/Trlydev/SWG (the git remote DogeKingC/SWG redirects there).
   Go module path: `github.com/Trlydev/SWG`.
-- Latest release: **v0.5.2**. `build.yml` publishes v0.5.N on every push to
+- Latest release: **v0.5.3**. `build.yml` publishes v0.5.N on every push to
   main (counted from the v0.5.* tags). Pushes to other branches don't build.
 - Since 2026-11-20 the work also happens locally in Claude Code on the
   owner's Linux PC (CachyOS, real People Playground under Proton with
@@ -48,6 +48,7 @@ State of ppgmods (People Playground mod manager, Go) for the next session.
 | 0.5.0 | RE_PPG: game-version check (signed GameAssemblySha256) and Proton winhttp setup (notice + Fix it, `reppg fix-proton`); faster: Nexus preview failures cached, mirror lookups in parallel, a mod's copies download side by side, modpack mirrors looked up ahead, Skymods check gives up in 8 s when someone waits and is remembered across runs, one background browser kept for Skymods reads (0.2 s a read instead of 0.85 s); notices no longer drawn over the page; Match system follows the desktop; more non-public addresses refused |
 | 0.5.1 | New Workshop uploads without code install (code-free post-cutoff copies, after the cooldown); Steam Web API title finds top-mods copies while Skymods is blocked; downloads only stop on a minute of silence (internal/stall); recovered Steam contraptions marked installed and labelled Steam Workshop; Steam Workshop items: live item ranks first (subscribe in Steam when as new as the mirrors); My mods: real icons (thumbnail backfill), search, sort, compact rows; x/image v0.47.0, go 1.26; CI apt fixes |
 | 0.5.2 | Steam sign-in by QR code (DepotDownloader 3.4.0, pinned + SHA-256, own loginid, session in <config>/steam): Steam Workshop items download and install by themselves; a sign-in screen over the window on first start ("Continue without Steam"); Steam profile card; Settings in four tabs (Accounts, Game, Mods, App); `steam-login`/`steam-logout`. Windows: the kept Skymods browser joins a kill-on-close job (no browser left behind after a crash); GUI tests race-free (cardGrid's deferred refresh via uiLater); CI caches fall back to older ones after a dependency change; README for Steam, new uploads, My mods |
+| 0.5.3 | Updates from Steam for items still on the Workshop (recovered `local:c-<id>` contraptions and `sky:<id>` items; signed in to Steam); duplicate detection: State.Find matches every key kind of a Workshop item, an install whose mod.json names an installed item replaces it (WorkshopID recorded), My mods flags items installed twice or also subscribed on Steam; Workshop IDs shown as "Workshop <id>", `ws:<id>` accepted, new folders tagged `[ws-…]` (stored key stays `sky:` for state and modpack-code compatibility) |
 | 0.4.2 | Reinstall RE_PPG button; fixes from a 5-agent security review; one-time window code; loader files matched by name and release; Popular sorting fixed (all time from the popularity data); thumbnails shrunk and cached on disk |
 
 ## The window (0.4.9 redesign)
