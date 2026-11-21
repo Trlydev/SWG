@@ -117,6 +117,7 @@ func main() {
 	sources.UserAgent = fmt.Sprintf("ppgmods/%s (+https://github.com/Trlydev/SWG)", version)
 	sources.Warn = logf
 	cfclear.WireSkymods(logf) // Skymods passes Cloudflare's check by itself in the background
+	cfclear.WireModsbase(logf)
 	selfupdate.Current = version
 	args := os.Args[1:]
 	if len(args) == 0 {

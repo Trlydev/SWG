@@ -212,10 +212,23 @@ func (s *ffSession) read(u string, opt Options, logf func(string, ...any)) (*Res
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
 	c, tab := s.c, s.tab
+	wait := "none" // the check is polled below
+	if opt.Script != "" {
+		wait = "complete" // the script runs in the loaded page
+	}
 	if s.opened {
 		s.opened = false // the browser started on u
-	} else if _, err := c.call(ctx, "browsingContext.navigate", map[string]any{"context": tab, "url": u, "wait": "none"}); err != nil {
+	} else if _, err := c.call(ctx, "browsingContext.navigate", map[string]any{"context": tab, "url": u, "wait": wait}); err != nil {
 		return nil, fmt.Errorf("the background browser stopped: %w", err)
+	}
+	if opt.Script != "" {
+		raw, err := c.call(ctx, "script.evaluate", map[string]any{
+			"expression": opt.Script, "target": map[string]any{"context": tab}, "awaitPromise": true,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("the page script failed: %w", err)
+		}
+		return &Result{HTML: evalString(raw), At: time.Now().UTC()}, nil
 	}
 	tick := time.NewTicker(pollEvery)
 	defer tick.Stop()

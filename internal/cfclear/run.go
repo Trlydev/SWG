@@ -13,6 +13,7 @@ import (
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/network"
+	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -64,6 +65,11 @@ type Options struct {
 	// Run gives up with ErrNeedsPerson. A check that passes by itself does
 	// so within seconds. Default 25 seconds; it doesn't apply to a window.
 	PersonAfter time.Duration
+	// Script, when set, is run in the page once it has loaded, instead of
+	// waiting for the real page: an expression whose value (awaited if it
+	// is a promise) is returned as Result.HTML. It does what the page's own
+	// buttons do (see ModsbaseLink); it never answers a check.
+	Script string
 	// Browser is a browser executable to use. Empty: found automatically.
 	Browser string
 	// Logf receives progress notes.
@@ -220,6 +226,16 @@ func (s *chromeSession) read(u string, opt Options, logf func(string, ...any)) (
 			return nil, timeoutErr(opt)
 		}
 		return nil, fmt.Errorf("the browser could not open the page: %w", err)
+	}
+	if opt.Script != "" {
+		var out string
+		err := chromedp.Run(ctx, chromedp.Evaluate(opt.Script, &out, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
+			return p.WithAwaitPromise(true)
+		}))
+		if err != nil {
+			return nil, fmt.Errorf("the page script failed: %w", err)
+		}
+		return &Result{HTML: out, At: time.Now().UTC()}, nil
 	}
 	tick := time.NewTicker(pollEvery)
 	defer tick.Stop()

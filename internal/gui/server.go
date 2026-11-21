@@ -401,8 +401,9 @@ func Run(opt app.Options, g Options) error {
 		}
 	}
 	s := &server{opt: opt, version: g.Version, token: token, host: ln.Addr().String(), quit: make(chan struct{})}
-	sources.Warn = s.logf       // catalogue listings that a cap cut short
-	cfclear.WireSkymods(s.logf) // Skymods passes Cloudflare's check by itself in the background
+	sources.Warn = s.logf        // catalogue listings that a cap cut short
+	cfclear.WireSkymods(s.logf)  // Skymods passes Cloudflare's check by itself in the background
+	cfclear.WireModsbase(s.logf) // modsbase links through the background browser when its check is up
 	if native {
 		s.show = make(chan struct{}, 1)
 	}

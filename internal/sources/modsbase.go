@@ -19,6 +19,15 @@ import (
 // browser.
 var ErrChallenge = errors.New("modsbase.com answered with a Cloudflare check")
 
+// ErrCaptcha means modsbase put its browser check (Cloudflare Turnstile) on
+// the download form.
+var ErrCaptcha = errors.New("modsbase.com asks for a captcha")
+
+// ModsbaseBrowserLink, when set, gets the download link through a real
+// browser when modsbase shows its check (cfclear.ModsbaseLink); it never
+// answers the check itself.
+var ModsbaseBrowserLink func(page string) (string, error)
+
 // ErrGone means modsbase's storage server no longer has the file: its
 // download link answers "No file" whatever browser or cookies ask for it.
 var ErrGone = errors.New(`modsbase.com no longer has this file (its storage server answers "No file")`)
@@ -50,7 +59,15 @@ func isChallenge(resp *http.Response, body []byte) bool {
 // failed attempt is retried once; a Cloudflare check is not retried.
 func ModsbaseResolve(page string) (string, error) {
 	link, err := modsbaseResolveOnce(page)
-	if err == nil || errors.Is(err, ErrChallenge) {
+	if errors.Is(err, ErrCaptcha) && ModsbaseBrowserLink != nil {
+		// Its check is on the form: a real browser may pass it by itself.
+		if l, berr := ModsbaseBrowserLink(page); berr == nil {
+			return l, nil
+		} else {
+			return "", fmt.Errorf("%w (%v)", ErrCaptcha, berr)
+		}
+	}
+	if err == nil || errors.Is(err, ErrChallenge) || errors.Is(err, ErrCaptcha) {
 		return link, err
 	}
 	time.Sleep(3 * time.Second)
@@ -112,7 +129,7 @@ func modsbaseCountdown(page string) error {
 		return fmt.Errorf("modsbase.com: HTTP %d", resp.StatusCode)
 	}
 	if strings.Contains(string(body), "data-sitekey") {
-		return errors.New("modsbase.com asks for a captcha")
+		return ErrCaptcha
 	}
 	wait := 5
 	if m := reMBWait.FindStringSubmatch(string(body)); m != nil {

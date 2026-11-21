@@ -370,7 +370,9 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 			line += " · " + mr.Size
 		}
 		main := container.NewHBox(widget.NewLabelWithStyle(mr.Source, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), muted(strings.TrimPrefix(line, " ")))
-		rows = append(rows, u.mirrorRow(d, mr.ID, main, tags, mr.Page, mr.Gone || mr.Steam))
+		// Steam's copy can be checked (and installed) once signed in to Steam.
+		steamOff := mr.Steam && u.state().Steam.Account == ""
+		rows = append(rows, u.mirrorRow(d, mr.ID, main, tags, mr.Page, mr.Gone || steamOff))
 	}
 	title := "Mirror"
 	if len(mirrors) > 1 {
