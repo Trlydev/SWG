@@ -242,3 +242,15 @@ func TestPrefixInUse(t *testing.T) {
 		t.Error("a wineserver with WINEPREFIX set to it isn't seen")
 	}
 }
+
+func TestSteamAccountName(t *testing.T) {
+	fakeSteam(t, "")
+	t.Setenv("PPGMODS_STEAM_USER", "")
+	if got := SteamAccountName(); got != "a" { // the newest sign-in
+		t.Errorf("account name %q", got)
+	}
+	t.Setenv("PPGMODS_STEAM_USER", "chosen")
+	if got := SteamAccountName(); got != "chosen" {
+		t.Errorf("override: %q", got)
+	}
+}

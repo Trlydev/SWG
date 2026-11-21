@@ -2,9 +2,11 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Trlydev/SWG/internal/game"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -80,6 +82,11 @@ type NeedsSteam struct {
 	Updated    time.Time `json:"updated"`
 	Page       string    `json:"page"`
 	Mirror     bool      `json:"mirror"` // a mirror copy could be installed instead
+	// SteamCmd says why ppgmods didn't download it itself: "missing"
+	// (steamcmd isn't installed) or "login" (it isn't signed in); Account
+	// is the name to sign it in with.
+	SteamCmd string `json:"steamcmd,omitempty"`
+	Account  string `json:"account,omitempty"`
 }
 
 func (e *NeedsSteam) Error() string {
@@ -87,7 +94,50 @@ func (e *NeedsSteam) Error() string {
 	if name == "" {
 		name = "Workshop item " + e.WorkshopID
 	}
-	return fmt.Sprintf("%s is on the Steam Workshop: subscribe to it there (%s)", name, e.Page)
+	msg := fmt.Sprintf("%s is on the Steam Workshop: subscribe to it there (%s)", name, e.Page)
+	switch e.SteamCmd {
+	case "login":
+		acct := e.Account
+		if acct == "" {
+			acct = "<your Steam account>"
+		}
+		msg += "; or let ppgmods download it itself: sign steamcmd in once with `steamcmd +login " + acct + "`"
+	case "missing":
+		msg += "; or install Valve's steamcmd and sign it in once, and ppgmods downloads Steam items itself"
+	}
+	return msg
+}
+
+// steamCmdDownload runs steamcmd (a test hook).
+var steamCmdDownload = sources.SteamCmdDownload
+
+// fromSteam downloads Steam's own copy with steamcmd (signed in once by the
+// person, see sources.SteamCmdDownload) into ppgmods' folder, and returns it
+// as a candidate: scanned and checked like any copy (a Steam copy revised
+// after the worm cutoff only without code, after the cooldown).
+func (a *App) fromSteam(ws string, steam Mirror) (*manager.Candidate, error) {
+	d, err := manager.ConfigDir()
+	if err != nil {
+		return nil, err
+	}
+	a.logf("  downloading it from Steam with steamcmd...")
+	dir, err := steamCmdDownload(context.Background(), sources.SteamCmdPath(), game.SteamAccountName(), filepath.Join(d, "steamcmd"), 1118200, ws)
+	if err != nil {
+		return nil, err
+	}
+	b := a.with(func(o *Options) {
+		o.WorkshopID, o.Revision = ws, steam.VersionTime
+		if o.Name == "" {
+			o.Name = steam.Title
+		}
+	})
+	c, err := b.candidate(dir)
+	if err != nil {
+		return nil, err
+	}
+	c.Mirror, c.Version, c.Source = steam.ID, steam.Version, steam.Page
+	a.logf("  downloaded from Steam")
+	return c, nil
 }
 
 // steamFirst reports whether Steam's copy is at least as new as the newest
@@ -761,7 +811,20 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 	mirrors = rest
 	if steamCopy != nil && (a.Opt.Mirror == steamCopy.ID || a.Opt.Mirror == "" && !a.Opt.NoSteam && steamFirst(*steamCopy, mirrors)) {
 		a.logf("Steam Workshop: %s (Workshop %s), updated %s: on Steam itself, as new as any mirror copy or newer", steamCopy.Title, ws, steamCopy.Version)
-		return nil, &NeedsSteam{WorkshopID: ws, Title: steamCopy.Title, Updated: steamCopy.VersionTime, Page: steamCopy.Page, Mirror: len(mirrors) > 0}
+		c, err := a.fromSteam(ws, *steamCopy)
+		if err == nil {
+			return c, nil
+		}
+		ns := &NeedsSteam{WorkshopID: ws, Title: steamCopy.Title, Updated: steamCopy.VersionTime, Page: steamCopy.Page, Mirror: len(mirrors) > 0}
+		switch {
+		case errors.Is(err, sources.ErrNoSteamCmd):
+			ns.SteamCmd = "missing"
+		case errors.Is(err, sources.ErrSteamCmdLogin):
+			ns.SteamCmd, ns.Account = "login", game.SteamAccountName()
+		default:
+			a.logf("  steamcmd: %v", err)
+		}
+		return nil, ns
 	}
 	if len(mirrors) == 0 {
 		return nil, fmt.Errorf("Workshop item %s is only on the Steam Workshop: subscribe to it there (%s)", ws, SteamPage(ws))

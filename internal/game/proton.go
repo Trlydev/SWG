@@ -200,6 +200,46 @@ func recentAccount(root string) string {
 	return best
 }
 
+// SteamAccountName is the Steam account name to sign steamcmd in with:
+// PPGMODS_STEAM_USER, else the account most recently signed in to Steam on
+// this PC (loginusers.vdf). "" if none is known.
+func SteamAccountName() string {
+	if u := os.Getenv("PPGMODS_STEAM_USER"); u != "" {
+		return u
+	}
+	for _, root := range SteamRoots() {
+		b, err := os.ReadFile(filepath.Join(root, "config", "loginusers.vdf"))
+		if err != nil {
+			continue
+		}
+		v, err := ParseVDF(string(b))
+		if err != nil {
+			continue
+		}
+		users := v.Find("users")
+		if users == nil {
+			continue
+		}
+		best, bestAt := "", int64(-1)
+		for _, kv := range users.Kids {
+			if kv.Node == nil {
+				continue
+			}
+			name := kv.Node.Value("AccountName")
+			if kv.Node.Value("MostRecent") == "1" && name != "" {
+				return name
+			}
+			if at, _ := strconv.ParseInt(kv.Node.Value("timestamp"), 10, 64); at > bestAt && name != "" {
+				best, bestAt = name, at
+			}
+		}
+		if best != "" {
+			return best
+		}
+	}
+	return ""
+}
+
 // The prefix registry key winecfg's Libraries tab writes.
 const dllOverridesKey = `[Software\\Wine\\DllOverrides]`
 

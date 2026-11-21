@@ -1066,6 +1066,20 @@ func (u *ui) openURL(link string) {
 func (u *ui) steamDialog(ns *app.NeedsSteam, retry map[string]any) {
 	name := orStr(ns.Title, "This item")
 	body := container.NewVBox(text(name + " is on the Steam Workshop, as new as any mirror copy or newer. Subscribe there and Steam adds it to the game."))
+	switch ns.SteamCmd {
+	case "login":
+		// Signed in once, steamcmd lets ppgmods download Steam items itself.
+		cmd := "steamcmd +login " + orStr(ns.Account, "<your Steam account>")
+		cp := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+			u.win.Clipboard().SetContent(cmd)
+			u.toast("Copied: run it in a terminal, sign in, then install again")
+		})
+		cp.Importance = widget.LowImportance
+		body.Add(small("Or let ppgmods download Steam items itself: sign Valve's steamcmd in once, in a terminal (ppgmods never sees your password):"))
+		body.Add(container.NewBorder(nil, nil, nil, cp, mono(cmd)))
+	case "missing":
+		body.Add(small("Or let ppgmods download Steam items itself: install Valve's steamcmd and sign it in once."))
+	}
 	var d dialog.Dialog
 	if retry != nil {
 		mirror := widget.NewButton("Use a mirror copy instead", func() {
