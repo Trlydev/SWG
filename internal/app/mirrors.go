@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Trlydev/SWG/internal/game"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,6 +20,7 @@ import (
 	"github.com/Trlydev/SWG/internal/preserve"
 	"github.com/Trlydev/SWG/internal/scan"
 	"github.com/Trlydev/SWG/internal/sources"
+	"github.com/Trlydev/SWG/internal/steamdl"
 	"github.com/Trlydev/SWG/internal/version"
 	"github.com/Trlydev/SWG/internal/workshop"
 )
@@ -82,11 +82,10 @@ type NeedsSteam struct {
 	Updated    time.Time `json:"updated"`
 	Page       string    `json:"page"`
 	Mirror     bool      `json:"mirror"` // a mirror copy could be installed instead
-	// SteamCmd says why ppgmods didn't download it itself: "missing"
-	// (steamcmd isn't installed) or "login" (it isn't signed in); Account
-	// is the name to sign it in with.
-	SteamCmd string `json:"steamcmd,omitempty"`
-	Account  string `json:"account,omitempty"`
+	// SignIn: ppgmods would download it itself once signed in to Steam
+	// (Settings, Steam): the person isn't signed in, or Steam ended the
+	// session.
+	SignIn bool `json:"sign_in,omitempty"`
 }
 
 func (e *NeedsSteam) Error() string {
@@ -95,33 +94,35 @@ func (e *NeedsSteam) Error() string {
 		name = "Workshop item " + e.WorkshopID
 	}
 	msg := fmt.Sprintf("%s is on the Steam Workshop: subscribe to it there (%s)", name, e.Page)
-	switch e.SteamCmd {
-	case "login":
-		acct := e.Account
-		if acct == "" {
-			acct = "<your Steam account>"
-		}
-		msg += "; or let ppgmods download it itself: sign steamcmd in once with `steamcmd +login " + acct + "`"
-	case "missing":
-		msg += "; or install Valve's steamcmd and sign it in once, and ppgmods downloads Steam items itself"
+	if e.SignIn {
+		msg += "; or sign in to Steam in ppgmods (Settings, Steam: scan a QR code with the Steam app once) and it downloads Steam items itself"
 	}
 	return msg
 }
 
-// steamCmdDownload runs steamcmd (a test hook).
-var steamCmdDownload = sources.SteamCmdDownload
+// SteamTool is how ppgmods downloads from Steam itself (DepotDownloader
+// in ppgmods' folder, signed in once with a QR code).
+func SteamTool() *steamdl.Tool {
+	d, _ := manager.ConfigDir()
+	return &steamdl.Tool{Dir: filepath.Join(d, "steam")}
+}
 
-// fromSteam downloads Steam's own copy with steamcmd (signed in once by the
-// person, see sources.SteamCmdDownload) into ppgmods' folder, and returns it
-// as a candidate: scanned and checked like any copy (a Steam copy revised
-// after the worm cutoff only without code, after the cooldown).
+// steamDownload downloads a Workshop item from Steam (a test hook).
+var steamDownload = func(ctx context.Context, ws, dest string) (string, error) {
+	return SteamTool().DownloadItem(ctx, ws, dest)
+}
+
+// fromSteam downloads Steam's own copy for the signed-in account into
+// ppgmods' folder and returns it as a candidate: scanned and checked like
+// any copy (a Steam copy revised after the worm cutoff only without code,
+// after the cooldown).
 func (a *App) fromSteam(ws string, steam Mirror) (*manager.Candidate, error) {
 	d, err := manager.ConfigDir()
 	if err != nil {
 		return nil, err
 	}
-	a.logf("  downloading it from Steam with steamcmd...")
-	dir, err := steamCmdDownload(context.Background(), sources.SteamCmdPath(), game.SteamAccountName(), filepath.Join(d, "steamcmd"), 1118200, ws)
+	a.logf("  downloading it from Steam...")
+	dir, err := steamDownload(context.Background(), ws, filepath.Join(d, "steam", "items", ws))
 	if err != nil {
 		return nil, err
 	}
@@ -816,13 +817,10 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 			return c, nil
 		}
 		ns := &NeedsSteam{WorkshopID: ws, Title: steamCopy.Title, Updated: steamCopy.VersionTime, Page: steamCopy.Page, Mirror: len(mirrors) > 0}
-		switch {
-		case errors.Is(err, sources.ErrNoSteamCmd):
-			ns.SteamCmd = "missing"
-		case errors.Is(err, sources.ErrSteamCmdLogin):
-			ns.SteamCmd, ns.Account = "login", game.SteamAccountName()
-		default:
-			a.logf("  steamcmd: %v", err)
+		if errors.Is(err, steamdl.ErrSignIn) {
+			ns.SignIn = true
+		} else {
+			a.logf("  Steam download: %v", err)
 		}
 		return nil, ns
 	}

@@ -56,6 +56,9 @@ Keep up to date:
   remove <key>               uninstall
   quarantine <key> [reason]  move it out of the game folder (the game can't load it)
   release <key>              put a quarantined item back
+  steam-login                sign in to Steam once (scan a QR code with the Steam app):
+                             Steam Workshop items then download by themselves
+  steam-logout               forget the Steam session
   reppg [status | install]   install or update RE_PPG (and BepInEx), the loader for
                              C# mods; every file is checked against RE_PPG's signature.
                              install any-game: even if RE_PPG was made for another game
@@ -269,6 +272,32 @@ func run(cmd string, args []string, a *app.App, g gui.Options) error {
 		return cmdNexusProbe(args[0])
 	case "skymods-check":
 		return cmdSkymodsCheck()
+	case "steam-login":
+		// Steam's QR sign-in, once: Steam Workshop items then download by
+		// themselves. Scan the code with the Steam app (Steam Guard tab).
+		acct, err := app.SteamTool().SignIn(context.Background(), func(rows []string) {
+			fmt.Println("\nScan this with the Steam app on your phone (Steam Guard, the shield):")
+			pad := strings.Repeat("  ", len(rows[0])+4)
+			fmt.Println(pad + "\n" + pad)
+			for _, r := range rows {
+				fmt.Print("    ")
+				for _, c := range r {
+					if c == '1' {
+						fmt.Print("██")
+					} else {
+						fmt.Print("  ")
+					}
+				}
+				fmt.Println("    ")
+			}
+			fmt.Println(pad + "\n" + pad)
+		})
+		if err == nil {
+			fmt.Println("Signed in to Steam as", acct)
+		}
+		return err
+	case "steam-logout":
+		return app.SteamTool().SignOut()
 	case "backup-workshop":
 		dest, err := a.Backup()
 		if err == nil {

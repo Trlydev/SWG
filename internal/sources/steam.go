@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -128,3 +129,52 @@ func SteamItemByID(id string) (SteamItem, bool) {
 	}
 	return it, true
 }
+
+// SteamProfile is an account's public Steam profile.
+type SteamProfile struct {
+	Name   string `json:"name"`
+	Avatar string `json:"avatar,omitempty"` // a picture on Steam's CDN
+}
+
+var (
+	reXMLName   = regexp.MustCompile(`<steamID><!\[CDATA\[(.*?)\]\]></steamID>`)
+	reXMLAvatar = regexp.MustCompile(`<avatarMedium><!\[CDATA\[(https://[^\]]+)\]\]></avatarMedium>`)
+)
+
+// SteamProfileOf reads the public profile of a SteamID64 (Steam's profile
+// XML, no key needed): the name shown on Steam and the avatar.
+func SteamProfileOf(id64 string) (SteamProfile, error) {
+	if !reDigits.MatchString(id64) {
+		return SteamProfile{}, fmt.Errorf("not a SteamID: %q", id64)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", SteamCommunity+"/profiles/"+id64+"/?xml=1", nil)
+	if err != nil {
+		return SteamProfile{}, err
+	}
+	setHeaders(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return SteamProfile{}, err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != 200 {
+		return SteamProfile{}, fmt.Errorf("Steam profile: HTTP %d", resp.StatusCode)
+	}
+	var p SteamProfile
+	if m := reXMLName.FindSubmatch(b); m != nil {
+		p.Name = strings.TrimSpace(string(m[1]))
+	}
+	if m := reXMLAvatar.FindSubmatch(b); m != nil {
+		p.Avatar = string(m[1])
+	}
+	if p.Name == "" {
+		return p, errors.New("Steam profile without a name")
+	}
+	return p, nil
+}
+
+// SteamCommunity is steamcommunity.com (a test hook).
+var SteamCommunity = "https://steamcommunity.com"

@@ -240,6 +240,30 @@ func SteamAccountName() string {
 	return ""
 }
 
+// SteamIDOf is the SteamID64 of an account signed in to Steam on this PC
+// (loginusers.vdf), matched by its account name; "" if Steam here doesn't
+// know it.
+func SteamIDOf(account string) string {
+	for _, root := range SteamRoots() {
+		b, err := os.ReadFile(filepath.Join(root, "config", "loginusers.vdf"))
+		if err != nil {
+			continue
+		}
+		v, err := ParseVDF(string(b))
+		if err != nil {
+			continue
+		}
+		if users := v.Find("users"); users != nil {
+			for _, kv := range users.Kids {
+				if kv.Node != nil && strings.EqualFold(kv.Node.Value("AccountName"), account) {
+					return kv.Key
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // The prefix registry key winecfg's Libraries tab writes.
 const dllOverridesKey = `[Software\\Wine\\DllOverrides]`
 

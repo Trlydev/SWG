@@ -254,3 +254,13 @@ func TestSteamAccountName(t *testing.T) {
 		t.Errorf("override: %q", got)
 	}
 }
+
+func TestSteamIDOf(t *testing.T) {
+	fakeSteam(t, "")
+	if got := SteamIDOf("A"); got != "76561199094548100" {
+		t.Errorf("SteamID of a: %q", got)
+	}
+	if got := SteamIDOf("nobody"); got != "" {
+		t.Errorf("unknown account: %q", got)
+	}
+}

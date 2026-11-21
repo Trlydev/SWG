@@ -46,3 +46,23 @@ func TestSteamDetails(t *testing.T) {
 		t.Error("removed item found")
 	}
 }
+
+func TestSteamProfileOf(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/profiles/76561199094548100/" || r.URL.Query().Get("xml") != "1" {
+			t.Errorf("asked %s", r.URL)
+		}
+		w.Write([]byte(`<?xml version="1.0"?><profile><steamID64>76561199094548100</steamID64><steamID><![CDATA[Truly]]></steamID><avatarMedium><![CDATA[https://avatars.steamstatic.com/abc_medium.jpg]]></avatarMedium></profile>`))
+	})
+	defer UseTestServer(stubRT{h}, "http://unused")()
+	old := SteamCommunity
+	SteamCommunity = "http://unused"
+	defer func() { SteamCommunity = old }()
+	p, err := SteamProfileOf("76561199094548100")
+	if err != nil || p.Name != "Truly" || p.Avatar != "https://avatars.steamstatic.com/abc_medium.jpg" {
+		t.Fatalf("%+v %v", p, err)
+	}
+	if _, err := SteamProfileOf("../x"); err == nil {
+		t.Error("a path accepted as a SteamID")
+	}
+}

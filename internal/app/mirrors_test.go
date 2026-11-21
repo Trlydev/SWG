@@ -18,6 +18,7 @@ import (
 	"github.com/Trlydev/SWG/internal/manager"
 	"github.com/Trlydev/SWG/internal/preserve"
 	"github.com/Trlydev/SWG/internal/sources"
+	"github.com/Trlydev/SWG/internal/steamdl"
 )
 
 // freshCopyInfo forgets what earlier tests learned about mirror copies
@@ -481,11 +482,9 @@ func TestWorkshopMirrorsOnceAtATime(t *testing.T) {
 // a mirror copy.
 func TestSteamCopyRanksFirst(t *testing.T) {
 	freshCopyInfo(t)
-	oldDL := steamCmdDownload
-	steamCmdDownload = func(context.Context, string, string, string, int, string) (string, error) {
-		return "", sources.ErrNoSteamCmd
-	}
-	defer func() { steamCmdDownload = oldDL }()
+	oldDL := steamDownload
+	steamDownload = func(context.Context, string, string) (string, error) { return "", steamdl.ErrSignIn }
+	defer func() { steamDownload = oldDL }()
 	const ws = "3838486261"
 	dir, _ := CacheDir("sky:" + ws)
 	zipFiles(t, filepath.Join(dir, "topmods-920-art.zip"), map[string]string{
@@ -540,10 +539,10 @@ func TestSteamCopyRanksFirst(t *testing.T) {
 	}
 }
 
-// With steamcmd signed in, Steam's own copy is downloaded and installed by
-// ppgmods itself (scanned and checked like any copy); without it, the
-// person is told how to set it up.
-func TestSteamCopyDownloadedWithSteamCmd(t *testing.T) {
+// Signed in to Steam, ppgmods downloads Steam's own copy and installs it
+// (scanned and checked like any copy); not signed in, the person is told
+// to sign in.
+func TestSteamCopyDownloadedItself(t *testing.T) {
 	freshCopyInfo(t)
 	const ws = "3838486263"
 	item := filepath.Join(t.TempDir(), ws)
@@ -551,11 +550,11 @@ func TestSteamCopyDownloadedWithSteamCmd(t *testing.T) {
 	os.WriteFile(filepath.Join(item, ws+".json"), []byte(`{"name":"Scene"}`), 0o644)
 	os.WriteFile(filepath.Join(item, ws+".png"), []byte("png"), 0o644)
 	os.WriteFile(filepath.Join(item, ws+".jaap"), []byte("contraption"), 0o644)
-	oldDL := steamCmdDownload
-	defer func() { steamCmdDownload = oldDL }()
+	oldDL := steamDownload
+	defer func() { steamDownload = oldDL }()
 	var asked string
-	steamCmdDownload = func(_ context.Context, _, _, dest string, app int, id string) (string, error) {
-		asked = fmt.Sprint(app, " ", id)
+	steamDownload = func(_ context.Context, id, dest string) (string, error) {
+		asked = id
 		return item, nil
 	}
 	updated := time.Now().Add(-72 * time.Hour) // past the cooldown
@@ -565,23 +564,21 @@ func TestSteamCopyDownloadedWithSteamCmd(t *testing.T) {
 	m := &manager.Manager{State: st, ModsDir: t.TempDir(), ContraptionsDir: t.TempDir(), Policy: manager.Policy{Cooldown: 48 * time.Hour}}
 	a := &App{Opt: DefaultOptions()}
 	c, err := a.fetchWorkshop(m, ws)
-	if err != nil || asked != "1118200 "+ws || c.Mirror != "steam:"+ws || c.Key != "sky:"+ws || !c.SteamOrig {
+	if err != nil || asked != ws || c.Mirror != "steam:"+ws || c.Key != "sky:"+ws || !c.SteamOrig {
 		t.Fatalf("steamcmd copy: %+v %v (asked %q)", c, err, asked)
 	}
 	if err := m.Install(c); err != nil {
 		t.Fatalf("Steam copy not installed: %v", err)
 	}
 
-	steamCmdDownload = func(context.Context, string, string, string, int, string) (string, error) {
-		return "", sources.ErrSteamCmdLogin
-	}
+	steamDownload = func(context.Context, string, string) (string, error) { return "", steamdl.ErrSignIn }
 	delete(mirrorMemo, ws)
 	const ws2 = "3838486264"
 	mirrorMemo[ws2] = mirrorMemoEntry{at: time.Now(), list: []Mirror{{ID: "steam:" + ws2, Source: "Steam Workshop", VersionTime: updated, Page: SteamPage(ws2), Steam: true}}}
 	defer delete(mirrorMemo, ws2)
 	_, err = a.fetchWorkshop(m, ws2)
 	var ns *NeedsSteam
-	if !errors.As(err, &ns) || ns.SteamCmd != "login" {
-		t.Fatalf("steamcmd not signed in: %v", err)
+	if !errors.As(err, &ns) || !ns.SignIn {
+		t.Fatalf("not signed in to Steam: %v", err)
 	}
 }

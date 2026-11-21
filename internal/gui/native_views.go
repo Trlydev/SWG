@@ -1178,6 +1178,9 @@ type settingsView struct {
 	uninstall *widget.Button
 	version   *widget.Label
 	about     *widget.Label
+	steam     *fyne.Container // the Steam profile card
+	steamSig  string
+	tabs      *tabBar
 }
 
 // field is a form row: bold label, control, hint.
@@ -1211,7 +1214,8 @@ func narrow(w float32, o fyne.CanvasObject) fyne.CanvasObject { return container
 
 func newSettings(u *ui) *settingsView {
 	v := &settingsView{u: u, game: widget.NewEntry(), gameHint: muted(""), cooldown: widget.NewEntry(), nexus: container.New(&vlist{gap: 6}),
-		paths: widget.NewLabel(""), appInfo: muted(""), setup: container.New(&vlist{gap: 4}), version: widget.NewLabel(""), about: muted("")}
+		paths: widget.NewLabel(""), appInfo: muted(""), setup: container.New(&vlist{gap: 4}), version: widget.NewLabel(""), about: muted(""),
+		steam: container.New(&vlist{gap: 6})}
 	v.paths.TextStyle = fyne.TextStyle{Monospace: true}
 	v.paths.SizeName = sSmall
 	v.paths.Wrapping = fyne.TextWrapBreak
@@ -1280,17 +1284,46 @@ func newSettings(u *ui) *settingsView {
 	section := func(title string, objs ...fyne.CanvasObject) fyne.CanvasObject {
 		return container.New(&vlist{gap: 8}, append([]fyne.CanvasObject{h2(title)}, objs...)...)
 	}
-	v.root = view(container.New(&vlist{gap: 22},
+	// Four tabs, each one kind of thing, instead of one long page.
+	group := func(objs ...fyne.CanvasObject) fyne.CanvasObject { return container.New(&vlist{gap: 22}, objs...) }
+	pages := []fyne.CanvasObject{
+		group(
+			section("Steam", narrow(720, panelBox(v.steam))),
+			section("Nexus Mods", narrow(720, panelBox(v.nexus)))),
+		group(
+			section("People Playground", narrow(720, panelBox(container.New(&vlist{gap: 12}, gameForm, v.setup))))),
+		group(
+			section("Mods and updates", narrow(720, panelBox(modsForm))),
+			section("Skymods (smods.ru)", narrow(720, container.New(&vlist{gap: 8}, hinted(v.skyAuto, skyHint), v.skySettings())))),
+		group(
+			section("Look and speed", narrow(720, panelBox(lookForm))),
+			section("Folders", panelBox(v.paths), container.NewHBox(openData)),
+			section("This app", v.appInfo, container.NewHBox(v.install, v.uninstall)),
+			section("About", v.version, v.about,
+				container.NewHBox(widget.NewButton("Check for a new version", func() { go u.checkRelease(true) })))),
+	}
+	sel := u.app.Preferences().IntWithFallback("settings.tab", 0)
+	if sel < 0 || sel >= len(pages) {
+		sel = 0
+	}
+	show := func(i int) {
+		for j, p := range pages {
+			if j == i {
+				p.Show()
+			} else {
+				p.Hide()
+			}
+		}
+	}
+	v.tabs = newTabBar([]string{"Accounts", "Game", "Mods", "App"}, sel, func(i int) {
+		u.app.Preferences().SetInt("settings.tab", i)
+		show(i)
+	})
+	show(sel)
+	v.root = view(container.New(&vlist{gap: 18},
 		container.NewBorder(nil, nil, h1("Settings"), container.NewCenter(save)),
-		section("Game", narrow(720, panelBox(container.New(&vlist{gap: 12}, gameForm, v.setup)))),
-		section("Mods and updates", narrow(720, panelBox(modsForm))),
-		section("Look and speed", narrow(720, panelBox(lookForm))),
-		section("Nexus Mods", narrow(720, panelBox(v.nexus))),
-		section("Skymods (smods.ru)", narrow(720, container.New(&vlist{gap: 8}, hinted(v.skyAuto, skyHint), v.skySettings()))),
-		section("Folders", panelBox(v.paths), container.NewHBox(openData)),
-		section("This app", v.appInfo, container.NewHBox(v.install, v.uninstall)),
-		section("About", v.version, v.about,
-			container.NewHBox(widget.NewButton("Check for a new version", func() { go u.checkRelease(true) }))),
+		v.tabs.root,
+		container.NewStack(pages...),
 	))
 	return v
 }

@@ -32,7 +32,11 @@ type settings struct {
 	NoSkymodsCheck bool    `json:"no_skymods_check"` // never run the Skymods browser check
 	Theme          string  `json:"theme,omitempty"`  // "dark" (default), "light" or "system"
 	NoAutoUpdate   bool    `json:"no_auto_update"`   // don't keep subscribed mods up to date by themselves
+	SteamSkipped   bool    `json:"steam_skipped"`    // "Continue without Steam": no sign-in screen
 }
+
+// steamSkipped: the person chose to go on without signing in to Steam.
+var steamSkipped atomic.Bool
 
 // themeSetting normalises a saved theme: dark unless light or system.
 func themeSetting(s string) string {
@@ -74,6 +78,7 @@ func (st *settings) apply(o *app.Options) {
 	skymodsCheckOn = !st.NoSkymodsCheck
 	cfclear.SetAuto(skymodsCheckOn)
 	autoUpdateOn.Store(!st.NoAutoUpdate)
+	steamSkipped.Store(st.SteamSkipped)
 	themeMode = themeSetting(st.Theme)
 	o.Game = st.Game
 	o.Offline = st.Offline
@@ -84,5 +89,6 @@ func (st *settings) apply(o *app.Options) {
 
 func settingsFrom(o app.Options) settings {
 	return settings{Game: o.Game, CooldownHours: o.Policy.Cooldown.Hours(), Offline: o.Offline,
-		NoBgThumbs: bgThumbsOff, NoSkymodsCheck: !skymodsCheckOn, Theme: themeMode, NoAutoUpdate: !autoUpdateOn.Load()}
+		NoBgThumbs: bgThumbsOff, NoSkymodsCheck: !skymodsCheckOn, Theme: themeMode, NoAutoUpdate: !autoUpdateOn.Load(),
+		SteamSkipped: steamSkipped.Load()}
 }

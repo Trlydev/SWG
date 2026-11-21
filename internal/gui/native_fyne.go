@@ -49,6 +49,7 @@ type stateView struct {
 	WinHTTP      *winhttpState   `json:"winhttp"`
 	SteamItems   []string        `json:"steam_items"` // subscribed to on the Steam Workshop
 	ThumbsGen    int64           `json:"thumbs_gen"`  // bumped when installed thumbnails were made
+	Steam        steamView       `json:"steam"`
 	Cutoff       string          `json:"cutoff"`
 	LastBackup   string          `json:"lastBackup"`
 	Desktop      struct {
@@ -84,6 +85,8 @@ type ui struct {
 	installText   *widget.Label
 	protonBanner  *fyne.Container
 	body          *fyne.Container // the page with the notices above it
+	cover         *steamCover     // the Steam sign-in screen over the window
+	steamWanted   bool            // the person asked to sign in (shows the screen even after "Continue without Steam")
 	installDesk   *widget.Check
 
 	gameChipText *canvas.Text
@@ -300,7 +303,8 @@ func (u *ui) build() {
 	u.detailHolder.Hide()
 	u.body = container.NewBorder(container.NewVBox(u.protonBanner, u.updateBanner, u.installBanner), nil, nil,
 		u.detailHolder, u.viewStack)
-	u.win.SetContent(container.NewBorder(nil, footer, sideFixed, nil, u.body))
+	u.cover = newSteamCover(u)
+	u.win.SetContent(container.NewStack(container.NewBorder(nil, footer, sideFixed, nil, u.body), u.cover.root))
 	u.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
 		if k.Name == fyne.KeyEscape && u.details != nil {
 			u.details.close()
@@ -539,6 +543,8 @@ func (u *ui) refreshState() {
 		u.set.update(&st)
 		u.renderDesktop(&st)
 		u.setNotice(u.protonBanner, st.WinHTTP != nil && !st.WinHTTP.OK)
+		u.cover.render(st.Steam)
+		u.set.renderSteam(st.Steam)
 		u.renderSkymods(st.Skymods)
 		if (st.Job == nil || !st.Job.Running) && st.Queued == 0 {
 			u.browse.resetQueued()
@@ -1066,19 +1072,12 @@ func (u *ui) openURL(link string) {
 func (u *ui) steamDialog(ns *app.NeedsSteam, retry map[string]any) {
 	name := orStr(ns.Title, "This item")
 	body := container.NewVBox(text(name + " is on the Steam Workshop, as new as any mirror copy or newer. Subscribe there and Steam adds it to the game."))
-	switch ns.SteamCmd {
-	case "login":
-		// Signed in once, steamcmd lets ppgmods download Steam items itself.
-		cmd := "steamcmd +login " + orStr(ns.Account, "<your Steam account>")
-		cp := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
-			u.win.Clipboard().SetContent(cmd)
-			u.toast("Copied: run it in a terminal, sign in, then install again")
-		})
-		cp.Importance = widget.LowImportance
-		body.Add(small("Or let ppgmods download Steam items itself: sign Valve's steamcmd in once, in a terminal (ppgmods never sees your password):"))
-		body.Add(container.NewBorder(nil, nil, nil, cp, mono(cmd)))
-	case "missing":
-		body.Add(small("Or let ppgmods download Steam items itself: install Valve's steamcmd and sign it in once."))
+	if ns.SignIn {
+		// Signed in once (a QR code), ppgmods downloads Steam items itself.
+		signIn := widget.NewButton("Sign in to Steam", func() { u.steamSignIn() })
+		signIn.Importance = widget.LowImportance
+		body.Add(small("Or sign in to Steam once and ppgmods downloads Steam items itself:"))
+		body.Add(container.NewHBox(signIn))
 	}
 	var d dialog.Dialog
 	if retry != nil {

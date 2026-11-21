@@ -964,6 +964,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("/api/thumb", s.handleThumb)
 	mux.HandleFunc("/api/nexus", s.handleNexus)
 	mux.HandleFunc("/api/skymods", s.handleSkymods)
+	mux.HandleFunc("/api/steam", s.handleSteam)
 	mux.HandleFunc("/api/nxm-offer", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			URL string `json:"url"`
@@ -1216,6 +1217,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		"reppg":                 reppgStatus(paths.Game),
 		"winhttp":               winhttpView(paths.Game, loader),
 		"steam_items":           steamSubscribed(),
+		"steam":                 s.steamState(),
 		"thumbs_gen":            thumbsGen.Load(), // My mods re-renders when thumbnails were added
 		"cutoff":                manager.WormCutoff.Format("2006-01-02"),
 		"lastBackup":            lastBackup(paths.Data),
