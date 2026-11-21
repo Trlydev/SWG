@@ -38,6 +38,7 @@ type Options struct {
 	BrowserFallback              bool // on a modsbase refusal, open the browser and watch Downloads
 	NXMHandoff                   bool // the window is running and receives nxm:// links (see expectNXM)
 	UpdateOnly                   bool // fetch: skip when the installed file is already the newest
+	NoSteam                      bool // Workshop items: a mirror copy even when Steam's own is as new (NeedsSteam)
 	FileID                       int
 	Revision                     time.Time // known revision date (from a backup manifest)
 	Policy                       manager.Policy
@@ -155,11 +156,12 @@ type SearchResult struct {
 	AfterCutoff bool     `json:"after_cutoff,omitempty"` // Workshop: every known copy is after the cutoff
 	Reviewed    bool     `json:"reviewed,omitempty"`     // True Workshop: reviewed by the site's maintainers
 	Downloads   int      `json:"download_count,omitempty"`
-	Kind        string   `json:"kind,omitempty"`    // "contraption" when known
-	Mirrors     []string `json:"mirrors,omitempty"` // Workshop: "top-mods 2026-09-19", ...
-	Trend       string   `json:"trend,omitempty"`   // popularity sort: "+1,204 views this week"
-	Rank        int      `json:"rank,omitempty"`    // popularity sort: what it is ranked by (the period's gain, or the all-time count)
-	Version     string   `json:"version,omitempty"` // Workshop cards: highest known version of the copies
+	Kind        string   `json:"kind,omitempty"`     // "contraption" when known
+	Mirrors     []string `json:"mirrors,omitempty"`  // Workshop: "top-mods 2026-09-19", ...
+	Trend       string   `json:"trend,omitempty"`    // popularity sort: "+1,204 views this week"
+	Rank        int      `json:"rank,omitempty"`     // popularity sort: what it is ranked by (the period's gain, or the all-time count)
+	Version     string   `json:"version,omitempty"`  // Workshop cards: highest known version of the copies
+	OnSteam     bool     `json:"on_steam,omitempty"` // Workshop: the item itself is live on the Steam Workshop
 
 	newest  time.Time
 	bestVer string // Workshop cards: highest version among the copies
@@ -491,6 +493,7 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 		e.Version = e.bestVer
 		r.Workshop = append(r.Workshop, *e)
 	}
+	markOnSteam(r.Workshop)
 	if opt.Sort == "updated" {
 		sort.SliceStable(r.Workshop, func(i, j int) bool { return r.Workshop[i].newest.After(r.Workshop[j].newest) })
 	} else if opt.Sort == "popular" {
@@ -501,6 +504,33 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 		r.TrueWS = rerank(r.TrueWS, q, func(x SearchResult) int { return x.Downloads })
 	}
 	return r
+}
+
+// markOnSteam marks the Workshop cards whose item is live on the Steam
+// Workshop (one request for the whole page, answers kept an hour): Steam's
+// own copy is listed first among the copies. Such an item is code-free
+// (Valve removed every item with code), so it isn't a refused "new upload".
+func markOnSteam(list []SearchResult) {
+	var ids []string
+	for _, e := range list {
+		if ws, ok := strings.CutPrefix(e.Ref, "sky:"); ok {
+			ids = append(ids, ws)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	live, _ := sources.SteamDetails(ids)
+	for i := range list {
+		ws, _ := strings.CutPrefix(list[i].Ref, "sky:")
+		if it := live[ws]; it.Live && it.AppID == 1118200 {
+			list[i].OnSteam, list[i].AfterCutoff = true, false
+			list[i].Mirrors = append([]string{"Steam Workshop " + FmtTime(it.Updated)}, list[i].Mirrors...)
+			if list[i].Name == "" {
+				list[i].Name = it.Title
+			}
+		}
+	}
 }
 
 // s01Result is a search card for a free 01 STUDIO mod. Its ref is the
@@ -988,7 +1018,13 @@ func (a *App) Fetch(m *manager.Manager, ref string, prev *manager.Installed) (*m
 		}
 		return a.fetchGB(id, a.Opt.FileID, prev)
 	case strings.HasPrefix(ref, "sky:"):
-		return a.fetchWorkshop(m, strings.TrimPrefix(ref, "sky:"))
+		b := a
+		if prev != nil {
+			// An update of a copy ppgmods installed comes from a mirror: a
+			// Steam subscription next to it would load the mod twice.
+			b = a.with(func(o *Options) { o.NoSteam = true })
+		}
+		return b.fetchWorkshop(m, strings.TrimPrefix(ref, "sky:"))
 	case strings.HasPrefix(ref, "tw:"):
 		id, err := strconv.Atoi(strings.TrimPrefix(ref, "tw:"))
 		if err != nil {
@@ -1037,7 +1073,7 @@ func (a *App) nexusViaWorkshop(m *manager.Manager, it sources.NXMod, ref string)
 	if ws == "" {
 		return nil
 	}
-	c, err := a.fetchWorkshop(m, ws)
+	c, err := a.with(func(o *Options) { o.NoSteam = true }).fetchWorkshop(m, ws)
 	if err != nil || c == nil {
 		return nil // no usable mirror copy: Nexus it is
 	}
@@ -1416,15 +1452,29 @@ func OpenBrowser(u string) error {
 const steamRun = "steam://rungameid/1118200"
 
 // LaunchGame starts People Playground through the Steam client.
-func LaunchGame() error {
+var reWorkshopNum = regexp.MustCompile(`^\d{4,20}$`)
+
+// OpenSteamItem opens a Workshop item's page in the Steam client, where
+// Subscribe makes Steam download it into the game.
+func OpenSteamItem(ws string) error {
+	if !reWorkshopNum.MatchString(ws) {
+		return fmt.Errorf("not a Workshop item id: %q", ws)
+	}
+	return openSteamURL("steam://url/CommunityFilePage/" + ws)
+}
+
+func LaunchGame() error { return openSteamURL(steamRun) }
+
+// openSteamURL hands a steam:// link to the Steam client.
+func openSteamURL(u string) error {
 	var c *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		c = exec.Command("rundll32", "url.dll,FileProtocolHandler", steamRun)
+		c = exec.Command("rundll32", "url.dll,FileProtocolHandler", u)
 	case "darwin":
-		c = exec.Command("open", steamRun)
+		c = exec.Command("open", u)
 	default:
-		c = exec.Command("xdg-open", steamRun)
+		c = exec.Command("xdg-open", u)
 	}
 	return c.Start()
 }
@@ -1518,6 +1568,9 @@ type Summary struct {
 	// Update only: updates that need the person (a Nexus file without a
 	// premium account), and items with nothing to check against.
 	Manual, NotChecked int
+	// OnSteam: items only on the Steam Workshop (no mirror copy), to
+	// subscribe to there; listed in the log with their Steam page.
+	OnSteam int
 }
 
 // Repair reinstalls installed items whose folders are missing or whose files
@@ -1772,9 +1825,28 @@ func (a *App) InstallMany(m *manager.Manager, refs []string) Summary {
 	}
 	PrewarmMirrors(ids)
 	for _, ref := range refs {
-		a.tally(&s, ref, "REFUSED", a.Install(m, ref))
+		err := a.Install(m, ref)
+		// Many at once: no question per item. A mirror copy is installed
+		// where there is one; items only on Steam are listed to subscribe to.
+		var ns *NeedsSteam
+		if errors.As(err, &ns) {
+			if !ns.Mirror {
+				s.OnSteam++
+				a.logf("  %s is only on the Steam Workshop: subscribe to it there: %s", orName(ns.Title, ref), ns.Page)
+				continue
+			}
+			err = a.with(func(o *Options) { o.NoSteam = true }).Install(m, ref)
+		}
+		a.tally(&s, ref, "REFUSED", err)
 	}
 	return s
+}
+
+func orName(name, ref string) string {
+	if name != "" {
+		return name
+	}
+	return ref
 }
 
 // Restore imports every item of a backup-workshop folder.

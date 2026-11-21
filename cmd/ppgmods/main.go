@@ -103,6 +103,7 @@ Flags (any command):
   --no-watch                 on browser fallback, just open the page
   --dest <dir>               backup-workshop target folder
   --mirror <id>              install this mirror copy (skymods:<id> / topmods:<id>)
+  --no-steam                 a mirror copy even when the Steam Workshop's own is as new
                              instead of the newest clean one
   --port <n>                 gui: fixed port (default random)
   --no-window                gui: do not open a window, just print the address
@@ -180,6 +181,7 @@ func parseFlags(argv []string) (*app.App, []string, gui.Options, error) {
 	fs.BoolVar(&o.NoWatch, "no-watch", false, "")
 	fs.BoolVar(&o.Yes, "yes", false, "")
 	fs.BoolVar(&o.Offline, "offline", false, "")
+	fs.BoolVar(&o.NoSteam, "no-steam", false, "")
 	fs.BoolVar(&o.Policy.AllowHigh, "allow-high", false, "")
 	fs.BoolVar(&o.Policy.AllowCritical, "allow-critical", false, "")
 	fs.BoolVar(&o.Policy.AllowAfterCutoff, "allow-after-cutoff", false, "")

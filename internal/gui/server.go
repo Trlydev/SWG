@@ -112,6 +112,7 @@ type job struct {
 	Retry      map[string]any    `json:"retry,omitempty"` // request to repeat with an override
 	Findings   []string          `json:"findings,omitempty"`
 	Browser    *app.NeedsBrowser `json:"browser,omitempty"`
+	Steam      *app.NeedsSteam   `json:"steam,omitempty"`      // subscribe on Steam (Steam's own copy is the newest)
 	Risk       bool              `json:"risk,omitempty"`       // the retry accepts CRITICAL findings: needs the typed phrase
 	Background bool              `json:"background,omitempty"` // started by ppgmods itself (folder watching), not shown as "last task"
 	Queued     int               `json:"queued,omitempty"`     // in an answer to an install: it waits in the queue, behind this many
@@ -217,6 +218,53 @@ func winhttpView(gameDir string, l game.Loader) *winhttpState {
 		return nil
 	}
 	return &winhttpState{OK: w.OK(), ByLaunch: w.ByLaunch, ByPrefix: w.ByPrefix, LaunchOptions: w.LaunchOptions, Fix: game.LaunchFix}
+}
+
+var reWorkshopDir = regexp.MustCompile(`^\d{8,12}$`) // a Workshop item's folder in Steam's cache
+
+// steamSubs caches which items in Steam's Workshop folder are live on the
+// Steam Workshop: subscribed to there, so Browse marks them installed. The
+// folder also keeps old copies of items Valve removed (C# mods), which
+// don't count. Refreshed in the background at most every 10 minutes.
+var steamSubs struct {
+	sync.Mutex
+	ids      []string
+	at       time.Time
+	checking bool
+}
+
+func steamSubscribed() []string {
+	c := &steamSubs
+	c.Lock()
+	defer c.Unlock()
+	if !c.checking && time.Since(c.at) > 10*time.Minute {
+		c.checking = true
+		go func() {
+			var ids []string
+			for _, d := range game.WorkshopDirs() {
+				ents, _ := os.ReadDir(d)
+				for _, e := range ents {
+					if e.IsDir() && reWorkshopDir.MatchString(e.Name()) {
+						ids = append(ids, e.Name())
+					}
+				}
+			}
+			live, err := sources.SteamDetails(ids)
+			var on []string
+			for _, id := range ids {
+				if it := live[id]; it.Live && it.AppID == 1118200 {
+					on = append(on, id)
+				}
+			}
+			c.Lock()
+			defer c.Unlock()
+			c.checking, c.at = false, time.Now()
+			if err == nil || len(on) > 0 {
+				c.ids = on
+			}
+		}()
+	}
+	return c.ids
 }
 
 // winhttpCache keeps the last check for a few seconds: it reads Steam's
@@ -1033,7 +1081,8 @@ func (s *server) newApp(over map[string]bool) *app.App {
 		o.Policy.AllowNewFindings = true
 	}
 	o.BrowserFallback = over["browser"]
-	o.NXMHandoff = true // offerNXM passes Nexus links to installs waiting for them
+	o.NoSteam = over["no_steam"] // a mirror copy instead of subscribing on Steam
+	o.NXMHandoff = true          // offerNXM passes Nexus links to installs waiting for them
 	return &app.App{Opt: o, Logf: s.logf}
 }
 
@@ -1153,6 +1202,7 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 		"skymods":               s.skymodsView(),
 		"reppg":                 reppgStatus(paths.Game),
 		"winhttp":               winhttpView(paths.Game, loader),
+		"steam_items":           steamSubscribed(),
 		"cutoff":                manager.WormCutoff.Format("2006-01-02"),
 		"lastBackup":            lastBackup(paths.Data),
 		"desktop": map[string]any{
@@ -1408,6 +1458,9 @@ func (s *server) do(j *job, req actionReq) error {
 		}
 		sum := a.InstallMany(m, req.Refs)
 		j.Summary = &sum
+		if sum.OnSteam > 0 {
+			s.logf("%d only on the Steam Workshop: subscribe to them there (links in the log above)", sum.OnSteam)
+		}
 		if sum.Refused+sum.Failed > 0 {
 			return fmt.Errorf("%d of %d not installed; see the log for reasons", sum.Refused+sum.Failed, len(req.Refs))
 		}
@@ -1590,6 +1643,15 @@ func (s *server) offerRetry(j *job, err error, req actionReq) {
 		retry()
 		return
 	}
+	var ns *app.NeedsSteam
+	if errors.As(err, &ns) {
+		j.Steam = ns
+		if ns.Mirror {
+			over["no_steam"] = true // "install a mirror copy instead"
+			retry()
+		}
+		return
+	}
 	var rej *manager.Rejection
 	if !errors.As(err, &rej) {
 		return
@@ -1755,6 +1817,13 @@ func (s *server) handleOpen(w http.ResponseWriter, r *http.Request) {
 		s.logf("starting People Playground through Steam")
 		writeJSON(w, map[string]bool{"ok": true})
 		return
+	case "steam-item":
+		if err := app.OpenSteamItem(r.URL.Query().Get("id")); err != nil {
+			http.Error(w, "couldn't open Steam: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]bool{"ok": true})
+		return
 	case "url":
 		u := r.URL.Query().Get("url")
 		if app.AllowedURL(u) && !strings.HasPrefix(u, "http://") {
@@ -1820,11 +1889,14 @@ func (s *server) handleDetails(w http.ResponseWriter, r *http.Request) {
 		}
 		newest := mirrors[0]
 		v.SearchResult = app.SearchResult{Ref: ref, Source: "Steam Workshop", Name: newest.Title, Author: newest.Author, Date: newest.Version,
-			Size: newest.Size, URL: "https://steamcommunity.com/sharedfiles/filedetails/?id=" + ws, AfterCutoff: true}
+			Size: newest.Size, URL: "https://steamcommunity.com/sharedfiles/filedetails/?id=" + ws, AfterCutoff: true, OnSteam: newest.Steam}
 		v.Page = v.SearchResult.URL
 		for _, mr := range mirrors {
 			if !mr.AfterCutoff {
 				v.AfterCutoff = false
+			}
+			if v.Size == "" {
+				v.Size = mr.Size
 			}
 			if v.Image == "" || mr.Source == "top-mods" && mr.Image != "" {
 				v.Image = mr.Image

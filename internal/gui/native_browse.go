@@ -639,7 +639,12 @@ func (b *browseView) card(m *app.SearchResult) *browseCard {
 	if m.Category != "" && m.Category != "Contraptions" {
 		pills = append(pills, pill(m.Category, pNeutral))
 	}
-	if m.AfterCutoff {
+	switch {
+	case m.OnSteam:
+		// Live on the Steam Workshop: installing points to Steam's own copy
+		// when it's the newest.
+		pills = append(pills, pill("on Steam", pOK))
+	case m.AfterCutoff:
 		// Revised after the worm cutoff: a new Workshop upload. It installs
 		// only if it turns out to have no code (the worm lived in code).
 		pills = append(pills, pill("new upload", pKind))

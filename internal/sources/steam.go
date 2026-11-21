@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -63,14 +64,19 @@ func SteamDetails(ids []string) (map[string]SteamItem, error) {
 		for i, id := range chunk {
 			form.Set(fmt.Sprintf("publishedfileids[%d]", i), id)
 		}
-		req, err := http.NewRequest("POST", SteamAPI+"/ISteamRemoteStorage/GetPublishedFileDetails/v1/", strings.NewReader(form.Encode()))
+		// Asked while a search or an install waits: a slow Steam must not
+		// hold them up for long.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		req, err := http.NewRequestWithContext(ctx, "POST", SteamAPI+"/ISteamRemoteStorage/GetPublishedFileDetails/v1/", strings.NewReader(form.Encode()))
 		if err != nil {
+			cancel()
 			return out, err
 		}
 		setHeaders(req)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		resp, err := client.Do(req)
 		if err != nil {
+			cancel()
 			return out, err
 		}
 		var res struct {
@@ -87,6 +93,7 @@ func SteamDetails(ids []string) (map[string]SteamItem, error) {
 		}
 		err = json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&res)
 		resp.Body.Close()
+		cancel()
 		if resp.StatusCode != 200 {
 			return out, fmt.Errorf("Steam Web API: HTTP %d", resp.StatusCode)
 		}

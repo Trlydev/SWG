@@ -47,6 +47,7 @@ type stateView struct {
 	Skymods      skymodsState    `json:"skymods"`
 	REPPG        reppgView       `json:"reppg"`
 	WinHTTP      *winhttpState   `json:"winhttp"`
+	SteamItems   []string        `json:"steam_items"` // subscribed to on the Steam Workshop
 	Cutoff       string          `json:"cutoff"`
 	LastBackup   string          `json:"lastBackup"`
 	Desktop      struct {
@@ -562,11 +563,15 @@ func (u *ui) state() *stateView {
 // installedKeys is every ref an installed item answers to.
 func (u *ui) installedKeys() map[string]bool {
 	keys := map[string]bool{}
-	for _, m := range u.state().Installed {
+	st := u.state()
+	for _, m := range st.Installed {
 		keys[m.Key] = true
 		for _, a := range m.Aliases {
 			keys[a] = true
 		}
+	}
+	for _, id := range st.SteamItems {
+		keys["sky:"+id] = true // subscribed to on Steam: in the game already
 	}
 	return keys
 }
@@ -812,6 +817,10 @@ func (u *ui) jobDone(j *job) {
 			"Open Files tab", false, func() { u.openURL(j.Browser.URL) })
 		return
 	}
+	if j.Steam != nil {
+		u.steamDialog(j.Steam, j.Retry)
+		return
+	}
 	if j.Browser != nil && j.Retry != nil {
 		b := container.NewVBox(text("This copy has to be downloaded in your browser: " + j.Browser.Reason + "."))
 		if strings.HasPrefix(j.Browser.Mirror, "01studio:") {
@@ -1048,6 +1057,32 @@ func (u *ui) openURL(link string) {
 			u.toast(err.Error())
 		}
 	}()
+}
+
+// steamDialog offers Steam's own copy of a Workshop item: subscribing in
+// Steam puts it in the game. retry (when a mirror has a copy too)
+// installs that copy instead.
+func (u *ui) steamDialog(ns *app.NeedsSteam, retry map[string]any) {
+	name := orStr(ns.Title, "This item")
+	body := container.NewVBox(text(name + " is on the Steam Workshop, as new as any mirror copy or newer. Subscribe there and Steam adds it to the game."))
+	var d dialog.Dialog
+	if retry != nil {
+		mirror := widget.NewButton("Use a mirror copy instead", func() {
+			if d != nil {
+				d.Hide()
+			}
+			u.run(retry, "Installing a mirror copy")
+		})
+		mirror.Importance = widget.LowImportance
+		body.Add(container.NewHBox(mirror))
+	}
+	d = u.dialog("On the Steam Workshop", body, "Open in Steam", false, func() {
+		go func() {
+			if err := u.s.call("GET", "/api/open?what=steam-item&id="+urlQuery(ns.WorkshopID), nil, nil); err != nil {
+				u.toast("Couldn't open Steam: " + err.Error())
+			}
+		}()
+	}, nil)
 }
 
 // installREPPG asks, then installs or updates RE_PPG and BepInEx.

@@ -43,6 +43,7 @@ type Mirror struct {
 	Reviewed    bool      `json:"reviewed,omitempty"` // True Workshop: reviewed by its maintainers
 	Browser     bool      `json:"browser,omitempty"`  // downloaded in the person's browser (01 STUDIO: needs their account)
 	Archived    string    `json:"archived,omitempty"` // pre-worm archive: "recorded" (hash known), "verified" (downloaded and matches)
+	Steam       bool      `json:"steam,omitempty"`    // the item itself, live on the Steam Workshop (subscribe there)
 
 	sky *sources.SkyItem
 	tm  *sources.TMItem
@@ -53,6 +54,58 @@ type Mirror struct {
 }
 
 var reSkyArchive = regexp.MustCompile(`/archives/(\d+)`)
+
+// steamMirror is the item itself on the Steam Workshop. ppgmods doesn't
+// download it (that needs the Steam client): installing it means
+// subscribing in Steam, which puts it in the game. Valve removed every
+// item with code after the worm, so a live item is a code-free one.
+func steamMirror(ws string, it sources.SteamItem) Mirror {
+	return Mirror{
+		ID: "steam:" + ws, Source: "Steam Workshop", Title: it.Title, Version: FmtTime(it.Updated), VersionTime: it.Updated,
+		Page: SteamPage(ws), Steam: true,
+	}
+}
+
+// SteamPage is a Workshop item's page on Steam.
+func SteamPage(ws string) string {
+	return "https://steamcommunity.com/sharedfiles/filedetails/?id=" + ws
+}
+
+// NeedsSteam is returned for a Workshop item that is live on Steam and at
+// least as new as any mirror copy: Steam's own copy is the one to have, by
+// subscribing to it (Steam downloads it into the game).
+type NeedsSteam struct {
+	WorkshopID string    `json:"workshop_id"`
+	Title      string    `json:"title"`
+	Updated    time.Time `json:"updated"`
+	Page       string    `json:"page"`
+	Mirror     bool      `json:"mirror"` // a mirror copy could be installed instead
+}
+
+func (e *NeedsSteam) Error() string {
+	name := e.Title
+	if name == "" {
+		name = "Workshop item " + e.WorkshopID
+	}
+	return fmt.Sprintf("%s is on the Steam Workshop: subscribe to it there (%s)", name, e.Page)
+}
+
+// steamFirst reports whether Steam's copy is at least as new as the newest
+// mirror copy (by day: mirrors list some revisions by day only). With no
+// dated mirror copy, Steam's is the one.
+func steamFirst(steam Mirror, mirrors []Mirror) bool {
+	var newest time.Time
+	for _, mr := range mirrors {
+		if mr.VersionTime.After(newest) {
+			newest = mr.VersionTime
+		}
+	}
+	if newest.IsZero() {
+		return true
+	}
+	day := func(t time.Time) time.Time { return t.UTC().Truncate(24 * time.Hour) }
+	return !day(steam.VersionTime).Before(day(newest))
+}
 
 func skyMirror(it sources.SkyItem) Mirror {
 	return Mirror{
@@ -411,7 +464,13 @@ func workshopMirrors(ws, titleHint string) ([]Mirror, error) {
 			}
 		}
 	}
+	if onSteam {
+		list = append(list, steamMirror(ws, steam))
+	}
 	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].Steam != list[j].Steam {
+			return list[i].Steam // Steam's own copy first
+		}
 		a, b := list[i].VersionTime, list[j].VersionTime
 		if !a.Equal(b) {
 			return a.After(b) // unknown revision (True Workshop) last
@@ -687,6 +746,25 @@ func (a *App) fetchWorkshop(m *manager.Manager, ws string) (*manager.Candidate, 
 	mirrors, err := WorkshopMirrors(ws, a.Opt.Name)
 	if err != nil {
 		return nil, err
+	}
+	// Steam's own copy isn't downloaded: it ranks first when it is at least
+	// as new as the mirrors' (installing it = subscribing in Steam).
+	var steamCopy *Mirror
+	rest := make([]Mirror, 0, len(mirrors))
+	for i := range mirrors {
+		if mirrors[i].Steam {
+			steamCopy = &mirrors[i]
+		} else {
+			rest = append(rest, mirrors[i])
+		}
+	}
+	mirrors = rest
+	if steamCopy != nil && (a.Opt.Mirror == steamCopy.ID || a.Opt.Mirror == "" && !a.Opt.NoSteam && steamFirst(*steamCopy, mirrors)) {
+		a.logf("Steam Workshop: %s (Workshop %s), updated %s: on Steam itself, as new as any mirror copy or newer", steamCopy.Title, ws, steamCopy.Version)
+		return nil, &NeedsSteam{WorkshopID: ws, Title: steamCopy.Title, Updated: steamCopy.VersionTime, Page: steamCopy.Page, Mirror: len(mirrors) > 0}
+	}
+	if len(mirrors) == 0 {
+		return nil, fmt.Errorf("Workshop item %s is only on the Steam Workshop: subscribe to it there (%s)", ws, SteamPage(ws))
 	}
 	if a.Opt.Mirror != "" {
 		var pick []Mirror

@@ -788,6 +788,7 @@ function card(m) {
 function installedKeys() {
   const keys = new Set();
   for (const i of state?.installed || []) { keys.add(i.key); (i.aliases || []).forEach((a) => keys.add(a)); }
+  for (const id of state?.steam_items || []) keys.add("sky:" + id); // subscribed to on Steam
   return keys;
 }
 

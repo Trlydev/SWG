@@ -182,7 +182,10 @@ func (u *ui) loadDetails(d *detailsWin, m app.SearchResult) {
 		add("ID", m.Ref)
 		d.facts.Refresh()
 		d.desc.SetText(orStr(v.Description, "No description."))
-		if v.AfterCutoff {
+		switch {
+		case v.OnSteam:
+			d.sub.Add(pill("on Steam", pOK))
+		case v.AfterCutoff:
 			// A new Workshop upload: it installs only if it has no code.
 			d.sub.Add(pill("new upload: installs only without code", pKind))
 		}
@@ -338,7 +341,9 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 		if mr.Gone {
 			tags = append(tags, pill("file gone", pBad))
 		}
-		if mr.AfterCutoff {
+		if mr.Steam {
+			tags = append(tags, pill("subscribe in Steam", pOK))
+		} else if mr.AfterCutoff {
 			tags = append(tags, pill("new upload: only without code", pKind))
 		}
 		if chosen != "" && mr.ID == chosen {
@@ -354,7 +359,7 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 			line += " · " + mr.Size
 		}
 		main := container.NewHBox(widget.NewLabelWithStyle(mr.Source, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), muted(strings.TrimPrefix(line, " ")))
-		rows = append(rows, u.mirrorRow(d, mr.ID, main, tags, mr.Page, mr.Gone))
+		rows = append(rows, u.mirrorRow(d, mr.ID, main, tags, mr.Page, mr.Gone || mr.Steam))
 	}
 	title := "Mirror"
 	if len(mirrors) > 1 {

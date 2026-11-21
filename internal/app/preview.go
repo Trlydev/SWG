@@ -50,7 +50,9 @@ type modJSON struct {
 func (a *App) Preview(m *manager.Manager, ref string) (*Preview, error) {
 	ref = NormalizeRef(ref)
 	p := &Preview{Ref: ref}
-	c, err := a.Fetch(m, ref, nil)
+	// The safety check scans a copy ppgmods can download: a mirror's, even
+	// when Steam's own copy is the one Install would point to.
+	c, err := a.with(func(o *Options) { o.NoSteam = true }).Fetch(m, ref, nil)
 	if strings.HasPrefix(ref, "sky:") {
 		// After the download, so each copy's mod.json version is known.
 		if list, merr := WorkshopMirrors(strings.TrimPrefix(ref, "sky:"), a.Opt.Name); merr == nil {

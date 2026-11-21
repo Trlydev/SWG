@@ -2,6 +2,7 @@ package app
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -470,5 +471,65 @@ func TestWorkshopMirrorsOnceAtATime(t *testing.T) {
 	wg.Wait()
 	if calls != 1 {
 		t.Errorf("looked up %d times", calls)
+	}
+}
+
+// Steam's own copy ranks first when it is at least as new as the newest
+// mirror copy (same day counts); a newer mirror copy is installed instead.
+// Updates of a copy ppgmods installed, the safety check and --no-steam use
+// a mirror copy.
+func TestSteamCopyRanksFirst(t *testing.T) {
+	freshCopyInfo(t)
+	const ws = "3838486261"
+	dir, _ := CacheDir("sky:" + ws)
+	zipFiles(t, filepath.Join(dir, "topmods-920-art.zip"), map[string]string{
+		"Mod/mod.json": `{"Name":"Art","Author":"a","ModVersion":"1.0"}`, "Mod/sprite.png": "png"})
+	mirrorDay := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
+	set := func(steamAt time.Time, withMirror bool) {
+		list := []Mirror{{ID: "steam:" + ws, Source: "Steam Workshop", Title: "Art", VersionTime: steamAt, Page: SteamPage(ws), Steam: true}}
+		if withMirror {
+			list = append(list, Mirror{ID: "topmods:920", Source: "top-mods", Author: "a", VersionTime: mirrorDay, tm: &sources.TMItem{}})
+		}
+		mirrorMemo[ws] = mirrorMemoEntry{at: time.Now(), list: list}
+	}
+	defer delete(mirrorMemo, ws)
+	st, _ := manager.LoadState()
+	m := &manager.Manager{State: st, ModsDir: t.TempDir()}
+	a := &App{Opt: DefaultOptions()}
+
+	set(mirrorDay.Add(15*time.Hour), true) // same day as the mirror's
+	_, err := a.fetchWorkshop(m, ws)
+	var ns *NeedsSteam
+	if !errors.As(err, &ns) || !ns.Mirror || ns.Page != SteamPage(ws) {
+		t.Fatalf("Steam as new as the mirror: %v", err)
+	}
+	if c, err := a.with(func(o *Options) { o.NoSteam = true }).fetchWorkshop(m, ws); err != nil || c.Mirror != "topmods:920" {
+		t.Fatalf("--no-steam: %v %v", c, err)
+	}
+	if c, err := a.Fetch(m, "sky:"+ws, &manager.Installed{Key: "sky:" + ws}); err != nil || c.Mirror != "topmods:920" {
+		t.Fatalf("update of an installed copy: %v %v", c, err)
+	}
+
+	set(mirrorDay.Add(-48*time.Hour), true) // the mirror has a newer copy
+	if c, err := a.fetchWorkshop(m, ws); err != nil || c.Mirror != "topmods:920" {
+		t.Fatalf("newer mirror copy: %v %v", c, err)
+	}
+
+	set(mirrorDay, false) // only on Steam
+	if _, err := a.fetchWorkshop(m, ws); !errors.As(err, &ns) || ns.Mirror {
+		t.Fatalf("only on Steam: %v", err)
+	}
+
+	// Many at once: no question per item; a mirror copy where there is one,
+	// items only on Steam counted to subscribe to.
+	set(mirrorDay.Add(time.Hour), true)
+	if sum := a.InstallMany(m, []string{"sky:" + ws}); sum.OK != 1 || sum.OnSteam != 0 {
+		t.Fatalf("many, with a mirror copy: %+v", sum)
+	}
+	const ws2 = "3838486262"
+	mirrorMemo[ws2] = mirrorMemoEntry{at: time.Now(), list: []Mirror{{ID: "steam:" + ws2, Source: "Steam Workshop", VersionTime: mirrorDay, Page: SteamPage(ws2), Steam: true}}}
+	defer delete(mirrorMemo, ws2)
+	if sum := a.InstallMany(m, []string{"sky:" + ws2}); sum.OnSteam != 1 || sum.Failed+sum.Refused != 0 {
+		t.Fatalf("many, only on Steam: %+v", sum)
 	}
 }
