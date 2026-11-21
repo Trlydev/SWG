@@ -389,15 +389,31 @@ func (b *browseView) search(q string, page int) {
 		}
 		seen := b.wsTitles
 		b.mu.Unlock()
+		shownAlready := func(name string) bool {
+			t := normTitle(name)
+			return seen[t] && len(t) >= 12 && len(strings.Fields(t)) >= 3
+		}
 		var tw []*app.SearchResult
 		for _, x := range ptrs(lists["tw"]) {
-			t := normTitle(x.Name)
-			if merged[x.Ref] || seen[t] && len(t) >= 12 && len(strings.Fields(t)) >= 3 {
+			if merged[x.Ref] || shownAlready(x.Name) {
 				continue
 			}
 			tw = append(tw, x)
 		}
-		shown := mergeShown(sortV, ptrs(lists["ow"]), tw, ptrs(lists["gb"]), nx, ws, s01)
+		var ow []*app.SearchResult
+		for _, x := range ptrs(lists["ow"]) {
+			if !shownAlready(x.Name) {
+				ow = append(ow, x)
+			}
+		}
+		nxKeep := nx[:0]
+		for _, x := range nx {
+			if !shownAlready(x.Name) {
+				nxKeep = append(nxKeep, x)
+			}
+		}
+		nx = nxKeep
+		shown := mergeShown(sortV, ow, tw, ptrs(lists["gb"]), nx, ws, s01)
 		var waiting []string
 		for _, p := range parts {
 			if pending[p] {
@@ -587,22 +603,22 @@ func sourceBadges(m *app.SearchResult) []fyne.CanvasObject {
 		}
 		return []fyne.CanvasObject{pill("True Workshop", pTW), pill("not reviewed", pWarn)}
 	}
+	// A Workshop card: one tag per site it has a copy on (Steam's own is
+	// the "on Steam" tag).
 	var out []fyne.CanvasObject
-	if m.Source != "01 STUDIO" {
-		l := "Workshop mirror"
-		if len(m.Mirrors) > 1 {
-			l = fmt.Sprintf("%d mirrors", len(m.Mirrors))
+	for _, src := range []struct {
+		prefix, label string
+		kind          pillKind
+	}{
+		{"Skymods", "Skymods", pSky}, {"top-mods", "top-mods", pSky}, {"True Workshop", "True Workshop", pTW},
+		{"01 STUDIO", "01 STUDIO", p01}, {"Nexus", "Nexus", pNX}, {"Open Workshop", "Open Workshop", pOW},
+	} {
+		if hasPrefixAny(m.Mirrors, src.prefix) || src.prefix == "01 STUDIO" && m.Source == "01 STUDIO" {
+			out = append(out, pill(src.label, src.kind))
 		}
-		out = append(out, pill(l, pSky))
 	}
-	if m.Source == "01 STUDIO" || hasPrefixAny(m.Mirrors, "01 STUDIO") {
-		out = append(out, pill("01 STUDIO", p01))
-	}
-	if hasPrefixAny(m.Mirrors, "True Workshop") {
-		out = append(out, pill("True Workshop", pTW)) // also a True Workshop copy
-	}
-	if hasPrefixAny(m.Mirrors, "Nexus") {
-		out = append(out, pill("Nexus", pNX))
+	if len(out) == 0 && !m.OnSteam {
+		out = append(out, pill("Workshop mirror", pSky))
 	}
 	return out
 }
