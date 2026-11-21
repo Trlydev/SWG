@@ -85,6 +85,7 @@ type browseView struct {
 	page      int
 	lastQuery string
 	earlier   []fyne.CanvasObject // cards of the pages before this one
+	wsTitles  map[string]bool     // titles of the Workshop cards shown (all pages), to drop later duplicates
 	cards     map[string]*browseCard
 	selected  map[string]*app.SearchResult // the cart: picked, not yet subscribed
 	busy      bool
@@ -304,6 +305,9 @@ func (b *browseView) search(q string, page int) {
 
 	fyne.Do(func() {
 		if page == 1 {
+			b.mu.Lock()
+			b.wsTitles = map[string]bool{}
+			b.mu.Unlock()
 			b.earlier = nil
 			b.cards = map[string]*browseCard{}
 			b.u.thumbs.forget()
@@ -373,11 +377,25 @@ func (b *browseView) search(q string, page int) {
 				w.Downloads = x.Downloads
 			}
 		}
+		// A True Workshop card whose Workshop card is already shown, on this
+		// page or an earlier one (merging happens per page), isn't shown
+		// again: same exact, distinctive title.
+		b.mu.Lock()
+		if b.wsTitles == nil {
+			b.wsTitles = map[string]bool{}
+		}
+		for _, x := range append(append([]*app.SearchResult{}, ws...), s01...) {
+			b.wsTitles[normTitle(x.Name)] = true
+		}
+		seen := b.wsTitles
+		b.mu.Unlock()
 		var tw []*app.SearchResult
 		for _, x := range ptrs(lists["tw"]) {
-			if !merged[x.Ref] {
-				tw = append(tw, x)
+			t := normTitle(x.Name)
+			if merged[x.Ref] || seen[t] && len(t) >= 12 && len(strings.Fields(t)) >= 3 {
+				continue
 			}
+			tw = append(tw, x)
 		}
 		shown := mergeShown(sortV, ptrs(lists["ow"]), tw, ptrs(lists["gb"]), nx, ws, s01)
 		var waiting []string
@@ -579,6 +597,9 @@ func sourceBadges(m *app.SearchResult) []fyne.CanvasObject {
 	}
 	if m.Source == "01 STUDIO" || hasPrefixAny(m.Mirrors, "01 STUDIO") {
 		out = append(out, pill("01 STUDIO", p01))
+	}
+	if hasPrefixAny(m.Mirrors, "True Workshop") {
+		out = append(out, pill("True Workshop", pTW)) // also a True Workshop copy
 	}
 	if hasPrefixAny(m.Mirrors, "Nexus") {
 		out = append(out, pill("Nexus", pNX))
