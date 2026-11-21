@@ -290,7 +290,7 @@ func (u *ui) mirrorRow(d *detailsWin, id string, main fyne.CanvasObject, tags []
 		right.Add(b)
 	}
 	row := container.NewBorder(nil, nil, container.NewCenter(ic), container.NewCenter(right), main)
-	box := container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(2, 2, 8, 6), row))
+	box := container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(6, 6, 10, 8), row)) // room around two-line rows
 	if off {
 		return container.NewStack(box, canvas.NewRectangle(color.NRGBA{p.surface.R, p.surface.G, p.surface.B, 120}))
 	}
@@ -383,7 +383,7 @@ func (u *ui) renderMirrors(d *detailsWin, mirrors []app.Mirror, chosen string) {
 		head := container.NewBorder(nil, nil, widget.NewLabelWithStyle(mr.Source, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, meta)
 		main := fyne.CanvasObject(head)
 		if len(tags) > 0 {
-			main = container.New(&vlist{gap: 2}, head, flowBox(6, tags...))
+			main = container.New(&vlist{gap: 4}, head, flowBox(6, tags...))
 		}
 		tags = nil
 		// Steam's copy can be checked (and installed) once signed in to Steam.
