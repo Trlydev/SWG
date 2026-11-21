@@ -117,10 +117,15 @@ func (u *ui) openDetails(m app.SearchResult, mirror string) {
 		sheet := container.NewStack(sheetBg, container.NewBorder(nil, nil, vline(), nil,
 			container.NewBorder(nil, actions, nil, nil, container.NewStack(d.scroll, container.NewVBox(top)))))
 		d.open = true
-		d.hide = func() { u.detailHolder.Hide(); u.detailHolder.Objects = nil }
+		d.hide = func() {
+			u.detailHolder.Hide()
+			u.detailHolder.Objects = nil
+			u.body.Refresh() // the page takes the whole width again
+		}
 		u.detailHolder.Objects = []fyne.CanvasObject{sheet}
 		u.detailHolder.Show()
 		u.detailHolder.Refresh()
+		u.body.Refresh() // the page makes room for the panel
 		go u.loadDetails(d, m)
 	}
 	d.check.Objects = []fyne.CanvasObject{container.NewHBox(widget.NewActivity(), muted("Downloading and scanning before install…"))}

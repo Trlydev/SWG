@@ -299,10 +299,9 @@ func (u *ui) build() {
 	// details open beside the page, not over it
 	// (the fixed-width column itself is shown and hidden, so a closed panel
 	// takes no room)
-	u.detailHolder = container.New(&widthLayout{430})
+	u.detailHolder = container.NewStack() // sized by pageLayout
 	u.detailHolder.Hide()
-	u.body = container.NewBorder(container.NewVBox(u.protonBanner, u.updateBanner, u.installBanner), nil, nil,
-		u.detailHolder, u.viewStack)
+	u.body = container.New(pageLayout{}, container.NewVBox(u.protonBanner, u.updateBanner, u.installBanner), u.viewStack, u.detailHolder)
 	u.cover = newSteamCover(u)
 	u.win.SetContent(container.NewStack(container.NewBorder(nil, footer, sideFixed, nil, u.body), u.cover.root))
 	u.win.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
@@ -417,6 +416,41 @@ func (u *ui) play() {
 		}
 		u.toast("Starting People Playground through Steam")
 	}()
+}
+
+// pageLayout places the notices above the page and the details panel beside
+// it. The panel takes about 42% of the width (360 to 460 points); when that
+// would leave the page under 480, it covers the page instead of crushing
+// it (a narrow window cut its text off).
+type pageLayout struct{}
+
+func (pageLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	n, v := objs[0].MinSize(), objs[1].MinSize()
+	return fyne.NewSize(max(n.Width, v.Width), n.Height+v.Height)
+}
+
+func (pageLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	notices, view, det := objs[0], objs[1], objs[2]
+	var nh float32
+	if notices.Visible() {
+		nh = notices.MinSize().Height
+	}
+	notices.Resize(fyne.NewSize(size.Width, nh))
+	notices.Move(fyne.NewPos(0, 0))
+	h := size.Height - nh
+	pageW := size.Width
+	if det.Visible() {
+		dw := min(max(size.Width*0.42, 360), 460)
+		if size.Width-dw < 480 {
+			dw = size.Width // too narrow to share: the panel covers the page
+		} else {
+			pageW = size.Width - dw
+		}
+		det.Resize(fyne.NewSize(dw, h))
+		det.Move(fyne.NewPos(size.Width-dw, nh))
+	}
+	view.Resize(fyne.NewSize(pageW, h))
+	view.Move(fyne.NewPos(0, nh))
 }
 
 // setNotice shows or hides a notice line and lays the page out again: the
