@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Trlydev/SWG/internal/archive"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -141,6 +142,58 @@ type Options struct {
 	// GameManaged is the game's People_Playground_Data/Managed folder: a
 	// bundled DLL identical to the game's own copy is not a payload.
 	GameManaged string
+
+	nested int // archives inside archives being looked into (at most one level)
+}
+
+// scanNested scans the files inside an archive in a mod and adds what it
+// finds under the archive's name. False: it couldn't be looked into (an
+// archive inside an archive, a format or size the extractor refuses).
+func scanNested(r *Report, rel, p string, opt Options) bool {
+	if opt.nested > 0 {
+		return false
+	}
+	tmp, err := os.MkdirTemp("", "ppgmods-nested-")
+	if err != nil {
+		return false
+	}
+	defer os.RemoveAll(tmp)
+	if err := archive.Extract(p, tmp); err != nil {
+		return false
+	}
+	opt.nested++
+	sub, err := DirWith(tmp, opt)
+	if err != nil {
+		return false
+	}
+	r.Files += sub.Files
+	r.Scripts += sub.Scripts
+	for _, f := range sub.Findings {
+		f.File = filepath.Join(rel, f.File)
+		r.Findings = append(r.Findings, f)
+	}
+	r.add(Info, "nested-archive", rel, 0, fmt.Sprintf("archive inside the mod: its %d files were checked too (the game doesn't load archives)", sub.Files))
+	return true
+}
+
+// PruneShortcuts deletes Windows shortcuts (.lnk) under root and returns
+// the relative paths it removed. Authors leave them in mod folders by
+// accident; the game never uses them, and one double-clicked in the folder
+// could run anything, so they are not installed.
+func PruneShortcuts(root string) ([]string, error) {
+	var removed []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.EqualFold(filepath.Ext(p), ".lnk") {
+			rel, _ := filepath.Rel(root, p)
+			removed = append(removed, rel)
+			return os.Remove(p)
+		}
+		return nil
+	})
+	return removed, err
 }
 
 // Dir scans a mod folder (or a folder holding several mods).
@@ -180,7 +233,12 @@ func DirWith(root string, opt Options) (*Report, error) {
 		case executableExt[ext]:
 			r.add(Critical, "executable-file", rel, 0, "executable/script file "+ext+" has no place in a mod")
 		case nestedArchiveExt[ext]:
-			r.add(High, "nested-archive", rel, 0, "archive inside mod cannot be inspected")
+			// The game doesn't load archives; what's inside only matters if
+			// code unpacks it. Look inside (one level, the usual limits):
+			// its files are scanned like the mod's own.
+			if !scanNested(r, rel, p, opt) {
+				r.add(High, "nested-archive", rel, 0, "archive inside mod cannot be inspected")
+			}
 		case ext == ".cs":
 			r.Scripts++
 			b, err := os.ReadFile(p)

@@ -124,6 +124,12 @@ func (m *Manager) Stage(c *Candidate) (string, *scan.Report, error) {
 	} else if len(removed) > 0 {
 		m.logf("  stripped build output: %s", strings.Join(removed, ", "))
 	}
+	if removed, err := scan.PruneShortcuts(dir); err != nil {
+		os.RemoveAll(dir)
+		return "", nil, err
+	} else if len(removed) > 0 {
+		m.logf("  left out Windows shortcuts (the game never uses them): %s", strings.Join(removed, ", "))
+	}
 	rep, err := scan.DirWith(dir, m.scanOpts())
 	if err != nil {
 		os.RemoveAll(dir)

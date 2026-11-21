@@ -434,6 +434,42 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 			add(it.WorkshopID, tmMirror(it))
 		}
 	}
+	// A True Workshop card whose Workshop item isn't among the cards here:
+	// find that item in top-mods' index by its exact, distinctive title, so
+	// the mod shows as one card with both copies (the merge below).
+	var lookups []SearchResult
+	for _, t := range r.TrueWS {
+		if !distinctTitle(t.Name, t.Name) {
+			continue
+		}
+		found := false
+		for _, ws := range order {
+			if e := byWS[ws]; sameMod(t.Name, t.Author, e.Name, e.Author) || distinctTitle(t.Name, e.Name) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			lookups = append(lookups, t)
+		}
+	}
+	if len(lookups) > 0 {
+		items := make([]*sources.TMItem, len(lookups))
+		var wg sync.WaitGroup
+		for i, t := range lookups {
+			wg.Add(1)
+			go func(i int, t SearchResult) {
+				defer wg.Done()
+				items[i] = tmItemForTitle(t)
+			}(i, t)
+		}
+		wg.Wait()
+		for _, it := range items {
+			if it != nil && byWS[it.WorkshopID] == nil {
+				add(it.WorkshopID, tmMirror(it))
+			}
+		}
+	}
 	// A True Workshop upload of a Workshop item found here joins its card
 	// instead of showing up twice.
 	var keepTW []SearchResult
@@ -513,6 +549,34 @@ func SearchParts(q string, page int, parts map[string]bool, opt SearchOpts) Sear
 		r.TrueWS = rerank(r.TrueWS, q, func(x SearchResult) int { return x.Downloads })
 	}
 	return r
+}
+
+// tmItemForTitle finds the Workshop item a True Workshop card is a copy of
+// in top-mods' index: the one entry with exactly its title (distinctive
+// titles only), unless the True Workshop copy's mod.json named another item.
+func tmItemForTitle(t SearchResult) *sources.TMItem {
+	idx, err := sources.TMIndex()
+	if err != nil {
+		return nil
+	}
+	want := normTitle(t.Name)
+	var match *sources.TMSummary
+	for i := range idx {
+		if normTitle(idx[i].Title) == want {
+			if match != nil {
+				return nil // two items with that title: not sure which
+			}
+			match = &idx[i]
+		}
+	}
+	if match == nil {
+		return nil
+	}
+	it, err := sources.TMDetails(match.URL)
+	if err != nil || it.WorkshopID == "" || ugcMismatch("trueworkshop:"+strings.TrimPrefix(t.Ref, "tw:"), it.WorkshopID) {
+		return nil
+	}
+	return it
 }
 
 // markOnSteam marks the Workshop cards whose item is live on the Steam

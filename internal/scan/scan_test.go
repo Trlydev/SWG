@@ -1,10 +1,12 @@
 package scan
 
 import (
+	"archive/zip"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -140,5 +142,49 @@ func TestGameLibraryCopy(t *testing.T) {
 		if f.Rule == "executable-file" && f.File != "UnityEngine.dll" {
 			t.Fatalf("identical copy flagged: %+v", f)
 		}
+	}
+}
+
+// An archive inside a mod is looked into (one level): assets alone are
+// fine, code inside is scanned like the mod's own, deeper archives aren't.
+func TestNestedArchive(t *testing.T) {
+	zipTo := func(p string, files map[string][]byte) {
+		f, _ := os.Create(p)
+		zw := zip.NewWriter(f)
+		for n, b := range files {
+			w, _ := zw.Create(n)
+			w.Write(b)
+		}
+		zw.Close()
+		f.Close()
+	}
+	d := t.TempDir()
+	zipTo(filepath.Join(d, "art.zip"), map[string][]byte{"a.png": []byte("\x89PNG\r\n\x1a\n")})
+	r, _ := Dir(d)
+	if r.Max() >= High {
+		t.Errorf("assets in an archive: %+v", r.Findings)
+	}
+
+	d = t.TempDir()
+	zipTo(filepath.Join(d, "more.zip"), map[string][]byte{"x.cs": []byte(`class A { void B() { System.Diagnostics.Process.Start("cmd"); } }`)})
+	r, _ = Dir(d)
+	found := false
+	for _, f := range r.Findings {
+		if f.Rule == "process-spawn" && f.Severity == Critical && strings.HasPrefix(filepath.ToSlash(f.File), "more.zip/") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("code in an archive not scanned: %+v", r.Findings)
+	}
+
+	inner := filepath.Join(t.TempDir(), "inner.zip")
+	zipTo(inner, map[string][]byte{"a.png": []byte("png")})
+	b, _ := os.ReadFile(inner)
+	d = t.TempDir()
+	zipTo(filepath.Join(d, "outer.zip"), map[string][]byte{"inner.zip": b})
+	r, _ = Dir(d)
+	if r.Max() != High {
+		t.Errorf("archive in an archive: %+v", r.Findings)
 	}
 }

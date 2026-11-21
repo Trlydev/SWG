@@ -1,6 +1,10 @@
 package scan
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // Tricks the old line-based scanner could not see.
 func TestEvasionsCaught(t *testing.T) {
@@ -42,6 +46,43 @@ func TestNoFalsePositives(t *testing.T) {
 	for name, src := range cases {
 		if r := Source("x.cs", src); r.Max() >= High {
 			t.Errorf("%s: flagged %+v", name, r.Findings)
+		}
+	}
+}
+
+// Ways to call any method by name that no reflection-lookup rule sees, and
+// reading an object's own fields (which calls nothing).
+func TestReflectionCracksAndFields(t *testing.T) {
+	cases := []struct {
+		name, src string
+		rule      string
+		sev       Severity
+	}{
+		{"dynamic", `class A { void B(object o) { dynamic d = o; d.Run("x"); } }`, "dynamic-dispatch", High},
+		{"expression trees", `using System.Linq.Expressions; class A { void B() { Expression.Lambda(Expression.Call(typeof(UnityEngine.Application), "OpenURL", null, Expression.Constant("x"))).Compile(); } }`, "dynamic-code", High},
+		{"CreateDelegate", `class A { void B(System.Reflection.MethodInfo m) { System.Delegate.CreateDelegate(typeof(System.Action), m); } }`, "reflection-invoke", High},
+		{"AppDomain.CurrentDomain.Load", `class A { void B(byte[] b) { System.AppDomain.CurrentDomain.Load(b); } }`, "code-loader", Critical},
+		{"fields only", `class A { void B(object o) { foreach (var f in o.GetType().GetFields()) UnityEngine.Debug.Log(f.Name + f.GetValue(o)); } }`, "reflection-fields", Info},
+		{"a field by name", `class A { void B(object c) { var f = c.GetType().GetField("IsLimp"); f.SetValue(c, true); } }`, "reflection-field-by-name", Medium},
+		{"a field by name, with a way to call", `class A { void B(object c) { c.GetType().GetField("IsLimp"); c.GetType().GetMethod("Die").Invoke(c, null); } }`, "reflection-by-name", High},
+		{"UnityEvent internals by name", `class A { void B(UnityEngine.Events.UnityEvent e) { e.GetType().GetField("m_PersistentCalls"); } }`, "reflection-by-name", High},
+		{"fields, then a method by name", `class A { void B(object o) { var f = o.GetType().GetFields(); o.GetType().GetMethod(f[0].Name).Invoke(o, null); } }`, "reflection-enumerate", High},
+	}
+	for _, c := range cases {
+		d := t.TempDir()
+		os.WriteFile(filepath.Join(d, "x.cs"), []byte(c.src), 0o644)
+		r, err := Dir(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, f := range r.Findings {
+			if f.Rule == c.rule && f.Severity == c.sev {
+				found = true
+			}
+		}
+		if !found || r.Max() < c.sev || c.sev < High && r.Max() != c.sev {
+			t.Errorf("%s: want %s %s, got max %s: %+v", c.name, c.sev, c.rule, r.Max(), r.Findings)
 		}
 	}
 }

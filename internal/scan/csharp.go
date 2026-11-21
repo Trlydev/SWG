@@ -37,7 +37,18 @@ var apiRules = []apiRule{
 	{"registry", Critical, []string{"Microsoft.Win32"}, "accesses the Windows registry"},
 	{"code-loader", Critical, []string{"System.Reflection.Assembly.Load", "System.Reflection.Assembly.LoadFrom", "System.Reflection.Assembly.LoadFile",
 		"System.Reflection.Assembly.UnsafeLoadFrom", "System.Reflection.Assembly.LoadWithPartialName", "System.AppDomain.Load", "System.AppDomain.ExecuteAssembly",
+		// The usual way to reach them, through the current domain.
+		"System.AppDomain.CurrentDomain.Load", "System.AppDomain.CurrentDomain.ExecuteAssembly",
 		"System.Runtime.Loader"}, "loads compiled code at runtime (how both FPS++ worms ran their payload)"},
+	// Expression trees build code at run time: Expression.Call(type,
+	// "Method", ...) then Compile() calls any method by name, with no
+	// reflection lookup a rule would see.
+	{"dynamic-code", High, []string{"System.Linq.Expressions.Expression.Call", "System.Linq.Expressions.Expression.Lambda",
+		"System.Linq.Expressions.Expression.Invoke", "System.Linq.Expressions.LambdaExpression.Compile"}, "builds code at run time that can call any method (expression trees)"},
+	// A delegate to a method chosen at run time; CreateDelegate(type,
+	// target, "Method") picks it by name.
+	{"reflection-invoke", High, []string{"System.Delegate.CreateDelegate", "System.Delegate.DynamicInvoke", "System.Reflection.MethodInfo.CreateDelegate"},
+		"makes or calls a delegate to a method chosen at run time"},
 	{"dynamic-code", High, []string{"System.Reflection.Emit", "System.AppDomain", "System.CodeDom", "Microsoft.CSharp", "Microsoft.CodeAnalysis", "Mono.CSharp", "Mono.Cecil"}, "loads or compiles code at runtime"},
 	// The FPS++++ worm never named Assembly.Load: it deserialized ready-made
 	// delegates for it (BinaryFormatter, or ClaimsIdentity's bootstrap
@@ -311,6 +322,34 @@ func analyzeCSharp(r *Report, rel, src string) {
 
 	// Keywords and patterns
 	reflectionByName := false
+	// callsByReflection: the file has a way to call something it finds by
+	// reflection (a method or constructor handle, a delegate made from one,
+	// InvokeMember, CreateInstance, dynamic, expression trees). Without one,
+	// listing fields or properties only reads data.
+	callsByReflection := false
+	// eventInternals: the file touches UnityEvent internals, which the worm
+	// edited through reflection to make an event call any method; fields
+	// read by name stay serious there.
+	eventInternals := false
+	for _, t := range toks {
+		switch t.kind {
+		case tIdent:
+			switch t.text {
+			case "GetMethod", "GetMethods", "GetConstructor", "GetConstructors", "MethodInfo", "ConstructorInfo", "MethodBase",
+				"CreateDelegate", "DynamicInvoke", "InvokeMember", "CreateInstance", "dynamic", "Expression", "GetMember", "GetMembers":
+				callsByReflection = true
+			}
+			// The internals, not events themselves (new UnityEvent() for a
+			// trigger is everyday modding).
+			if strings.Contains(t.text, "PersistentCall") || strings.Contains(t.text, "InvokableCall") || t.text == "UnityEventBase" {
+				eventInternals = true
+			}
+		case tString:
+			if strings.Contains(t.text, "m_PersistentCalls") || strings.Contains(t.text, "m_Calls") || strings.Contains(t.text, "PersistentCall") || strings.Contains(t.text, "m_PersistentListeners") {
+				eventInternals = true
+			}
+		}
+	}
 	charCasts, splitConcats := 0, 0
 	for i, t := range toks {
 		if t.kind == tIdent {
@@ -325,7 +364,13 @@ func analyzeCSharp(r *Report, rel, src string) {
 				}
 			case "GetType", "GetMethod", "GetField", "GetProperty", "GetMember", "InvokeMember", "CreateInstance", "GetTypeFromProgID", "GetTypeFromCLSID":
 				if i > 0 && toks[i-1].text == "." && i+2 < len(toks) && toks[i+1].text == "(" && (toks[i+2].kind == tString || toks[i+2].kind == tIdent && t.text != "GetType") {
-					if toks[i+2].kind == tString || t.text == "InvokeMember" || t.text == "CreateInstance" {
+					if toks[i+2].kind == tString && (t.text == "GetField" || t.text == "GetProperty") && !callsByReflection && !eventInternals {
+						// A field or property named in the code (a game
+						// component's IsLimp, say), read or set: nothing found
+						// this way can be called, as the file has no way to call
+						// it.
+						hit("reflection-field-by-name", Medium, t.line, "reads or sets a field by name: "+t.text+"("+toks[i+2].text+")")
+					} else if toks[i+2].kind == tString || t.text == "InvokeMember" || t.text == "CreateInstance" {
 						// HIGH: RE_PPG's compiler refuses these lookups unless the
 						// player bypasses its security checks, and a name can be
 						// built at runtime where no rule sees it.
@@ -345,8 +390,25 @@ func analyzeCSharp(r *Report, rel, src string) {
 				// Listing types or members, then picking one by a computed
 				// name, reaches any API without naming it.
 				if i > 0 && toks[i-1].text == "." && i+1 < len(toks) && toks[i+1].text == "(" {
+					if (t.text == "GetFields" || t.text == "GetProperties") && !callsByReflection {
+						// Its fields or properties, read or copied (logging an
+						// object, copying a component): nothing found this way
+						// is called, as the file has no way to call it.
+						hit("reflection-fields", Info, t.line, "reads or copies fields through reflection ("+t.text+"); nothing found this way can be called")
+						break
+					}
 					reflectionByName = true
 					hit("reflection-enumerate", High, t.line, "lists types or members through reflection ("+t.text+"), so the scanner cannot tell which one the mod uses")
+				}
+			case "dynamic":
+				// dynamic d = obj; d.Anything(...) calls members by name at
+				// run time, with no reflection a rule would see.
+				if i+1 < len(toks) && (toks[i+1].kind == tIdent || toks[i+1].text == ")" || toks[i+1].text == ">" || toks[i+1].text == "[") {
+					hit("dynamic-dispatch", High, t.line, "calls members by name at run time (dynamic), so the scanner cannot tell which")
+				}
+			case "CreateDelegate":
+				if i > 0 && toks[i-1].text == "." {
+					hit("reflection-invoke", High, t.line, "makes a delegate to a method chosen at run time (CreateDelegate)")
 				}
 			case "char":
 				if i > 0 && toks[i-1].text == "(" && i+2 < len(toks) && toks[i+1].text == ")" && toks[i+2].kind == tNumber {

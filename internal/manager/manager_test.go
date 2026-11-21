@@ -606,3 +606,21 @@ func keysOf(m map[string]*Installed) []string {
 	}
 	return out
 }
+
+// A Windows shortcut an author left in a mod isn't installed (and doesn't
+// block the mod).
+func TestShortcutsLeftOut(t *testing.T) {
+	m := newTestManager(t)
+	src := zipOf(t, map[string]string{
+		"M/mod.json":          `{"Name":"M","Author":"a"}`,
+		"M/a.png":             "png",
+		"M/polpo - skrót.lnk": "L\x00\x00\x00",
+	})
+	if err := m.Install(&Candidate{Key: "gb:1", Name: "M", Path: src}); err != nil {
+		t.Fatal(err)
+	}
+	inst := m.State.Mods["gb:1"]
+	if _, err := os.Stat(filepath.Join(m.ModsDir, inst.Folders[0], "polpo - skrót.lnk")); err == nil {
+		t.Error("the shortcut was installed")
+	}
+}
