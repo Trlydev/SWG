@@ -1053,10 +1053,15 @@ type NeedsBrowser struct {
 	Version    string `json:"version,omitempty"`
 }
 
-// NexusWindow opens a Nexus Mods download page in a window of ppgmods' own
-// browser and returns the nxm:// link once the person clicked Slow download
-// there (cfclear.NexusLink; set by the window). Nil: the person's browser.
-var NexusWindow func(page string, cancel <-chan struct{}) (string, error)
+// NexusWindow opens a Nexus Mods download page in a window on ppgmods' own
+// browser profile, where the person clicks Slow download; the file comes
+// through the nxm:// handler. It returns ErrNexusWindowClosed when the
+// person closes the window, nil once cancel closes it (cfclear.NexusWindow;
+// set by the window). Nil: the person's browser.
+var NexusWindow func(page string, cancel <-chan struct{}) error
+
+// ErrNexusWindowClosed: the person closed the Nexus Mods window.
+var ErrNexusWindowClosed = errors.New("the Nexus Mods window was closed")
 
 // nexusBrowser is the browser download of a Nexus Mods file (its files are
 // given to signed-in users).
@@ -1389,20 +1394,13 @@ func (a *App) viaBrowser(nb *NeedsBrowser) (*manager.Candidate, error) {
 	// The page opens in a window of ppgmods' own browser when it can: the
 	// person clicks Slow download there and the window passes the link on
 	// (no switching to their browser). Their browser is the fallback.
-	var winLink <-chan string
 	var winErr <-chan error
 	if nxm != nil && NexusWindow != nil {
 		cancel := make(chan struct{})
-		defer close(cancel)
-		wl, we := make(chan string, 1), make(chan error, 1)
-		winLink, winErr = wl, we
-		go func() {
-			if l, err := NexusWindow(page, cancel); err != nil {
-				we <- err
-			} else {
-				wl <- l
-			}
-		}()
+		defer close(cancel) // the install is done with the window: close it
+		we := make(chan error, 1)
+		winErr = we
+		go func() { we <- NexusWindow(page, cancel) }()
 		a.logf("Opened the Nexus Mods page in a ppgmods window: click Slow download there (sign in to Nexus the first time).")
 	} else {
 		a.logf("Opening the download page in your browser: %s", page)
@@ -1417,7 +1415,7 @@ func (a *App) viaBrowser(nb *NeedsBrowser) (*manager.Candidate, error) {
 		return nil, fmt.Errorf("download the file in your browser, then import it with workshop id %s", nb.WorkshopID)
 	}
 	since := time.Now()
-	if winLink == nil {
+	if winErr == nil {
 		openPage(page)
 	}
 	prefix := nb.WorkshopID
@@ -1471,17 +1469,28 @@ wait:
 		select {
 		case raw := <-nxm:
 			return handOver(raw)
-		case raw := <-winLink:
-			return handOver(raw)
 		case werr := <-winErr:
 			winErr = nil
+			if werr == nil {
+				continue
+			}
+			if errors.Is(werr, ErrNexusWindowClosed) {
+				// Closed right after the click: the hand-over may still be
+				// on its way.
+				select {
+				case raw := <-nxm:
+					return handOver(raw)
+				case <-time.After(5 * time.Second):
+				}
+				return nil, errors.New("the Nexus Mods window was closed before Nexus handed over the file")
+			}
 			if time.Since(since) < 10*time.Second {
 				// No window (no usable browser): the person's browser it is.
 				a.logf("  couldn't open a ppgmods window (%v): opening the page in your browser", werr)
 				openPage(page)
 				continue
 			}
-			return nil, fmt.Errorf("the Nexus Mods window closed before Slow download was clicked (%v)", werr)
+			a.logf("  the Nexus Mods window: %v", werr)
 		case r := <-gotFile:
 			file, err = r.file, r.err
 			break wait

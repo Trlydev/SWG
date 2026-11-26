@@ -401,11 +401,15 @@ func Run(opt app.Options, g Options) error {
 		}
 	}
 	s := &server{opt: opt, version: g.Version, token: token, host: ln.Addr().String(), quit: make(chan struct{})}
-	sources.Warn = s.logf                                                         // catalogue listings that a cap cut short
-	cfclear.WireSkymods(s.logf)                                                   // Skymods passes Cloudflare's check by itself in the background
-	cfclear.WireModsbase(s.logf)                                                  // modsbase links through the background browser when its check is up
-	app.NexusWindow = func(page string, cancel <-chan struct{}) (string, error) { // Nexus pages in a ppgmods window
-		return cfclear.NexusLink(page, cancel, s.logf)
+	sources.Warn = s.logf                                               // catalogue listings that a cap cut short
+	cfclear.WireSkymods(s.logf)                                         // Skymods passes Cloudflare's check by itself in the background
+	cfclear.WireModsbase(s.logf)                                        // modsbase links through the background browser when its check is up
+	app.NexusWindow = func(page string, cancel <-chan struct{}) error { // Nexus pages in a ppgmods window
+		if err := cfclear.NexusWindow(page, cancel, s.logf); errors.Is(err, cfclear.ErrWindowClosed) {
+			return app.ErrNexusWindowClosed
+		} else {
+			return err
+		}
 	}
 	if native {
 		s.show = make(chan struct{}, 1)
