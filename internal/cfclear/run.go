@@ -70,6 +70,14 @@ type Options struct {
 	// is a promise) is returned as Result.HTML. It does what the page's own
 	// buttons do (see ModsbaseLink); it never answers a check.
 	Script string
+	// Poll, when set (a window only), is evaluated in whatever page shows,
+	// every half second, until it answers: "" keeps waiting, "BACK" opens
+	// the url again (the person wandered off, e.g. after signing in), any
+	// other string is returned as Result.HTML. Unlike Script it survives
+	// the page navigating. It reads what the person did; it never acts.
+	Poll string
+	// Cancel, when closed, ends a Poll early (ErrCancelled).
+	Cancel <-chan struct{}
 	// Browser is a browser executable to use. Empty: found automatically.
 	Browser string
 	// Logf receives progress notes.
@@ -227,6 +235,15 @@ func (s *chromeSession) read(u string, opt Options, logf func(string, ...any)) (
 		}
 		return nil, fmt.Errorf("the browser could not open the page: %w", err)
 	}
+	if opt.Poll != "" {
+		return pollPage(ctx, opt, func(ctx context.Context) (string, error) {
+			var out string
+			err := chromedp.Run(ctx, chromedp.Evaluate(opt.Poll, &out))
+			return out, err
+		}, func(ctx context.Context) error {
+			return chromedp.Run(ctx, chromedp.Navigate(u))
+		}, func(error) bool { return false })
+	}
 	if opt.Script != "" {
 		var out string
 		err := chromedp.Run(ctx, chromedp.Evaluate(opt.Script, &out, func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
@@ -281,6 +298,49 @@ func (s *chromeSession) read(u string, opt Options, logf func(string, ...any)) (
 		select {
 		case <-ctx.Done():
 			return nil, timeoutErr(opt)
+		case <-tick.C:
+		}
+	}
+}
+
+// ErrCancelled: Options.Cancel ended the wait.
+var ErrCancelled = errors.New("no longer needed")
+
+// pollPage runs Options.Poll until it answers. eval fails while the page
+// navigates: only failures that last (closed reports the window is gone, or
+// 15 s in a row) end it.
+func pollPage(ctx context.Context, opt Options, eval func(context.Context) (string, error), back func(context.Context) error, closed func(error) bool) (*Result, error) {
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	var failingSince time.Time
+	for {
+		out, err := eval(ctx)
+		switch {
+		case err != nil:
+			if ctx.Err() != nil {
+				return nil, timeoutErr(opt)
+			}
+			if closed(err) {
+				return nil, errors.New("the browser window was closed")
+			}
+			if failingSince.IsZero() {
+				failingSince = time.Now()
+			} else if time.Since(failingSince) > 15*time.Second {
+				return nil, errors.New("the browser window was closed")
+			}
+		case out == "BACK":
+			failingSince = time.Time{}
+			back(ctx)
+		case out != "":
+			return &Result{HTML: out, At: time.Now().UTC()}, nil
+		default:
+			failingSince = time.Time{}
+		}
+		select {
+		case <-ctx.Done():
+			return nil, timeoutErr(opt)
+		case <-opt.Cancel:
+			return nil, ErrCancelled
 		case <-tick.C:
 		}
 	}

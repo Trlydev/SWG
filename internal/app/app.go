@@ -1053,6 +1053,11 @@ type NeedsBrowser struct {
 	Version    string `json:"version,omitempty"`
 }
 
+// NexusWindow opens a Nexus Mods download page in a window of ppgmods' own
+// browser and returns the nxm:// link once the person clicked Slow download
+// there (cfclear.NexusLink; set by the window). Nil: the person's browser.
+var NexusWindow func(page string, cancel <-chan struct{}) (string, error)
+
 // nexusBrowser is the browser download of a Nexus Mods file (its files are
 // given to signed-in users).
 func nexusBrowser(it sources.NXMod, key string) *NeedsBrowser {
@@ -1173,6 +1178,9 @@ func (a *App) Fetch(m *manager.Manager, ref string, prev *manager.Installed) (*m
 		if c := a.nexusViaWorkshop(m, *it, ref); c != nil {
 			return c, nil
 		}
+		if c := a.nexusViaCopy(*it, ref); c != nil {
+			return c, nil
+		}
 		return nil, nexusBrowser(*it, ref)
 	}
 	return nil, fmt.Errorf("unknown reference %q; use gb:<id>, sky:<workshop id>, tw:<id>, nx:<id>, or a mod page link", ref)
@@ -1199,6 +1207,49 @@ func (a *App) nexusViaWorkshop(m *manager.Manager, it sources.NXMod, ref string)
 	a.logf("%s is Steam Workshop item %s: installing its mirror copy (version %q), no Nexus download needed", ref, ws, c.Version)
 	c.Aliases = append(c.Aliases, ref)
 	return c
+}
+
+// nexusViaCopy returns a True Workshop or GameBanana upload of the same mod
+// as a Nexus upload (the same name, by the same author or uploader), when it
+// is no older than the Nexus upload, so the person needn't download from
+// Nexus by hand; else nil. Both download without anyone's help, and the copy
+// goes through the same scan and install checks as any other.
+func (a *App) nexusViaCopy(it sources.NXMod, ref string) *manager.Candidate {
+	same := func(title, author string) bool {
+		return sameMod(title, author, it.Name, it.Author) || it.Uploader != "" && sameMod(title, author, it.Name, it.Uploader)
+	}
+	since := it.UpdatedTime().Add(-24 * time.Hour) // the sites' clocks and day-only dates
+	if all, err := sources.TWAll(); err == nil {
+		for _, t := range all {
+			if t.Type != "mod" || !same(t.Title, t.Author) || t.CreatedTime().Before(since) {
+				continue
+			}
+			c, err := a.fetchTW(t.ID, nil)
+			if err != nil || c == nil {
+				a.logf("%s: True Workshop has it (tw:%d) but it couldn't be had (%v); trying the rest", ref, t.ID, err)
+				continue
+			}
+			a.logf("%s is also on True Workshop (tw:%d, uploaded %s): installing that copy, no Nexus download needed", ref, t.ID, FmtTime(t.CreatedTime()))
+			c.Aliases = append(c.Aliases, ref)
+			return c
+		}
+	}
+	if all, err := sources.GBAll(); err == nil {
+		for _, g := range all {
+			if !same(g.Name, g.Submitter.Name) || time.Unix(g.Modified, 0).Before(since) {
+				continue
+			}
+			c, err := a.fetchGB(g.ID, 0, nil)
+			if err != nil || c == nil {
+				a.logf("%s: GameBanana has it (gb:%d) but it couldn't be had (%v); trying the rest", ref, g.ID, err)
+				continue
+			}
+			a.logf("%s is also on GameBanana (gb:%d, updated %s): installing that copy, no Nexus download needed", ref, g.ID, FmtTime(time.Unix(g.Modified, 0)))
+			c.Aliases = append(c.Aliases, ref)
+			return c
+		}
+	}
+	return nil
 }
 
 // preferMirror reports whether a mirror copy of version mirror is as new as
@@ -1335,18 +1386,40 @@ func (a *App) viaBrowser(nb *NeedsBrowser) (*manager.Candidate, error) {
 			page = withQuery(page, "nmm", "1")
 		}
 	}
-	a.logf("Opening the download page in your browser: %s", page)
-	if nxm != nil {
-		a.logf("Click Slow download: Nexus Mods hands the file straight to ppgmods.")
+	// The page opens in a window of ppgmods' own browser when it can: the
+	// person clicks Slow download there and the window passes the link on
+	// (no switching to their browser). Their browser is the fallback.
+	var winLink <-chan string
+	var winErr <-chan error
+	if nxm != nil && NexusWindow != nil {
+		cancel := make(chan struct{})
+		defer close(cancel)
+		wl, we := make(chan string, 1), make(chan error, 1)
+		winLink, winErr = wl, we
+		go func() {
+			if l, err := NexusWindow(page, cancel); err != nil {
+				we <- err
+			} else {
+				wl <- l
+			}
+		}()
+		a.logf("Opened the Nexus Mods page in a ppgmods window: click Slow download there (sign in to Nexus the first time).")
 	} else {
-		a.logf("Click the real download button (ignore ads; never run an .exe).")
+		a.logf("Opening the download page in your browser: %s", page)
+		if nxm != nil {
+			a.logf("Click Slow download: Nexus Mods hands the file straight to ppgmods.")
+		} else {
+			a.logf("Click the real download button (ignore ads; never run an .exe).")
+		}
 	}
 	if a.Opt.NoWatch || (dl == "" && nxm == nil) {
 		openPage(page)
 		return nil, fmt.Errorf("download the file in your browser, then import it with workshop id %s", nb.WorkshopID)
 	}
 	since := time.Now()
-	openPage(page)
+	if winLink == nil {
+		openPage(page)
+	}
 	prefix := nb.WorkshopID
 	switch {
 	case nxm != nil && dl == "":
@@ -1378,11 +1451,13 @@ func (a *App) viaBrowser(nb *NeedsBrowser) (*manager.Candidate, error) {
 	}()
 	var file string
 	var err error
-	select {
-	case raw := <-nxm:
+	handOver := func(raw string) (*manager.Candidate, error) {
 		link, err := sources.ParseNXM(raw)
 		if err != nil {
 			return nil, err
+		}
+		if link.ModID != modID || link.FileID != nb.FileID {
+			return nil, fmt.Errorf("Nexus Mods handed over file %d of mod %d, not the file this install needs (file %d of mod %d)", link.FileID, link.ModID, nb.FileID, modID)
 		}
 		a.logf("Nexus Mods handed over file %d", link.FileID)
 		c, err := a.fetchNexus(modID, link)
@@ -1390,8 +1465,27 @@ func (a *App) viaBrowser(nb *NeedsBrowser) (*manager.Candidate, error) {
 			c.Key = nb.Key
 		}
 		return c, err
-	case r := <-gotFile:
-		file, err = r.file, r.err
+	}
+wait:
+	for {
+		select {
+		case raw := <-nxm:
+			return handOver(raw)
+		case raw := <-winLink:
+			return handOver(raw)
+		case werr := <-winErr:
+			winErr = nil
+			if time.Since(since) < 10*time.Second {
+				// No window (no usable browser): the person's browser it is.
+				a.logf("  couldn't open a ppgmods window (%v): opening the page in your browser", werr)
+				openPage(page)
+				continue
+			}
+			return nil, fmt.Errorf("the Nexus Mods window closed before Slow download was clicked (%v)", werr)
+		case r := <-gotFile:
+			file, err = r.file, r.err
+			break wait
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%v; when you have the file, import it with workshop id %s", err, nb.WorkshopID)

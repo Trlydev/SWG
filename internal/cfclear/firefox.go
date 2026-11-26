@@ -221,6 +221,20 @@ func (s *ffSession) read(u string, opt Options, logf func(string, ...any)) (*Res
 	} else if _, err := c.call(ctx, "browsingContext.navigate", map[string]any{"context": tab, "url": u, "wait": wait}); err != nil {
 		return nil, fmt.Errorf("the background browser stopped: %w", err)
 	}
+	if opt.Poll != "" {
+		return pollPage(ctx, opt, func(ctx context.Context) (string, error) {
+			raw, err := c.call(ctx, "script.evaluate", map[string]any{
+				"expression": opt.Poll, "target": map[string]any{"context": tab}, "awaitPromise": false,
+			})
+			if err != nil {
+				return "", err
+			}
+			return evalString(raw), nil
+		}, func(ctx context.Context) error {
+			_, err := c.call(ctx, "browsingContext.navigate", map[string]any{"context": tab, "url": u, "wait": "none"})
+			return err
+		}, func(err error) bool { return strings.Contains(err.Error(), "closed the connection") })
+	}
 	if opt.Script != "" {
 		raw, err := c.call(ctx, "script.evaluate", map[string]any{
 			"expression": opt.Script, "target": map[string]any{"context": tab}, "awaitPromise": true,
